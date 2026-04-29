@@ -143,3 +143,39 @@ a:hover {
   color: #8a8a92;
   margin-bottom: 24px;
 }
+
+.repository-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.repository-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #3a3a42;
+  border-radius: 8px;
+  background: #26262b;
+  color: inherit;
+  text-decoration: none;
+}
+
+.repository-list__item:hover {
+  background: #2d2d33;
+  text-decoration: none;
+}
+
+.repository-list__item-name {
+  font-weight: 600;
+}
+
+.repository-list__item-path {
+  color: #8a8a92;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
