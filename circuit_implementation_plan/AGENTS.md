@@ -41,11 +41,19 @@ Workflow execution starts only by the user clicking a button. File-change watche
 
 Ultimately, the workflow schema must be readable and executable by a coding agent. Do not save only UI state that is human-readable.
 
+## Required Tests
+
+Every Phase implementation must include both UI tests and unit tests for the code introduced or changed in that Phase.
+
+- Unit tests cover schema, runner, and other pure-logic modules.
+- UI tests cover the Editor and other React components, including user interactions described in the Phase.
+- Tests must pass before the Phase is considered complete. Test commands and results are recorded in the briefing's `Verification` section.
+
 ## Required Phase Completion
 
 After completing each Phase, a briefing file must be written. The briefing must be written in Korean.
 
-After the briefing is written, the coding agent must commit all changes from that Phase as a single commit. The commit message subject should reference the Phase number (e.g. `Phase 0: foundation`).
+After the briefing is written, the coding agent must commit all changes from that Phase as a single commit. The commit message subject should reference the Phase number (e.g. `Phase 0: foundation`). The commit must be made only after the required tests above pass.
 
 
 ## Required End-of-Phase Briefing
