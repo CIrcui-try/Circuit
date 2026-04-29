@@ -1,0 +1,145 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.88);
+  background-color: #1e1e22;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  background: #2d2d33;
+  color: inherit;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+button:hover {
+  background: #36363d;
+}
+
+a {
+  color: #6aa9ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  color: #7a7a82;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 240px 1fr 280px;
+  grid-template-rows: 44px 1fr 180px;
+  grid-template-areas:
+    "toolbar toolbar  toolbar"
+    "sidebar canvas   props"
+    "log     log      log";
+  height: 100vh;
+  width: 100vw;
+}
+
+.workspace__toolbar {
+  grid-area: toolbar;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: #26262b;
+  border-bottom: 1px solid #3a3a42;
+}
+
+.workspace__toolbar-title {
+  font-weight: 600;
+  margin-right: 16px;
+}
+
+.workspace__toolbar-spacer {
+  flex: 1;
+}
+
+.workspace__sidebar {
+  grid-area: sidebar;
+  background: #26262b;
+  border-right: 1px solid #3a3a42;
+  overflow: auto;
+}
+
+.workspace__canvas {
+  grid-area: canvas;
+  background: #1b1b1f;
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace__props {
+  grid-area: props;
+  background: #26262b;
+  border-left: 1px solid #3a3a42;
+  overflow: auto;
+}
+
+.workspace__log {
+  grid-area: log;
+  background: #1a1a1e;
+  border-top: 1px solid #3a3a42;
+  overflow: auto;
+}
+
+.panel-header {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8a92;
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid #2f2f36;
+}
+
+.repository-list {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.repository-list__heading {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+.repository-list__hint {
+  color: #8a8a92;
+  margin-bottom: 24px;
+}
