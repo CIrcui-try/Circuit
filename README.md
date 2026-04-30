@@ -15,6 +15,13 @@ This plan starts from the current state and reorganizes the next steps:
 - Phase 06: Manual Runner
 - Phase 07: Run Visualization
 - Phase 08: Agent Handoff Contract
+- Phase 09: Runtime Bridge
+- Phase 10: Skill Execution Contract
+- Phase 11: Agent Adapter Interface
+- Phase 12: Claude Adapter
+- Phase 13: Codex Adapter
+- Phase 14: Real Workflow Runner
+- Phase 15: Runtime Safety Controls
 
 ## Product Definition
 
@@ -59,3 +66,49 @@ Tauri bridge: mock in UI tests
 During early phases, Playwright should run against the React/Vite app, not necessarily the packaged Tauri app. Tauri-specific APIs such as repository selection, file reads, and skill discovery should be called through a bridge interface that can be mocked in tests.
 
 Each future phase must add or update at least one test protecting the main behavior introduced in that phase.
+
+## Runtime Phases (09-15)
+
+Phase 00-08 cover repository management, skill discovery, the visual editor, the workflow schema, the mock runner, run visualization, and the agent handoff contract. None of those phases actually execute a Claude or Codex agent. Phase 09 onward turns the workflow schema into real local execution:
+
+```text
+workflow schema
+  -> real workflow runner
+  -> provider-specific agent adapter
+  -> Claude/Codex CLI
+  -> local repository changes
+  -> run logs surfaced in Circuit UI
+```
+
+## Runtime Architecture Principle
+
+Circuit frontend must not directly execute shell commands. All local runtime behavior must go through a Tauri backend bridge.
+
+```text
+React UI
+  -> Runtime Bridge
+  -> Agent Adapter
+  -> Claude / Codex process
+  -> Local repository
+```
+
+## MVP Runtime Policy
+
+**Allowed**
+
+- Claude adapter execution
+- Codex adapter execution
+- Reading repository-local `SKILL.md`
+- stdout / stderr streaming
+- Timeout
+- Cancel
+- Run log persistence
+
+**Excluded**
+
+- Arbitrary shell command nodes
+- Automatic file mutation triggers
+- Automatic `git push`
+- Automatic deployment
+- Execution of global skill directories
+- Filesystem access outside the repository root
