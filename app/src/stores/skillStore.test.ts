@@ -1,23 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const tauriCoreMock = vi.hoisted(() => ({
-  invoke: vi.fn(),
+const bridgeMock = vi.hoisted(() => ({
+  openRepositoryDialog: vi.fn(),
+  scanSkills: vi.fn(),
+  loadRepositories: vi.fn(),
+  saveRepositories: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: tauriCoreMock.invoke,
+vi.mock("../host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
 }));
 
 import { useSkillStore } from "./skillStore";
 
 beforeEach(() => {
-  tauriCoreMock.invoke.mockReset();
+  bridgeMock.scanSkills.mockReset();
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
 });
 
 describe("skillStore — scanRepository", () => {
   it("S1: maps RawSkill array into Skill list with deterministic id", async () => {
-    tauriCoreMock.invoke.mockResolvedValueOnce([
+    bridgeMock.scanSkills.mockResolvedValueOnce([
       {
         provider: "claude",
         dirName: "implement-feature",
@@ -36,9 +39,7 @@ describe("skillStore — scanRepository", () => {
 
     await useSkillStore.getState().scanRepository("repo-1", "/path/to/repo");
 
-    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-      repoPath: "/path/to/repo",
-    });
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/path/to/repo");
 
     const skills = useSkillStore.getState().byRepo["repo-1"];
     expect(skills).toEqual([
@@ -63,8 +64,8 @@ describe("skillStore — scanRepository", () => {
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 
-  it("S2: surfaces error message when invoke rejects", async () => {
-    tauriCoreMock.invoke.mockRejectedValueOnce(new Error("repository path does not exist"));
+  it("S2: surfaces error message when bridge rejects", async () => {
+    bridgeMock.scanSkills.mockRejectedValueOnce(new Error("repository path does not exist"));
 
     await useSkillStore.getState().scanRepository("repo-x", "/missing");
 
@@ -77,7 +78,7 @@ describe("skillStore — scanRepository", () => {
 
   it("S3: dedupes concurrent scans for the same repoId", async () => {
     let resolve: (v: unknown) => void = () => {};
-    tauriCoreMock.invoke.mockImplementationOnce(
+    bridgeMock.scanSkills.mockImplementationOnce(
       () => new Promise((r) => (resolve = r)),
     );
 
@@ -88,12 +89,12 @@ describe("skillStore — scanRepository", () => {
     resolve([]);
     await Promise.all([a, b]);
 
-    expect(tauriCoreMock.invoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.scanSkills).toHaveBeenCalledTimes(1);
     expect(useSkillStore.getState().byRepo["repo-c"]).toEqual([]);
   });
 
   it("S4: stringifies non-Error rejection values", async () => {
-    tauriCoreMock.invoke.mockRejectedValueOnce("plain string error");
+    bridgeMock.scanSkills.mockRejectedValueOnce("plain string error");
 
     await useSkillStore.getState().scanRepository("repo-s", "/p");
 

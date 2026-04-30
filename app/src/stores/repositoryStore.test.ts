@@ -1,33 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const storeMock = vi.hoisted(() => ({
-  data: new Map<string, unknown>(),
-  get: vi.fn(),
-  set: vi.fn(),
-  save: vi.fn(),
+const bridgeMock = vi.hoisted(() => ({
+  store: new Map<string, unknown>(),
+  openRepositoryDialog: vi.fn(),
+  scanSkills: vi.fn(),
+  loadRepositories: vi.fn(),
+  saveRepositories: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-store", () => ({
-  LazyStore: class {
-    get = storeMock.get;
-    set = storeMock.set;
-    save = storeMock.save;
-  },
+vi.mock("../host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
 }));
 
-import { useRepositoryStore } from "./repositoryStore";
+import { useRepositoryStore, type Repository } from "./repositoryStore";
 
 beforeEach(() => {
-  storeMock.data.clear();
-  storeMock.get.mockReset();
-  storeMock.set.mockReset();
-  storeMock.save.mockReset();
+  bridgeMock.store.clear();
+  bridgeMock.openRepositoryDialog.mockReset();
+  bridgeMock.scanSkills.mockReset();
+  bridgeMock.loadRepositories.mockReset();
+  bridgeMock.saveRepositories.mockReset();
 
-  storeMock.get.mockImplementation(async (key: string) => storeMock.data.get(key));
-  storeMock.set.mockImplementation(async (key: string, value: unknown) => {
-    storeMock.data.set(key, value);
+  bridgeMock.loadRepositories.mockImplementation(
+    async () => (bridgeMock.store.get("repositories") as Repository[]) ?? null,
+  );
+  bridgeMock.saveRepositories.mockImplementation(async (repos: Repository[]) => {
+    bridgeMock.store.set("repositories", repos);
   });
-  storeMock.save.mockImplementation(async () => {});
 
   useRepositoryStore.setState({
     repositories: [],
@@ -45,7 +44,7 @@ describe("repositoryStore — hydrate", () => {
   });
 
   it("U2: loads persisted repositories into memory", async () => {
-    const seeded = [
+    const seeded: Repository[] = [
       {
         id: "11111111-1111-4111-8111-111111111111",
         name: "alpha",
@@ -54,7 +53,7 @@ describe("repositoryStore — hydrate", () => {
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
     ];
-    storeMock.data.set("repositories", seeded);
+    bridgeMock.store.set("repositories", seeded);
 
     await useRepositoryStore.getState().hydrate();
 
@@ -65,7 +64,7 @@ describe("repositoryStore — hydrate", () => {
   it("U3: skips re-hydration when already hydrated", async () => {
     await useRepositoryStore.getState().hydrate();
     await useRepositoryStore.getState().hydrate();
-    expect(storeMock.get).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.loadRepositories).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -97,26 +96,16 @@ describe("repositoryStore — addRepository", () => {
     const repos = useRepositoryStore.getState().repositories;
     expect(repos).toHaveLength(1);
     expect(repos[0].path).toBe("/Users/foo/bar");
-    expect(storeMock.set).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.saveRepositories).toHaveBeenCalledTimes(1);
   });
 
-  it("U6: persists via store.set then store.save", async () => {
+  it("U6: persists via bridge.saveRepositories with the new repo list", async () => {
     await useRepositoryStore.getState().hydrate();
-
-    const setOrder: string[] = [];
-    storeMock.set.mockImplementationOnce(async (key: string, value: unknown) => {
-      setOrder.push("set");
-      storeMock.data.set(key, value);
-    });
-    storeMock.save.mockImplementationOnce(async () => {
-      setOrder.push("save");
-    });
 
     await useRepositoryStore.getState().addRepository("/Users/me/repo");
 
-    expect(setOrder).toEqual(["set", "save"]);
-    expect(storeMock.set).toHaveBeenCalledWith("repositories", expect.any(Array));
-    const persisted = storeMock.data.get("repositories") as Array<{ path: string }>;
+    expect(bridgeMock.saveRepositories).toHaveBeenCalledTimes(1);
+    const persisted = bridgeMock.store.get("repositories") as Array<{ path: string }>;
     expect(persisted).toHaveLength(1);
     expect(persisted[0].path).toBe("/Users/me/repo");
   });
@@ -136,7 +125,7 @@ describe("repositoryStore — selectRepository", () => {
 });
 
 describe("repositoryStore — removeRepository", () => {
-  const seed = [
+  const seed: Repository[] = [
     {
       id: "id-a",
       name: "a",
@@ -153,21 +142,18 @@ describe("repositoryStore — removeRepository", () => {
     },
   ];
 
-  it("Rm1: removes the matching repo and persists via store.set + save; unknown id is no-op", async () => {
+  it("Rm1: removes the matching repo and persists; unknown id is no-op", async () => {
     useRepositoryStore.setState({ repositories: seed, selectedId: null, hydrated: true });
 
     await useRepositoryStore.getState().removeRepository("id-a");
     expect(useRepositoryStore.getState().repositories).toEqual([seed[1]]);
-    expect(storeMock.set).toHaveBeenCalledWith("repositories", [seed[1]]);
-    expect(storeMock.save).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.saveRepositories).toHaveBeenCalledWith([seed[1]]);
 
-    storeMock.set.mockClear();
-    storeMock.save.mockClear();
+    bridgeMock.saveRepositories.mockClear();
 
     await useRepositoryStore.getState().removeRepository("does-not-exist");
     expect(useRepositoryStore.getState().repositories).toEqual([seed[1]]);
-    expect(storeMock.set).not.toHaveBeenCalled();
-    expect(storeMock.save).not.toHaveBeenCalled();
+    expect(bridgeMock.saveRepositories).not.toHaveBeenCalled();
   });
 
   it("Rm2: clears selectedId when removing the currently selected repo, leaves it otherwise", async () => {

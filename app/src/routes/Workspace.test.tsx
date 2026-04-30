@@ -2,26 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-const storeMock = vi.hoisted(() => ({
-  get: vi.fn(async () => undefined),
-  set: vi.fn(async () => {}),
-  save: vi.fn(async () => {}),
+const bridgeMock = vi.hoisted(() => ({
+  openRepositoryDialog: vi.fn(),
+  scanSkills: vi.fn(async () => []),
+  loadRepositories: vi.fn(async () => null),
+  saveRepositories: vi.fn(async () => {}),
 }));
 
-const tauriCoreMock = vi.hoisted(() => ({
-  invoke: vi.fn(async () => []),
-}));
-
-vi.mock("@tauri-apps/plugin-store", () => ({
-  LazyStore: class {
-    get = storeMock.get;
-    set = storeMock.set;
-    save = storeMock.save;
-  },
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: tauriCoreMock.invoke,
+vi.mock("../host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
 }));
 
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
@@ -48,8 +37,8 @@ function renderAt(route: string) {
 }
 
 beforeEach(() => {
-  tauriCoreMock.invoke.mockReset();
-  tauriCoreMock.invoke.mockResolvedValue([]);
+  bridgeMock.scanSkills.mockReset();
+  bridgeMock.scanSkills.mockResolvedValue([]);
 
   useRepositoryStore.setState({
     repositories: [],
@@ -96,15 +85,13 @@ describe("Workspace", () => {
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
   });
 
-  it("W5b: triggers scan_skills with the active repo path on mount", async () => {
+  it("W5b: triggers scanSkills with the active repo path on mount", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
 
     await vi.waitFor(() => {
-      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-        repoPath: "/Users/me/alpha",
-      });
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/alpha");
     });
   });
 
@@ -116,5 +103,14 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: /Workflow/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Save/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Start Circuit/i })).toBeDisabled();
+  });
+
+  it("W6: workspace root and workflow-canvas testids are present", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workspace-root")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
   });
 });

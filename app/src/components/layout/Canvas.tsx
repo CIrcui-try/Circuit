@@ -3,7 +3,7 @@ import "@xyflow/react/dist/style.css";
 
 export function Canvas() {
   return (
-    <section className="workspace__canvas">
+    <section className="workspace__canvas" data-testid="workflow-canvas">
       <ReactFlow nodes={[]} edges={[]} colorMode="dark" fitView>
         <Background gap={16} />
         <Controls />

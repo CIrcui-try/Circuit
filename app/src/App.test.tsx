@@ -2,24 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-const storeMock = vi.hoisted(() => ({
-  get: vi.fn(async () => undefined),
-  set: vi.fn(async () => {}),
-  save: vi.fn(async () => {}),
+const bridgeMock = vi.hoisted(() => ({
+  openRepositoryDialog: vi.fn(async () => null),
+  scanSkills: vi.fn(async () => []),
+  loadRepositories: vi.fn(async () => null),
+  saveRepositories: vi.fn(async () => {}),
 }));
 
-vi.mock("@tauri-apps/plugin-store", () => ({
-  LazyStore: class {
-    get = storeMock.get;
-    set = storeMock.set;
-    save = storeMock.save;
-  },
+vi.mock("./host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
 }));
 
 import App from "./App";
 import { useRepositoryStore } from "./stores/repositoryStore";
 
 beforeEach(() => {
+  bridgeMock.openRepositoryDialog.mockReset();
+  bridgeMock.scanSkills.mockReset();
+  bridgeMock.loadRepositories.mockReset();
+  bridgeMock.saveRepositories.mockReset();
+  bridgeMock.openRepositoryDialog.mockResolvedValue(null);
+  bridgeMock.scanSkills.mockResolvedValue([]);
+  bridgeMock.loadRepositories.mockResolvedValue(null);
+  bridgeMock.saveRepositories.mockResolvedValue(undefined);
+
   useRepositoryStore.setState({
     repositories: [],
     selectedId: null,

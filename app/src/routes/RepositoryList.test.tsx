@@ -2,34 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const dialogMock = vi.hoisted(() => ({
-  open: vi.fn(),
+const bridgeMock = vi.hoisted(() => ({
+  openRepositoryDialog: vi.fn(),
+  scanSkills: vi.fn(),
+  loadRepositories: vi.fn(),
+  saveRepositories: vi.fn(),
 }));
 
-const storeMock = vi.hoisted(() => ({
-  get: vi.fn(async () => undefined),
-  set: vi.fn(async () => {}),
-  save: vi.fn(async () => {}),
-}));
-
-const tauriCoreMock = vi.hoisted(() => ({
-  invoke: vi.fn(async () => []),
-}));
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: dialogMock.open,
-}));
-
-vi.mock("@tauri-apps/plugin-store", () => ({
-  LazyStore: class {
-    get = storeMock.get;
-    set = storeMock.set;
-    save = storeMock.save;
-  },
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: tauriCoreMock.invoke,
+vi.mock("../host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
 }));
 
 import { useRepositoryStore } from "../stores/repositoryStore";
@@ -38,15 +19,15 @@ import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
 
 beforeEach(() => {
-  dialogMock.open.mockReset();
-  storeMock.get.mockReset();
-  storeMock.set.mockReset();
-  storeMock.save.mockReset();
-  storeMock.get.mockResolvedValue(undefined);
-  storeMock.set.mockResolvedValue(undefined);
-  storeMock.save.mockResolvedValue(undefined);
-  tauriCoreMock.invoke.mockReset();
-  tauriCoreMock.invoke.mockResolvedValue([]);
+  bridgeMock.openRepositoryDialog.mockReset();
+  bridgeMock.scanSkills.mockReset();
+  bridgeMock.loadRepositories.mockReset();
+  bridgeMock.saveRepositories.mockReset();
+
+  bridgeMock.openRepositoryDialog.mockResolvedValue(null);
+  bridgeMock.scanSkills.mockResolvedValue([]);
+  bridgeMock.loadRepositories.mockResolvedValue(null);
+  bridgeMock.saveRepositories.mockResolvedValue(undefined);
 
   useRepositoryStore.setState({
     repositories: [],
@@ -62,31 +43,33 @@ describe("RepositoryList", () => {
 
     expect(screen.getByRole("heading", { name: "Repositories" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Repository" })).toBeInTheDocument();
+    expect(screen.getByTestId("add-repository-button")).toBeInTheDocument();
     expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
   });
 
   it("R2: clicking Add invokes folder picker and renders selected folder", async () => {
-    dialogMock.open.mockResolvedValueOnce("/Users/me/projects/alpha");
+    bridgeMock.openRepositoryDialog.mockResolvedValueOnce("/Users/me/projects/alpha");
     const user = userEvent.setup();
 
     renderWithRouter(<RepositoryList />);
-    await user.click(screen.getByRole("button", { name: "Add Repository" }));
+    await user.click(screen.getByTestId("add-repository-button"));
 
-    expect(dialogMock.open).toHaveBeenCalledWith({ directory: true, multiple: false });
+    expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled();
 
     const item = await screen.findByText("alpha");
     expect(item).toBeInTheDocument();
     expect(screen.getByText("/Users/me/projects/alpha")).toBeInTheDocument();
+    expect(screen.getByTestId("repository-list")).toBeInTheDocument();
   });
 
   it("R3: cancelling the picker (null) leaves the empty hint intact", async () => {
-    dialogMock.open.mockResolvedValueOnce(null);
+    bridgeMock.openRepositoryDialog.mockResolvedValueOnce(null);
     const user = userEvent.setup();
 
     renderWithRouter(<RepositoryList />);
-    await user.click(screen.getByRole("button", { name: "Add Repository" }));
+    await user.click(screen.getByTestId("add-repository-button"));
 
-    await waitFor(() => expect(dialogMock.open).toHaveBeenCalled());
+    await waitFor(() => expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled());
     expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
@@ -197,7 +180,7 @@ describe("RepositoryList", () => {
     expect(screen.getByTestId("badge-codex")).toHaveTextContent("Codex · …");
   });
 
-  it("R8: triggers scan_skills for repos missing from skill store after hydrate", async () => {
+  it("R8: triggers scanSkills for repos missing from skill store after hydrate", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -214,9 +197,7 @@ describe("RepositoryList", () => {
     renderWithRouter(<RepositoryList />);
 
     await waitFor(() =>
-      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-        repoPath: "/Users/me/new",
-      }),
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/new"),
     );
   });
 
@@ -242,9 +223,7 @@ describe("RepositoryList", () => {
     renderWithRouter(<RepositoryList />);
 
     await waitFor(() =>
-      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-        repoPath: "/Users/me/cached",
-      }),
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/cached"),
     );
   });
 
@@ -285,12 +264,12 @@ describe("RepositoryList", () => {
       expect(useRepositoryStore.getState().repositories.map((r) => r.id)).toEqual(["id-keep"]),
     );
     expect(screen.queryByText("drop")).not.toBeInTheDocument();
-    expect(storeMock.set).toHaveBeenCalledWith("repositories", expect.any(Array));
+    expect(bridgeMock.saveRepositories).toHaveBeenCalledWith(expect.any(Array));
 
     confirmSpy.mockRestore();
   });
 
-  it("R11: clicking Refresh re-invokes scan_skills for every registered repo", async () => {
+  it("R11: clicking Refresh re-invokes scanSkills for every registered repo", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -320,31 +299,23 @@ describe("RepositoryList", () => {
     renderWithRouter(<RepositoryList />);
 
     await waitFor(() => {
-      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-        repoPath: "/Users/me/a",
-      });
-      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
-        repoPath: "/Users/me/b",
-      });
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/a");
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/b");
     });
 
-    const callsBefore = tauriCoreMock.invoke.mock.calls.length;
+    const callsBefore = bridgeMock.scanSkills.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
     await waitFor(() => {
-      expect(tauriCoreMock.invoke.mock.calls.length).toBeGreaterThanOrEqual(
+      expect(bridgeMock.scanSkills.mock.calls.length).toBeGreaterThanOrEqual(
         callsBefore + 2,
       );
     });
-    const aCalls = tauriCoreMock.invoke.mock.calls.filter(
-      ([cmd, args]) =>
-        cmd === "scan_skills" &&
-        (args as { repoPath: string }).repoPath === "/Users/me/a",
+    const aCalls = bridgeMock.scanSkills.mock.calls.filter(
+      ([path]) => path === "/Users/me/a",
     ).length;
-    const bCalls = tauriCoreMock.invoke.mock.calls.filter(
-      ([cmd, args]) =>
-        cmd === "scan_skills" &&
-        (args as { repoPath: string }).repoPath === "/Users/me/b",
+    const bCalls = bridgeMock.scanSkills.mock.calls.filter(
+      ([path]) => path === "/Users/me/b",
     ).length;
     expect(aCalls).toBeGreaterThanOrEqual(2);
     expect(bCalls).toBeGreaterThanOrEqual(2);
@@ -357,13 +328,13 @@ describe("RepositoryList", () => {
   });
 
   it("R5: adding the same path twice keeps a single row (silent dedupe)", async () => {
-    dialogMock.open
+    bridgeMock.openRepositoryDialog
       .mockResolvedValueOnce("/Users/me/dup")
       .mockResolvedValueOnce("/Users/me/dup");
     const user = userEvent.setup();
 
     renderWithRouter(<RepositoryList />);
-    const button = screen.getByRole("button", { name: "Add Repository" });
+    const button = screen.getByTestId("add-repository-button");
 
     await user.click(button);
     await screen.findByText("dup");

@@ -1,6 +1,6 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { getHostBridge } from "../host/bridge";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
 
@@ -21,8 +21,8 @@ export function RepositoryList() {
   }, [hydrated, repositories, scanRepository]);
 
   async function handleAdd() {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
+    const selected = await getHostBridge().openRepositoryDialog();
+    if (selected) {
       const added = await addRepository(selected);
       if (added) {
         scanRepository(added.id, added.path);
@@ -48,7 +48,13 @@ export function RepositoryList() {
     <div className="repository-list">
       <h1 className="repository-list__heading">Repositories</h1>
       <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
-        <button type="button" onClick={handleAdd}>Add Repository</button>
+        <button
+          type="button"
+          onClick={handleAdd}
+          data-testid="add-repository-button"
+        >
+          Add Repository
+        </button>
         {repositories.length > 0 && (
           <button type="button" onClick={handleRefreshAll}>Refresh</button>
         )}
@@ -59,7 +65,7 @@ export function RepositoryList() {
           No repositories yet. Click <strong>Add Repository</strong> to choose a local folder.
         </p>
       ) : (
-        <ul className="repository-list__items">
+        <ul className="repository-list__items" data-testid="repository-list">
           {repositories.map((repo) => {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];

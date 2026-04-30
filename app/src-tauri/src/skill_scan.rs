@@ -100,3 +100,59 @@ fn truncate_chars(input: &str, max_bytes: usize) -> String {
     }
     input[..end].to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_repo() -> PathBuf {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest
+            .join("..")
+            .join("..")
+            .join("fixtures")
+            .join("repos")
+            .join("sample-repo")
+    }
+
+    #[test]
+    fn scan_skills_returns_only_recognized_skill_dirs() {
+        let repo = fixture_repo();
+        assert!(
+            repo.is_dir(),
+            "fixture repo missing at {}",
+            repo.display()
+        );
+
+        let skills = scan_skills(repo.to_string_lossy().into_owned()).expect("scan failed");
+
+        let names: Vec<&str> = skills.iter().map(|s| s.dir_name.as_str()).collect();
+        assert_eq!(skills.len(), 2, "expected exactly 2 skills, got {names:?}");
+
+        let providers: Vec<&str> = skills.iter().map(|s| s.provider.as_str()).collect();
+        assert!(providers.contains(&"claude"));
+        assert!(providers.contains(&"codex"));
+
+        for s in &skills {
+            assert!(
+                !s.root_dir.contains("docs/"),
+                "ignored-skill leaked into results: {}",
+                s.root_dir
+            );
+        }
+
+        let claude = skills.iter().find(|s| s.provider == "claude").unwrap();
+        assert_eq!(claude.dir_name, "implement-feature");
+        assert_eq!(claude.root_dir, ".claude/skills/implement-feature");
+
+        let codex = skills.iter().find(|s| s.provider == "codex").unwrap();
+        assert_eq!(codex.dir_name, "review-code");
+        assert_eq!(codex.root_dir, ".codex/skills/review-code");
+    }
+
+    #[test]
+    fn scan_skills_errors_for_missing_dir() {
+        let result = scan_skills("/definitely/does/not/exist".into());
+        assert!(result.is_err());
+    }
+}

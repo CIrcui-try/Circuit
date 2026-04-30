@@ -2,7 +2,7 @@
 
 ## Goal
 
-This document is an initial draft of the workflow schema that Circuit will save. The schema must serve not only to restore the UI but also as a contract that a coding agent can read and execute in the future.
+The workflow schema must restore the visual graph and be readable by future coding agents.
 
 ## Repository
 
@@ -18,8 +18,6 @@ This document is an initial draft of the workflow schema that Circuit will save.
 
 ## Skill
 
-A skill references a `SKILL.md` file inside the repository.
-
 ```json
 {
   "id": "skill_001",
@@ -31,7 +29,7 @@ A skill references a `SKILL.md` file inside the repository.
 }
 ```
 
-`provider` must be one of the following:
+Allowed providers:
 
 ```text
 claude
@@ -87,7 +85,7 @@ codex
 
 ## Run State
 
-Run state is not the workflow definition. It should be stored separately.
+Run state is separate from workflow definition.
 
 ```json
 {
@@ -112,14 +110,3 @@ success
 failed
 skipped
 ```
-
-## Future Extensions
-
-The schema should be designed to allow:
-
-- condition nodes
-- loop nodes
-- approval nodes
-- parallel branches
-- structured input/output contracts
-- agent execution metadata

@@ -1,5 +1,5 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
 import { create } from "zustand";
+import { getHostBridge } from "../host/bridge";
 
 export type Repository = {
   id: string;
@@ -19,11 +19,6 @@ type RepositoryState = {
   selectRepository: (id: string | null) => void;
 };
 
-const STORE_FILE = "repositories.json";
-const STORE_KEY = "repositories";
-
-const store = new LazyStore(STORE_FILE);
-
 function normalizePath(path: string): string {
   return path.replace(/\/+$/, "");
 }
@@ -39,7 +34,7 @@ export const useRepositoryStore = create<RepositoryState>((set, get) => ({
 
   hydrate: async () => {
     if (get().hydrated) return;
-    const stored = await store.get<Repository[]>(STORE_KEY);
+    const stored = await getHostBridge().loadRepositories();
     set({ repositories: stored ?? [], hydrated: true });
   },
 
@@ -58,8 +53,7 @@ export const useRepositoryStore = create<RepositoryState>((set, get) => ({
     };
     const next = [...existing, repo];
     set({ repositories: next });
-    await store.set(STORE_KEY, next);
-    await store.save();
+    await getHostBridge().saveRepositories(next);
     return repo;
   },
 
@@ -69,8 +63,7 @@ export const useRepositoryStore = create<RepositoryState>((set, get) => ({
     if (next.length === existing.length) return;
     const selectedId = get().selectedId === id ? null : get().selectedId;
     set({ repositories: next, selectedId });
-    await store.set(STORE_KEY, next);
-    await store.save();
+    await getHostBridge().saveRepositories(next);
   },
 
   selectRepository: (id) => set({ selectedId: id }),

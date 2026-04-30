@@ -41,7 +41,7 @@ export function Workspace() {
   }
 
   return (
-    <div className="workspace">
+    <div className="workspace" data-testid="workspace-root">
       <header className="workspace__toolbar">
         <Link to="/" aria-label="Back to repository list">←</Link>
         <span className="workspace__toolbar-title">Circuit</span>

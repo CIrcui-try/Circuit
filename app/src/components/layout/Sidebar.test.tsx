@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
+vi.mock("../../host/bridge", () => ({
+  getHostBridge: () => ({
+    openRepositoryDialog: vi.fn(),
+    scanSkills: vi.fn(async () => []),
+    loadRepositories: vi.fn(async () => null),
+    saveRepositories: vi.fn(async () => {}),
+  }),
 }));
 
 import { useSkillStore } from "../../stores/skillStore";
@@ -36,6 +41,7 @@ describe("Sidebar", () => {
     });
     render(<Sidebar repoId="r1" />);
     expect(screen.getByText(/No skills found/i)).toBeInTheDocument();
+    expect(screen.getByTestId("skill-list-empty")).toBeInTheDocument();
   });
 
   it("SB4: renders skills with name, description, and provider chip", () => {
@@ -66,6 +72,7 @@ describe("Sidebar", () => {
 
     render(<Sidebar repoId="r1" />);
 
+    expect(screen.getByTestId("skill-list")).toBeInTheDocument();
     expect(screen.getByText("Foo Skill")).toBeInTheDocument();
     expect(screen.getByText("Bar Skill")).toBeInTheDocument();
     expect(screen.getByText("Foo does foo")).toBeInTheDocument();

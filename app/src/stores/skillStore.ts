@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
+import { getHostBridge } from "../host/bridge";
 import { parseSkillMeta } from "../skills/parseSkillMeta";
 
 export type SkillProvider = "claude" | "codex";
@@ -11,14 +11,6 @@ export type Skill = {
   description: string;
   rootDir: string;
   skillFile: string;
-};
-
-type RawSkill = {
-  provider: SkillProvider;
-  dirName: string;
-  rootDir: string;
-  skillFile: string;
-  content: string;
 };
 
 type SkillState = {
@@ -42,7 +34,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     }));
 
     try {
-      const raw = await invoke<RawSkill[]>("scan_skills", { repoPath });
+      const raw = await getHostBridge().scanSkills(repoPath);
       const skills: Skill[] = raw.map((r) => {
         const meta = parseSkillMeta(r.content, r.dirName);
         return {

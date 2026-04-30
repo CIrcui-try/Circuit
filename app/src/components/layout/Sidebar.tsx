@@ -18,11 +18,11 @@ export function Sidebar({ repoId }: SidebarProps) {
       ) : loading && !skills ? (
         <div className="empty-state">Scanning repository…</div>
       ) : !skills || skills.length === 0 ? (
-        <div className="empty-state">
+        <div className="empty-state" data-testid="skill-list-empty">
           No skills found in <code>.claude/skills</code> or <code>.codex/skills</code>.
         </div>
       ) : (
-        <ul className="skill-list">
+        <ul className="skill-list" data-testid="skill-list">
           {skills.map((skill) => (
             <li key={skill.id} className="skill-list__item">
               <div className="skill-list__row">

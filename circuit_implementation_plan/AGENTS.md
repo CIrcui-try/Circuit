@@ -2,79 +2,104 @@
 
 ## Project Intent
 
-Circuit is not an app for creating skills for coding agents. It is an app for visually connecting skills that already exist in local repositories.
+Circuit is not an IDE and not a code editor. Circuit is a visual editor for wiring local agent skills together.
 
-Skills are discovered only from the following locations:
+A skill is discovered only from:
 
 ```text
 <repo>/.claude/skills/*/SKILL.md
 <repo>/.codex/skills/*/SKILL.md
 ```
 
+## Current Project State
+
+Assume the following are already implemented:
+
+- Phase 00: Tauri + React foundation
+- Phase 01: repository manager
+- Phase 02: skill discovery
+
+Start with Phase 03 unless explicitly instructed otherwise.
+
 ## Architecture Principles
 
-### 1. Separate Editor, Schema, and Runner
+### 1. Keep UI, Schema, and Runner Separate
 
-Do not mix the following three areas:
+Do not mix these responsibilities:
 
 ```text
 Visual Flow Editor
 Workflow Schema
 Manual Runner
+Agent Adapter / Handoff
 ```
 
-The Editor edits the graph. The Schema represents the graph as savable data. The Runner reads the schema and progresses the state.
+### 2. Use a Bridge for Host Capabilities
 
-### 2. Do Not Build a Code Editor
+Frontend code must not directly depend on native host behavior. Use a bridge abstraction for:
 
-Circuit is not a tool for editing file contents. Embedded code editors such as Monaco or CodeMirror are not part of the MVP.
+- repository selection
+- file system access
+- skill discovery
+- future command execution
 
-### 3. Repository-local First
+This bridge must be mockable in Playwright/UI tests.
 
-Every skill belongs to a selected repository. Global skill directories are excluded from the MVP.
+### 3. Do Not Automate Native File Dialogs in E2E
 
-### 4. Manual Trigger Only
+Native macOS folder pickers should not be directly automated in Playwright tests. Mock the bridge method instead.
 
-Workflow execution starts only by the user clicking a button. File-change watchers, cron, webhooks, and git hooks are excluded from the MVP.
+### 4. Add Tests Phase by Phase
 
-### 5. Schema Must Be Agent-readable
+Starting from Phase 03, every phase must add or update at least one meaningful test.
 
-Ultimately, the workflow schema must be readable and executable by a coding agent. Do not save only UI state that is human-readable.
+Expected tooling:
 
-## Required Tests
+```text
+Vitest for core logic
+Playwright for UI/E2E
+```
 
-Every Phase implementation must include both UI tests and unit tests for the code introduced or changed in that Phase.
+### 5. Preserve Product Scope
 
-- Unit tests cover schema, runner, and other pure-logic modules.
-- UI tests cover the Editor and other React components, including user interactions described in the Phase.
-- Tests must pass before the Phase is considered complete. Test commands and results are recorded in the briefing's `Verification` section.
-
-## Required Phase Completion
-
-After completing each Phase, a briefing file must be written. The briefing must be written in Korean.
-
-After the briefing is written, the coding agent must commit all changes from that Phase as a single commit. The commit message subject should reference the Phase number (e.g. `Phase 0: foundation`). The commit must be made only after the required tests above pass.
+Do not add a code editor. Do not add global skill discovery. Do not add built-in default skills unless explicitly requested.
 
 
 ## Required End-of-Phase Briefing
 
-After completing a Phase, the coding agent must write a briefing in the following format. The briefing body (Implemented / Changed Files / Verification / Known Limitations / Next Recommendation) must be written in Korean. Section headings may remain in English to keep the template stable.
+코딩 에이전트는 Phase를 완료한 뒤 반드시 아래 형식으로 브리핑을 작성해야 한다.
+
+- 브리핑은 **한국어로 작성**한다 (섹션 헤딩은 템플릿 안정성을 위해 영어 그대로 두어도 된다).
+- 브리핑은 채팅 응답이 아닌 **파일**로 남긴다. 경로는 `circuit_implementation_plan/phases/0N-{phase-slug}-briefing.md` 형식 (예: `02-skill-discovery-briefing.md`).
+- 브리핑은 해당 Phase의 테스트가 모두 통과한 뒤에 작성한다.
 
 ```md
 # Phase N Briefing
 
 ## Implemented
-- Summarize what was implemented.
+- 구현한 기능을 요약한다.
 
 ## Changed Files
-- List the main files that were changed and their roles.
+- 변경한 주요 파일과 역할을 적는다.
 
 ## Verification
-- Document the checklist that was confirmed and how to run it.
+- 직접 확인한 체크리스트와 실행 방법을 적는다.
+
+## Tests
+- 추가하거나 수정한 테스트를 적는다.
+- 테스트 실행 명령어와 결과를 적는다.
 
 ## Known Limitations
-- Document what has not yet been implemented and what was intentionally excluded.
+- 아직 구현하지 않은 것과 의도적으로 제외한 것을 적는다.
 
 ## Next Recommendation
-- Suggest what to do in the next Phase.
+- 다음 Phase에서 해야 할 일을 제안한다.
 ```
+
+## Required Phase Commit
+
+After the briefing is written, all changes for that Phase must be recorded as a **single commit**.
+
+- The commit subject must reference the Phase number (e.g. `Phase 0: foundation`, `Phase 2: skill discovery`).
+- The commit must only be made once the tests required by §"Add Tests Phase by Phase" are all green.
+- Do not mix changes outside the Phase scope into the same commit.
