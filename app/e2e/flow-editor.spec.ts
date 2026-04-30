@@ -85,6 +85,28 @@ test("F3: connecting two nodes via store creates one edge", async ({ page }) => 
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 });
 
+test("F5: dragging a sidebar skill onto the canvas creates a node", async ({ page }) => {
+  await openWorkspace(page);
+
+  const sourceItem = page
+    .getByTestId("skill-list__item")
+    .filter({ hasText: "Implement Feature" });
+  const target = page.getByTestId("workflow-canvas");
+
+  // Real HTML5 drag-and-drop with a shared DataTransfer so payload survives
+  // (Playwright's high-level dragTo does NOT carry dataTransfer through).
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await sourceItem.dispatchEvent("dragstart", { dataTransfer });
+  await target.dispatchEvent("dragenter", { dataTransfer });
+  await target.dispatchEvent("dragover", { dataTransfer });
+  await target.dispatchEvent("drop", { dataTransfer });
+
+  const node = page.getByTestId("workflow-node");
+  await expect(node).toHaveCount(1);
+  await expect(node).toContainText("Implement Feature");
+  await expect(node).toContainText("claude");
+});
+
 test("F4: selecting a node and pressing Backspace deletes node and incident edges", async ({ page }) => {
   await openWorkspace(page);
   await addSkillByButton(page, "Implement Feature");

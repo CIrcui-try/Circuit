@@ -6,7 +6,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useRef, type DragEvent } from "react";
+import { useCallback, useRef, useState, type DragEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
@@ -21,6 +21,7 @@ type SkillDragPayload = {
 
 function CanvasInner() {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
     useWorkflowStore(
@@ -38,11 +39,22 @@ function CanvasInner() {
     if (event.dataTransfer.types.includes(SKILL_DRAG_MIME)) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
+      setIsDropTarget(true);
+    }
+  }, []);
+
+  const onDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (
+      wrapperRef.current &&
+      !wrapperRef.current.contains(event.relatedTarget as Node | null)
+    ) {
+      setIsDropTarget(false);
     }
   }, []);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
+      setIsDropTarget(false);
       const raw = event.dataTransfer.getData(SKILL_DRAG_MIME);
       if (!raw) return;
       event.preventDefault();
@@ -74,9 +86,11 @@ function CanvasInner() {
   return (
     <section
       ref={wrapperRef}
-      className="workspace__canvas"
+      className={`workspace__canvas${isDropTarget ? " is-drop-target" : ""}`}
       data-testid="workflow-canvas"
+      data-drop-target={isDropTarget ? "true" : "false"}
       onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
       <ReactFlow
