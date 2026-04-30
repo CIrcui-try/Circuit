@@ -62,7 +62,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   selectedEdgeId: null,
 
   onNodesChange: (changes) => {
-    const nextNodes = applyNodeChanges(changes, get().nodes) as SkillNode[];
+    const nextNodes = applyNodeChanges(changes, get().nodes).map((n) =>
+      n.position
+        ? {
+            ...n,
+            position: {
+              x: Math.round(n.position.x),
+              y: Math.round(n.position.y),
+            },
+          }
+        : n,
+    ) as SkillNode[];
     set({
       nodes: nextNodes,
       selectedNodeId: deriveSelection(nextNodes),
@@ -93,7 +103,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const node: SkillNode = {
       id,
       type: "skill",
-      position,
+      // Snap to integer pixels so React Flow's translate() never lands on a
+      // sub-pixel boundary — otherwise text inside the node renders blurry.
+      position: { x: Math.round(position.x), y: Math.round(position.y) },
       data: {
         label: skill.name,
         skillRef: {
