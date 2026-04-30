@@ -220,6 +220,142 @@ describe("RepositoryList", () => {
     );
   });
 
+  it("R9: re-scans on mount even when byRepo cache is already populated", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-cached",
+          name: "cached",
+          path: "/Users/me/cached",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { "id-cached": [] },
+      loading: { "id-cached": false },
+      errors: {},
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    await waitFor(() =>
+      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
+        repoPath: "/Users/me/cached",
+      }),
+    );
+  });
+
+  it("R10: Remove button removes the row after confirm; cancel keeps it", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-keep",
+          name: "keep",
+          path: "/Users/me/keep",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "id-drop",
+          name: "drop",
+          path: "/Users/me/drop",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const user = userEvent.setup();
+
+    renderWithRouter(<RepositoryList />);
+
+    confirmSpy.mockReturnValueOnce(false);
+    await user.click(screen.getByRole("button", { name: "Remove drop" }));
+    expect(useRepositoryStore.getState().repositories).toHaveLength(2);
+
+    confirmSpy.mockReturnValueOnce(true);
+    await user.click(screen.getByRole("button", { name: "Remove drop" }));
+
+    await waitFor(() =>
+      expect(useRepositoryStore.getState().repositories.map((r) => r.id)).toEqual(["id-keep"]),
+    );
+    expect(screen.queryByText("drop")).not.toBeInTheDocument();
+    expect(storeMock.set).toHaveBeenCalledWith("repositories", expect.any(Array));
+
+    confirmSpy.mockRestore();
+  });
+
+  it("R11: clicking Refresh re-invokes scan_skills for every registered repo", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-a",
+          name: "a",
+          path: "/Users/me/a",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "id-b",
+          name: "b",
+          path: "/Users/me/b",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { "id-a": [], "id-b": [] },
+      loading: { "id-a": false, "id-b": false },
+      errors: {},
+    });
+
+    const user = userEvent.setup();
+    renderWithRouter(<RepositoryList />);
+
+    await waitFor(() => {
+      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
+        repoPath: "/Users/me/a",
+      });
+      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
+        repoPath: "/Users/me/b",
+      });
+    });
+
+    const callsBefore = tauriCoreMock.invoke.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => {
+      expect(tauriCoreMock.invoke.mock.calls.length).toBeGreaterThanOrEqual(
+        callsBefore + 2,
+      );
+    });
+    const aCalls = tauriCoreMock.invoke.mock.calls.filter(
+      ([cmd, args]) =>
+        cmd === "scan_skills" &&
+        (args as { repoPath: string }).repoPath === "/Users/me/a",
+    ).length;
+    const bCalls = tauriCoreMock.invoke.mock.calls.filter(
+      ([cmd, args]) =>
+        cmd === "scan_skills" &&
+        (args as { repoPath: string }).repoPath === "/Users/me/b",
+    ).length;
+    expect(aCalls).toBeGreaterThanOrEqual(2);
+    expect(bCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  it("R12: Refresh button is hidden when there are no repositories", () => {
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+  });
+
   it("R5: adding the same path twice keeps a single row (silent dedupe)", async () => {
     dialogMock.open
       .mockResolvedValueOnce("/Users/me/dup")

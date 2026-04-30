@@ -135,6 +135,54 @@ describe("repositoryStore — selectRepository", () => {
   });
 });
 
+describe("repositoryStore — removeRepository", () => {
+  const seed = [
+    {
+      id: "id-a",
+      name: "a",
+      path: "/Users/me/a",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "id-b",
+      name: "b",
+      path: "/Users/me/b",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  ];
+
+  it("Rm1: removes the matching repo and persists via store.set + save; unknown id is no-op", async () => {
+    useRepositoryStore.setState({ repositories: seed, selectedId: null, hydrated: true });
+
+    await useRepositoryStore.getState().removeRepository("id-a");
+    expect(useRepositoryStore.getState().repositories).toEqual([seed[1]]);
+    expect(storeMock.set).toHaveBeenCalledWith("repositories", [seed[1]]);
+    expect(storeMock.save).toHaveBeenCalledTimes(1);
+
+    storeMock.set.mockClear();
+    storeMock.save.mockClear();
+
+    await useRepositoryStore.getState().removeRepository("does-not-exist");
+    expect(useRepositoryStore.getState().repositories).toEqual([seed[1]]);
+    expect(storeMock.set).not.toHaveBeenCalled();
+    expect(storeMock.save).not.toHaveBeenCalled();
+  });
+
+  it("Rm2: clears selectedId when removing the currently selected repo, leaves it otherwise", async () => {
+    useRepositoryStore.setState({ repositories: seed, selectedId: "id-a", hydrated: true });
+
+    await useRepositoryStore.getState().removeRepository("id-a");
+    expect(useRepositoryStore.getState().selectedId).toBeNull();
+
+    useRepositoryStore.setState({ repositories: seed, selectedId: "id-b", hydrated: true });
+
+    await useRepositoryStore.getState().removeRepository("id-a");
+    expect(useRepositoryStore.getState().selectedId).toBe("id-b");
+  });
+});
+
 describe("repositoryStore — basename derivation", () => {
   it("U8: uses last path segment as repo name even with multiple slashes", async () => {
     await useRepositoryStore.getState().hydrate();

@@ -8,6 +8,7 @@ export function RepositoryList() {
   const repositories = useRepositoryStore((s) => s.repositories);
   const hydrated = useRepositoryStore((s) => s.hydrated);
   const addRepository = useRepositoryStore((s) => s.addRepository);
+  const removeRepository = useRepositoryStore((s) => s.removeRepository);
   const byRepo = useSkillStore((s) => s.byRepo);
   const loading = useSkillStore((s) => s.loading);
   const scanRepository = useSkillStore((s) => s.scanRepository);
@@ -15,11 +16,9 @@ export function RepositoryList() {
   useEffect(() => {
     if (!hydrated) return;
     for (const repo of repositories) {
-      if (!byRepo[repo.id] && !loading[repo.id]) {
-        scanRepository(repo.id, repo.path);
-      }
+      scanRepository(repo.id, repo.path);
     }
-  }, [hydrated, repositories, byRepo, loading, scanRepository]);
+  }, [hydrated, repositories, scanRepository]);
 
   async function handleAdd() {
     const selected = await open({ directory: true, multiple: false });
@@ -31,11 +30,28 @@ export function RepositoryList() {
     }
   }
 
+  function handleRefreshAll() {
+    for (const repo of repositories) {
+      scanRepository(repo.id, repo.path);
+    }
+  }
+
+  async function handleRemove(id: string, name: string) {
+    const ok = window.confirm(
+      `Remove "${name}" from the list? The folder on disk is not deleted.`,
+    );
+    if (!ok) return;
+    await removeRepository(id);
+  }
+
   return (
     <div className="repository-list">
       <h1 className="repository-list__heading">Repositories</h1>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
         <button type="button" onClick={handleAdd}>Add Repository</button>
+        {repositories.length > 0 && (
+          <button type="button" onClick={handleRefreshAll}>Refresh</button>
+        )}
       </div>
 
       {repositories.length === 0 ? (
@@ -48,7 +64,7 @@ export function RepositoryList() {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
             return (
-              <li key={repo.id}>
+              <li key={repo.id} className="repository-list__row">
                 <Link to={`/workspace/${repo.id}`} className="repository-list__item">
                   <span className="repository-list__item-name">{repo.name}</span>
                   <span className="repository-list__item-path">{repo.path}</span>
@@ -65,6 +81,15 @@ export function RepositoryList() {
                     />
                   </span>
                 </Link>
+                <button
+                  type="button"
+                  className="repository-list__remove"
+                  onClick={() => handleRemove(repo.id, repo.name)}
+                  aria-label={`Remove ${repo.name}`}
+                  title="Remove from list"
+                >
+                  ×
+                </button>
               </li>
             );
           })}

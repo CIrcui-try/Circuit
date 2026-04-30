@@ -15,6 +15,7 @@ type RepositoryState = {
   hydrated: boolean;
   hydrate: () => Promise<void>;
   addRepository: (path: string) => Promise<Repository | null>;
+  removeRepository: (id: string) => Promise<void>;
   selectRepository: (id: string | null) => void;
 };
 
@@ -60,6 +61,16 @@ export const useRepositoryStore = create<RepositoryState>((set, get) => ({
     await store.set(STORE_KEY, next);
     await store.save();
     return repo;
+  },
+
+  removeRepository: async (id) => {
+    const existing = get().repositories;
+    const next = existing.filter((r) => r.id !== id);
+    if (next.length === existing.length) return;
+    const selectedId = get().selectedId === id ? null : get().selectedId;
+    set({ repositories: next, selectedId });
+    await store.set(STORE_KEY, next);
+    await store.save();
   },
 
   selectRepository: (id) => set({ selectedId: id }),
