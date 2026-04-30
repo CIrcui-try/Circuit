@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -11,10 +12,12 @@ vi.mock("../../host/bridge", () => ({
 }));
 
 import { useSkillStore } from "../../stores/skillStore";
+import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useWorkflowStore.getState().resetWorkflow();
 });
 
 describe("Sidebar", () => {
@@ -44,7 +47,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-list-empty")).toBeInTheDocument();
   });
 
-  it("SB4: renders skills with name, description, and provider chip", () => {
+  it("SB4: renders skills with name, description, provider chip, and skill-list__item testid", () => {
     useSkillStore.setState({
       byRepo: {
         r1: [
@@ -73,6 +76,7 @@ describe("Sidebar", () => {
     render(<Sidebar repoId="r1" />);
 
     expect(screen.getByTestId("skill-list")).toBeInTheDocument();
+    expect(screen.getAllByTestId("skill-list__item")).toHaveLength(2);
     expect(screen.getByText("Foo Skill")).toBeInTheDocument();
     expect(screen.getByText("Bar Skill")).toBeInTheDocument();
     expect(screen.getByText("Foo does foo")).toBeInTheDocument();
@@ -89,5 +93,36 @@ describe("Sidebar", () => {
 
     render(<Sidebar repoId="r1" />);
     expect(screen.getByText(/repository path does not exist/)).toBeInTheDocument();
+  });
+
+  it("SB6: clicking the + button on a skill adds a node to the workflow store", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo Skill",
+            description: "",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+        ],
+      },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    const addButton = screen.getByRole("button", { name: /Add Foo Skill to canvas/i });
+    await userEvent.click(addButton);
+
+    const { nodes } = useWorkflowStore.getState();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.label).toBe("Foo Skill");
+    expect(nodes[0].data.skillRef).toEqual({
+      provider: "claude",
+      skillFile: ".claude/skills/foo/SKILL.md",
+    });
   });
 });

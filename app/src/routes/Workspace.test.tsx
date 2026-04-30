@@ -15,6 +15,7 @@ vi.mock("../host/bridge", () => ({
 
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
+import { useWorkflowStore } from "../stores/workflowStore";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -46,6 +47,7 @@ beforeEach(() => {
     hydrated: true,
   });
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useWorkflowStore.getState().resetWorkflow();
 });
 
 describe("Workspace", () => {
@@ -112,5 +114,25 @@ describe("Workspace", () => {
 
     expect(screen.getByTestId("workspace-root")).toBeInTheDocument();
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
+  });
+
+  it("W7: mounting Workspace clears any preexisting workflow nodes", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+
+    renderAt("/workspace/id-alpha");
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
   });
 });

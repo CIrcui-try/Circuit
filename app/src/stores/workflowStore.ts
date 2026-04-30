@@ -1,0 +1,163 @@
+import {
+  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type XYPosition,
+} from "@xyflow/react";
+import { create } from "zustand";
+import type { Skill, SkillProvider } from "./skillStore";
+
+export type SkillRef = {
+  provider: SkillProvider;
+  skillFile: string;
+};
+
+export type SkillNodeData = {
+  label: string;
+  skillRef: SkillRef;
+  [key: string]: unknown;
+};
+
+export type SkillNode = Node<SkillNodeData, "skill">;
+
+type WorkflowState = {
+  nodes: SkillNode[];
+  edges: Edge[];
+  selectedNodeId: string | null;
+  selectedEdgeId: string | null;
+
+  onNodesChange: (changes: NodeChange[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
+  onConnect: (conn: Connection) => void;
+
+  addSkillNode: (skill: Skill, position: XYPosition) => string;
+  selectNode: (id: string | null) => void;
+  selectEdge: (id: string | null) => void;
+  deleteSelected: () => void;
+  resetWorkflow: () => void;
+};
+
+let nodeCounter = 0;
+
+function nextNodeId(): string {
+  nodeCounter += 1;
+  return `node_${nodeCounter}`;
+}
+
+function deriveSelection<T extends { id: string; selected?: boolean }>(
+  items: T[],
+): string | null {
+  return items.find((item) => item.selected)?.id ?? null;
+}
+
+export const useWorkflowStore = create<WorkflowState>((set, get) => ({
+  nodes: [],
+  edges: [],
+  selectedNodeId: null,
+  selectedEdgeId: null,
+
+  onNodesChange: (changes) => {
+    const nextNodes = applyNodeChanges(changes, get().nodes) as SkillNode[];
+    set({
+      nodes: nextNodes,
+      selectedNodeId: deriveSelection(nextNodes),
+    });
+  },
+
+  onEdgesChange: (changes) => {
+    const nextEdges = applyEdgeChanges(changes, get().edges);
+    set({
+      edges: nextEdges,
+      selectedEdgeId: deriveSelection(nextEdges),
+    });
+  },
+
+  onConnect: (conn) => {
+    if (!conn.source || !conn.target) return;
+    if (conn.source === conn.target) return;
+    const { edges } = get();
+    const duplicate = edges.some(
+      (e) => e.source === conn.source && e.target === conn.target,
+    );
+    if (duplicate) return;
+    set({ edges: addEdge(conn, edges) });
+  },
+
+  addSkillNode: (skill, position) => {
+    const id = nextNodeId();
+    const node: SkillNode = {
+      id,
+      type: "skill",
+      position,
+      data: {
+        label: skill.name,
+        skillRef: {
+          provider: skill.provider,
+          skillFile: skill.skillFile,
+        },
+      },
+    };
+    set({ nodes: [...get().nodes, node] });
+    return id;
+  },
+
+  selectNode: (id) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) => ({ ...n, selected: n.id === id })) as SkillNode[],
+      edges: s.edges.map((e) => ({ ...e, selected: false })),
+      selectedNodeId: id,
+      selectedEdgeId: null,
+    }));
+  },
+
+  selectEdge: (id) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) => ({ ...n, selected: false })) as SkillNode[],
+      edges: s.edges.map((e) => ({ ...e, selected: e.id === id })),
+      selectedNodeId: null,
+      selectedEdgeId: id,
+    }));
+  },
+
+  deleteSelected: () => {
+    const { selectedNodeId, selectedEdgeId, nodes, edges } = get();
+    if (selectedNodeId) {
+      set({
+        nodes: nodes.filter((n) => n.id !== selectedNodeId),
+        edges: edges.filter(
+          (e) => e.source !== selectedNodeId && e.target !== selectedNodeId,
+        ),
+        selectedNodeId: null,
+      });
+      return;
+    }
+    if (selectedEdgeId) {
+      set({
+        edges: edges.filter((e) => e.id !== selectedEdgeId),
+        selectedEdgeId: null,
+      });
+    }
+  },
+
+  resetWorkflow: () => {
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      selectedEdgeId: null,
+    });
+  },
+}));
+
+// Expose the store so Playwright can drive React Flow connections without
+// relying on fragile handle-to-handle pointer drags. The store is the single
+// source of truth for nodes/edges, so tests still exercise the real path.
+if (typeof window !== "undefined") {
+  (window as unknown as { __WORKFLOW_STORE__?: unknown }).__WORKFLOW_STORE__ =
+    useWorkflowStore;
+}

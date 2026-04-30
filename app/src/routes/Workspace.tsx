@@ -6,6 +6,7 @@ import { PropertiesPanel } from "../components/layout/PropertiesPanel";
 import { Sidebar } from "../components/layout/Sidebar";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
+import { useWorkflowStore } from "../stores/workflowStore";
 
 export function Workspace() {
   const { repoId } = useParams<{ repoId?: string }>();
@@ -15,10 +16,15 @@ export function Workspace() {
   );
   const selectRepository = useRepositoryStore((s) => s.selectRepository);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const resetWorkflow = useWorkflowStore((s) => s.resetWorkflow);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
   }, [repoId, selectRepository]);
+
+  useEffect(() => {
+    resetWorkflow();
+  }, [repoId, resetWorkflow]);
 
   useEffect(() => {
     if (repo) {

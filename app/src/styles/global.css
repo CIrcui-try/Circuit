@@ -309,3 +309,92 @@ a:hover {
   color: #ff9999;
   font-size: 11px;
 }
+
+.skill-list__add {
+  margin-left: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: #c8c8d0;
+  background: transparent;
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.skill-list__add:hover {
+  background: #2d2d33;
+  color: #ffffff;
+}
+
+.skill-node {
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #1f1f24;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+}
+
+.skill-node--claude {
+  border-color: #4a5d8a;
+}
+
+.skill-node--codex {
+  border-color: #5d4a7a;
+}
+
+.skill-node.is-selected {
+  outline: 2px solid #6aa9ff;
+  outline-offset: 1px;
+}
+
+.skill-node__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-node__name {
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.properties {
+  margin: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 8px;
+  font-size: 12px;
+}
+
+.properties dt {
+  color: #8a8a92;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  align-self: center;
+}
+
+.properties dd {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  overflow-wrap: anywhere;
+}
+
+.properties code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #c8c8d0;
+}
