@@ -19,6 +19,7 @@ vi.mock("../host/bridge", () => ({
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
+import { useRunStore } from "../runner/runStore";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -57,6 +58,7 @@ beforeEach(() => {
   });
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
   useWorkflowStore.getState().resetWorkflow();
+  useRunStore.getState().reset();
 });
 
 describe("Workspace", () => {
@@ -106,14 +108,31 @@ describe("Workspace", () => {
     });
   });
 
-  it("W5: Save / Workflow menu enabled with repo, Start Circuit stays disabled", () => {
+  it("W5: Save/Menu enabled with repo; Start Circuit disabled until a node exists, then enabled", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
 
     expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
-    expect(screen.getByRole("button", { name: /Start Circuit/i })).toBeDisabled();
+    const startBtn = screen.getByTestId("workflow-start");
+    expect(startBtn).toBeDisabled();
+
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
   });
 
   it("W6: workspace root and workflow-canvas testids are present", () => {
@@ -161,6 +180,35 @@ describe("Workspace", () => {
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
     });
+  });
+
+  it("W9: clicking Start Circuit drives the run store from idle to success", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+    });
+    const fooNodeId = useWorkflowStore.getState().nodes[0].id;
+    expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
   });
 
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {

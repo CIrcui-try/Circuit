@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
@@ -9,6 +9,10 @@ import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
+import { createMockRunner } from "../runner/mockRunner";
+import { useRunStore } from "../runner/runStore";
+import { runWorkflow } from "../runner/runWorkflow";
+import type { RunnableEdge, RunnableNode } from "../runner/runner";
 
 const NEW_WORKFLOW_VALUE = "__new__";
 
@@ -24,9 +28,14 @@ export function Workspace() {
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
+  const nodeCount = useWorkflowStore((s) => s.nodes.length);
+  const isRunning = useRunStore((s) => s.status === "running");
+  const resetRun = useRunStore((s) => s.reset);
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const runner = useMemo(() => createMockRunner({ delayMs: 250 }), []);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -34,9 +43,10 @@ export function Workspace() {
 
   useEffect(() => {
     resetWorkflow();
+    resetRun();
     setWorkflows([]);
     setSaveStatus(null);
-  }, [repoId, resetWorkflow]);
+  }, [repoId, resetWorkflow, resetRun]);
 
   useEffect(() => {
     if (repo) {
@@ -71,6 +81,30 @@ export function Workspace() {
       setSaveStatus(`Save failed: ${message}`);
     }
   }, [repo, refreshWorkflows]);
+
+  const handleStart = useCallback(async () => {
+    const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
+    const runnable: RunnableNode[] = nodes.map((n) => ({
+      id: n.id,
+      label: n.data.label,
+      skillRef: {
+        provider: n.data.skillRef.provider,
+        skillFile: n.data.skillRef.skillFile,
+      },
+    }));
+    const runnableEdges: RunnableEdge[] = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+    }));
+    await runWorkflow({
+      nodes: runnable,
+      edges: runnableEdges,
+      workflowId: currentWorkflowId,
+      runner,
+      store: useRunStore,
+    });
+  }, [runner]);
 
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
@@ -145,7 +179,14 @@ export function Workspace() {
         >
           Save
         </button>
-        <button type="button" disabled>Start Circuit</button>
+        <button
+          type="button"
+          data-testid="workflow-start"
+          onClick={() => void handleStart()}
+          disabled={!repo || isRunning || nodeCount === 0}
+        >
+          {isRunning ? "Running…" : "Start Circuit"}
+        </button>
         {saveStatus ? (
           <span className="workspace__toolbar-status" data-testid="workflow-save-status">
             {saveStatus}
