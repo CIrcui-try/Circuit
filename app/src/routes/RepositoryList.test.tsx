@@ -12,6 +12,10 @@ const storeMock = vi.hoisted(() => ({
   save: vi.fn(async () => {}),
 }));
 
+const tauriCoreMock = vi.hoisted(() => ({
+  invoke: vi.fn(async () => []),
+}));
+
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: dialogMock.open,
 }));
@@ -24,7 +28,12 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   },
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: tauriCoreMock.invoke,
+}));
+
 import { useRepositoryStore } from "../stores/repositoryStore";
+import { useSkillStore } from "../stores/skillStore";
 import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
 
@@ -36,12 +45,15 @@ beforeEach(() => {
   storeMock.get.mockResolvedValue(undefined);
   storeMock.set.mockResolvedValue(undefined);
   storeMock.save.mockResolvedValue(undefined);
+  tauriCoreMock.invoke.mockReset();
+  tauriCoreMock.invoke.mockResolvedValue([]);
 
   useRepositoryStore.setState({
     repositories: [],
     selectedId: null,
     hydrated: true,
   });
+  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
 });
 
 describe("RepositoryList", () => {
@@ -106,6 +118,106 @@ describe("RepositoryList", () => {
     const betaLink = screen.getByRole("link", { name: /beta/ });
     expect(alphaLink).toHaveAttribute("href", "/workspace/id-alpha");
     expect(betaLink).toHaveAttribute("href", "/workspace/id-beta");
+  });
+
+  it("R6: shows Claude/Codex count badges once scan resolves", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        "id-alpha": [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo",
+            description: "",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+          {
+            id: "claude:.claude/skills/bar",
+            provider: "claude",
+            name: "Bar",
+            description: "",
+            rootDir: ".claude/skills/bar",
+            skillFile: ".claude/skills/bar/SKILL.md",
+          },
+          {
+            id: "codex:.codex/skills/baz",
+            provider: "codex",
+            name: "Baz",
+            description: "",
+            rootDir: ".codex/skills/baz",
+            skillFile: ".codex/skills/baz/SKILL.md",
+          },
+        ],
+      },
+      loading: { "id-alpha": false },
+      errors: {},
+    });
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getByTestId("badge-claude")).toHaveTextContent("Claude · 2");
+    expect(screen.getByTestId("badge-codex")).toHaveTextContent("Codex · 1");
+  });
+
+  it("R7: shows ellipsis placeholder while a scan is in-flight", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-pending",
+          name: "pending",
+          path: "/Users/me/pending",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: {},
+      loading: { "id-pending": true },
+      errors: {},
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getByTestId("badge-claude")).toHaveTextContent("Claude · …");
+    expect(screen.getByTestId("badge-codex")).toHaveTextContent("Codex · …");
+  });
+
+  it("R8: triggers scan_skills for repos missing from skill store after hydrate", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-new",
+          name: "new",
+          path: "/Users/me/new",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    await waitFor(() =>
+      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
+        repoPath: "/Users/me/new",
+      }),
+    );
   });
 
   it("R5: adding the same path twice keeps a single row (silent dedupe)", async () => {

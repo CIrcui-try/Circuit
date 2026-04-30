@@ -179,3 +179,98 @@ a:hover {
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+.repository-list__badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.repository-list__badge {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #3a3a42;
+  background: #1f1f24;
+  color: #c8c8d0;
+}
+
+.repository-list__badge--claude {
+  border-color: #4a5d8a;
+  color: #a9c2ff;
+}
+
+.repository-list__badge--codex {
+  border-color: #5d4a7a;
+  color: #d6b8ff;
+}
+
+.skill-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-list__item {
+  padding: 8px 10px;
+  border: 1px solid #2f2f36;
+  border-radius: 6px;
+  background: #1f1f24;
+}
+
+.skill-list__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-list__name {
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-list__chip {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #3a3a42;
+  color: #c8c8d0;
+}
+
+.skill-list__chip--claude {
+  border-color: #4a5d8a;
+  color: #a9c2ff;
+}
+
+.skill-list__chip--codex {
+  border-color: #5d4a7a;
+  color: #d6b8ff;
+}
+
+.skill-list__desc {
+  font-size: 11px;
+  color: #8a8a92;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-list__error {
+  margin: 8px 12px;
+  padding: 6px 8px;
+  border: 1px solid #6a3a3a;
+  border-radius: 4px;
+  color: #ff9999;
+  font-size: 11px;
+}

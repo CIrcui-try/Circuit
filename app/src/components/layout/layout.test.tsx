@@ -6,10 +6,10 @@ import { LogPanel } from "./LogPanel";
 import { Canvas } from "./Canvas";
 
 describe("Layout shell", () => {
-  it("Sidebar renders header and empty hint", () => {
+  it("Sidebar renders header and 'no repository selected' empty hint", () => {
     render(<Sidebar />);
     expect(screen.getByText("Skills")).toBeInTheDocument();
-    expect(screen.getByText(/Skills will appear here/i)).toBeInTheDocument();
+    expect(screen.getByText(/No repository selected/i)).toBeInTheDocument();
   });
 
   it("PropertiesPanel renders header and empty hint", () => {

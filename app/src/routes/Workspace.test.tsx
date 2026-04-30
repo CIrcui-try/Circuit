@@ -8,6 +8,10 @@ const storeMock = vi.hoisted(() => ({
   save: vi.fn(async () => {}),
 }));
 
+const tauriCoreMock = vi.hoisted(() => ({
+  invoke: vi.fn(async () => []),
+}));
+
 vi.mock("@tauri-apps/plugin-store", () => ({
   LazyStore: class {
     get = storeMock.get;
@@ -16,7 +20,12 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   },
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: tauriCoreMock.invoke,
+}));
+
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
+import { useSkillStore } from "../stores/skillStore";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -39,11 +48,15 @@ function renderAt(route: string) {
 }
 
 beforeEach(() => {
+  tauriCoreMock.invoke.mockReset();
+  tauriCoreMock.invoke.mockResolvedValue([]);
+
   useRepositoryStore.setState({
     repositories: [],
     selectedId: null,
     hydrated: true,
   });
+  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
 });
 
 describe("Workspace", () => {
@@ -81,6 +94,18 @@ describe("Workspace", () => {
     renderAt("/workspace");
 
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
+  });
+
+  it("W5b: triggers scan_skills with the active repo path on mount", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    await vi.waitFor(() => {
+      expect(tauriCoreMock.invoke).toHaveBeenCalledWith("scan_skills", {
+        repoPath: "/Users/me/alpha",
+      });
+    });
   });
 
   it("W5: Workflow / Save / Start Circuit buttons stay disabled (regression guard)", () => {

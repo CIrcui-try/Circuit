@@ -5,6 +5,7 @@ import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
 import { Sidebar } from "../components/layout/Sidebar";
 import { useRepositoryStore } from "../stores/repositoryStore";
+import { useSkillStore } from "../stores/skillStore";
 
 export function Workspace() {
   const { repoId } = useParams<{ repoId?: string }>();
@@ -13,10 +14,17 @@ export function Workspace() {
     repoId ? s.repositories.find((r) => r.id === repoId) ?? null : null,
   );
   const selectRepository = useRepositoryStore((s) => s.selectRepository);
+  const scanRepository = useSkillStore((s) => s.scanRepository);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
   }, [repoId, selectRepository]);
+
+  useEffect(() => {
+    if (repo) {
+      scanRepository(repo.id, repo.path);
+    }
+  }, [repo, scanRepository]);
 
   if (repoId && hydrated && !repo) {
     return (
@@ -45,7 +53,7 @@ export function Workspace() {
         <button type="button" disabled>Save</button>
         <button type="button" disabled>Start Circuit</button>
       </header>
-      <Sidebar />
+      <Sidebar repoId={repo?.id} />
       <Canvas />
       <PropertiesPanel />
       <LogPanel />
