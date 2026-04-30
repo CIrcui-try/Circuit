@@ -9,11 +9,20 @@ export type RawSkill = {
   content: string;
 };
 
+export type WorkflowSummaryDTO = {
+  id: string;
+  name: string;
+  updatedAt: string;
+};
+
 export interface HostBridge {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;
   saveRepositories(repos: Repository[]): Promise<void>;
+  listWorkflows(repoPath: string): Promise<WorkflowSummaryDTO[]>;
+  loadWorkflow(repoPath: string, workflowId: string): Promise<string>;
+  saveWorkflow(repoPath: string, workflowId: string, json: string): Promise<void>;
 }
 
 declare global {

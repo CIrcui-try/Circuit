@@ -7,6 +7,9 @@ const bridgeMock = vi.hoisted(() => ({
   scanSkills: vi.fn(async () => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
+  listWorkflows: vi.fn(async () => []),
+  loadWorkflow: vi.fn(async () => "{}"),
+  saveWorkflow: vi.fn(async () => {}),
 }));
 
 vi.mock("../host/bridge", () => ({
@@ -40,6 +43,12 @@ function renderAt(route: string) {
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.scanSkills.mockResolvedValue([]);
+  bridgeMock.listWorkflows.mockReset();
+  bridgeMock.listWorkflows.mockResolvedValue([]);
+  bridgeMock.saveWorkflow.mockReset();
+  bridgeMock.saveWorkflow.mockResolvedValue(undefined);
+  bridgeMock.loadWorkflow.mockReset();
+  bridgeMock.loadWorkflow.mockResolvedValue("{}");
 
   useRepositoryStore.setState({
     repositories: [],
@@ -97,13 +106,13 @@ describe("Workspace", () => {
     });
   });
 
-  it("W5: Workflow / Save / Start Circuit buttons stay disabled (regression guard)", () => {
+  it("W5: Save / Workflow menu enabled with repo, Start Circuit stays disabled", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByRole("button", { name: /Workflow/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Save/i })).toBeDisabled();
+    expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
     expect(screen.getByRole("button", { name: /Start Circuit/i })).toBeDisabled();
   });
 
@@ -114,6 +123,44 @@ describe("Workspace", () => {
 
     expect(screen.getByTestId("workspace-root")).toBeInTheDocument();
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
+  });
+
+  it("W8: clicking Save calls saveWorkflow with serialized JSON", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(screen.getByTestId("workflow-save"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
+    });
+    const args = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+    ];
+    expect(args[0]).toBe("/Users/me/alpha");
+    expect(typeof args[1]).toBe("string");
+    const parsed = JSON.parse(args[2]);
+    expect(parsed.repositoryId).toBe("id-alpha");
+    expect(parsed.nodes).toHaveLength(1);
+    expect(parsed.nodes[0].skillRef).toEqual({
+      provider: "claude",
+      skillFile: ".claude/skills/foo/SKILL.md",
+    });
   });
 
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {

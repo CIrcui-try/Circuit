@@ -25,11 +25,20 @@ export type SkillNodeData = {
 
 export type SkillNode = Node<SkillNodeData, "skill">;
 
+export type ReplaceCanvasArgs = {
+  nodes: SkillNode[];
+  edges: Edge[];
+  workflowId: string;
+  workflowName: string;
+};
+
 type WorkflowState = {
   nodes: SkillNode[];
   edges: Edge[];
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  workflowName: string;
+  currentWorkflowId: string | null;
 
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -40,13 +49,14 @@ type WorkflowState = {
   selectEdge: (id: string | null) => void;
   deleteSelected: () => void;
   resetWorkflow: () => void;
+  setWorkflowName: (name: string) => void;
+  replaceCanvas: (args: ReplaceCanvasArgs) => void;
 };
 
-let nodeCounter = 0;
+export const DEFAULT_WORKFLOW_NAME = "Untitled workflow";
 
 function nextNodeId(): string {
-  nodeCounter += 1;
-  return `node_${nodeCounter}`;
+  return crypto.randomUUID();
 }
 
 function deriveSelection<T extends { id: string; selected?: boolean }>(
@@ -60,6 +70,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   selectedEdgeId: null,
+  workflowName: DEFAULT_WORKFLOW_NAME,
+  currentWorkflowId: null,
 
   onNodesChange: (changes) => {
     const nextNodes = applyNodeChanges(changes, get().nodes).map((n) =>
@@ -162,6 +174,23 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       edges: [],
       selectedNodeId: null,
       selectedEdgeId: null,
+      workflowName: DEFAULT_WORKFLOW_NAME,
+      currentWorkflowId: null,
+    });
+  },
+
+  setWorkflowName: (name) => {
+    set({ workflowName: name });
+  },
+
+  replaceCanvas: ({ nodes, edges, workflowId, workflowName }) => {
+    set({
+      nodes: nodes.map((n) => ({ ...n, selected: false })) as SkillNode[],
+      edges: edges.map((e) => ({ ...e, selected: false })),
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      workflowName,
+      currentWorkflowId: workflowId,
     });
   },
 }));

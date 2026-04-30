@@ -7,6 +7,9 @@ vi.mock("../../host/bridge", () => ({
     scanSkills: vi.fn(async () => []),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
+    listWorkflows: vi.fn(async () => []),
+    loadWorkflow: vi.fn(async () => "{}"),
+    saveWorkflow: vi.fn(async () => {}),
   }),
 }));
 

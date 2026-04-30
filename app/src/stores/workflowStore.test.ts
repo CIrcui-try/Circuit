@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Skill } from "./skillStore";
-import { useWorkflowStore } from "./workflowStore";
+import {
+  DEFAULT_WORKFLOW_NAME,
+  useWorkflowStore,
+  type SkillNode,
+} from "./workflowStore";
+import type { Edge } from "@xyflow/react";
 
 const claudeSkill: Skill = {
   id: "claude:.claude/skills/foo",
@@ -153,5 +158,64 @@ describe("workflowStore", () => {
 
     useWorkflowStore.getState().onNodesChange([{ id: a, type: "select", selected: false }]);
     expect(useWorkflowStore.getState().selectedNodeId).toBeNull();
+  });
+
+  it("WS11: addSkillNode generates non-colliding string IDs", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 0, y: 0 });
+    expect(typeof a).toBe("string");
+    expect(typeof b).toBe("string");
+    expect(a).not.toBe(b);
+  });
+
+  it("WS12: setWorkflowName updates workflowName", () => {
+    useWorkflowStore.getState().setWorkflowName("My flow");
+    expect(useWorkflowStore.getState().workflowName).toBe("My flow");
+  });
+
+  it("WS13: resetWorkflow clears workflowName and currentWorkflowId", () => {
+    useWorkflowStore.getState().setWorkflowName("Temp");
+    useWorkflowStore.setState({ currentWorkflowId: "wf-1" });
+    useWorkflowStore.getState().resetWorkflow();
+    const s = useWorkflowStore.getState();
+    expect(s.workflowName).toBe(DEFAULT_WORKFLOW_NAME);
+    expect(s.currentWorkflowId).toBeNull();
+  });
+
+  it("WS14: replaceCanvas overwrites nodes/edges and clears prior selection", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    useWorkflowStore.getState().selectNode(a);
+    expect(useWorkflowStore.getState().selectedNodeId).toBe(a);
+
+    const newNodes: SkillNode[] = [
+      {
+        id: "uuid-1",
+        type: "skill",
+        position: { x: 5, y: 6 },
+        data: {
+          label: "Loaded",
+          skillRef: {
+            provider: "claude",
+            skillFile: ".claude/skills/loaded/SKILL.md",
+          },
+        },
+      },
+    ];
+    const newEdges: Edge[] = [];
+
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: newNodes,
+      edges: newEdges,
+      workflowId: "wf-loaded",
+      workflowName: "Loaded flow",
+    });
+
+    const s = useWorkflowStore.getState();
+    expect(s.nodes.map((n) => n.id)).toEqual(["uuid-1"]);
+    expect(s.edges).toHaveLength(0);
+    expect(s.selectedNodeId).toBeNull();
+    expect(s.selectedEdgeId).toBeNull();
+    expect(s.currentWorkflowId).toBe("wf-loaded");
+    expect(s.workflowName).toBe("Loaded flow");
   });
 });

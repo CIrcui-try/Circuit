@@ -7,6 +7,9 @@ const bridgeMock = vi.hoisted(() => ({
   scanSkills: vi.fn(async () => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
+  listWorkflows: vi.fn(async () => []),
+  loadWorkflow: vi.fn(async () => "{}"),
+  saveWorkflow: vi.fn(async () => {}),
 }));
 
 vi.mock("./host/bridge", () => ({
