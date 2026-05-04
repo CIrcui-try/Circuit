@@ -81,6 +81,11 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
     if (!n.skillRef || !n.skillRef.provider || !n.skillRef.skillFile) {
       throw new Error(`Node ${n.id} is missing skillRef`);
     }
+    if (n.skillRef.provider !== "claude" && n.skillRef.provider !== "codex") {
+      throw new Error(
+        `Node ${n.id} uses provider "${n.skillRef.provider}" which is reserved for future adapters and not supported by this UI`,
+      );
+    }
     return {
       id: n.id,
       type: "skill",

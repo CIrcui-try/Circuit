@@ -43,6 +43,17 @@ runtime/
     └── timeoutPolicy.ts
 ```
 
+## Provider Adapters
+
+각 어댑터는 `app/src/runtime/adapters/AgentAdapter.ts` 의 `AgentAdapter` 인터페이스를 구현한다. 책임 범위:
+
+- **claude** — Claude Code CLI / API 를 통해 SKILL.md 를 system prompt 로 두고 `input` 을 user prompt 로 실행한다.
+- **codex** — Codex CLI 를 통해 동일한 입력으로 실행한다.
+- **shell** — Phase 08 시점에는 reserved. 향후 SKILL.md 의 frontmatter 에 정의된 안전 명령만을 spawn 한다 (safety layer 의 commandPolicy 통과 필수).
+- **git** — Phase 08 시점에는 reserved. 향후 read-only git 조회 (status / diff / log) 를 SKILL.md 가 지정한 인자로만 수행한다. 변경 명령은 별도 승인 노드 도입 시까지 금지.
+
+MVP 에서는 claude / codex 만 실제 구현되며, shell / git 어댑터는 인터페이스만 예약된다.
+
 ## Safety Layer
 
 최소 정책:

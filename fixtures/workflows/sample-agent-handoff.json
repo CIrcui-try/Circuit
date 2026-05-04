@@ -1,0 +1,45 @@
+{
+  "version": "0.1",
+  "id": "wf-sample-agent-handoff",
+  "repositoryId": "repo-sample",
+  "name": "Implement then Review",
+  "nodes": [
+    {
+      "id": "node_implement",
+      "type": "skill",
+      "skillRef": {
+        "provider": "claude",
+        "skillFile": ".claude/skills/implement-feature/SKILL.md"
+      },
+      "label": "Implement Feature",
+      "position": { "x": 120, "y": 240 },
+      "input": {
+        "featureDescription": "Add message pinning"
+      }
+    },
+    {
+      "id": "node_review",
+      "type": "skill",
+      "skillRef": {
+        "provider": "codex",
+        "skillFile": ".codex/skills/review-code/SKILL.md"
+      },
+      "label": "Review Code",
+      "position": { "x": 420, "y": 240 },
+      "input": {
+        "diff": "${steps.node_implement.output}",
+        "prompt": "Review the diff produced by the previous step: ${steps.node_implement.output}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_impl_to_review",
+      "source": "node_implement",
+      "target": "node_review",
+      "kind": "dependency"
+    }
+  ],
+  "createdAt": "2026-05-04T00:00:00.000Z",
+  "updatedAt": "2026-05-04T00:00:00.000Z"
+}
