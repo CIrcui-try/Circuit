@@ -1,4 +1,4 @@
-import type { WorkflowSkillProvider, WorkflowSkillRef } from "../../workflow/schema";
+import type { WorkflowSkillProvider } from "../../workflow/schema";
 import type {
   AgentRunEvent,
   SkillExecutionContext,
@@ -7,8 +7,19 @@ import type {
 
 export type { AgentRunEvent, SkillExecutionContext, SkillExecutionResult };
 
+export interface AdapterAvailability {
+  ok: boolean;
+  reason?: string;
+  details?: Record<string, unknown>;
+}
+
+export type AgentRunEventSink = (event: AgentRunEvent) => void;
+
 export interface AgentAdapter {
   readonly provider: WorkflowSkillProvider;
-  canHandle(skillRef: WorkflowSkillRef): boolean;
-  execute(ctx: SkillExecutionContext): Promise<SkillExecutionResult>;
+  canRun(ctx: SkillExecutionContext): Promise<AdapterAvailability>;
+  run(
+    ctx: SkillExecutionContext,
+    events: AgentRunEventSink,
+  ): Promise<SkillExecutionResult>;
 }
