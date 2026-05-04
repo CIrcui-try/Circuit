@@ -1,0 +1,405 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Mutex;
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::sync::oneshot;
+
+const RUNTIME_EVENT_CHANNEL: &str = "runtime://event";
+const MAX_READ_BYTES: u64 = 1024 * 1024;
+
+#[derive(Default)]
+pub struct RuntimeBridgeState {
+    inner: Mutex<HashMap<String, oneshot::Sender<()>>>,
+}
+
+impl RuntimeBridgeState {
+    fn register(&self, run_id: String, cancel_tx: oneshot::Sender<()>) {
+        let mut map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.insert(run_id, cancel_tx);
+    }
+
+    fn take(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
+        let mut map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.remove(run_id)
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+enum RuntimeProcessEvent {
+    Started {
+        run_id: String,
+        timestamp: String,
+    },
+    Stdout {
+        run_id: String,
+        timestamp: String,
+        text: String,
+    },
+    Stderr {
+        run_id: String,
+        timestamp: String,
+        text: String,
+    },
+    Exited {
+        run_id: String,
+        timestamp: String,
+        exit_code: Option<i32>,
+    },
+    Cancelled {
+        run_id: String,
+        timestamp: String,
+    },
+    Timeout {
+        run_id: String,
+        timestamp: String,
+    },
+    Error {
+        run_id: String,
+        timestamp: String,
+        message: String,
+    },
+}
+
+fn now_iso8601() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let dur = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let secs = dur.as_secs();
+    let millis = dur.subsec_millis();
+    let days_since_epoch = secs / 86_400;
+    let secs_of_day = secs % 86_400;
+    let hour = secs_of_day / 3600;
+    let minute = (secs_of_day % 3600) / 60;
+    let second = secs_of_day % 60;
+    let (year, month, day) = days_to_ymd(days_since_epoch as i64);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        year, month, day, hour, minute, second, millis
+    )
+}
+
+fn days_to_ymd(mut days: i64) -> (i32, u32, u32) {
+    days += 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let doe = (days - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = (y + if m <= 2 { 1 } else { 0 }) as i32;
+    (year, m as u32, d as u32)
+}
+
+fn validate_inside_repo_root(target: &Path, repo_root: &Path) -> Result<PathBuf, String> {
+    let target_abs = target
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize {}: {e}", target.display()))?;
+    let root_abs = repo_root
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize repo root {}: {e}", repo_root.display()))?;
+    if !target_abs.starts_with(&root_abs) {
+        return Err(format!(
+            "path is outside repository root: path={} repoRoot={}",
+            target_abs.display(),
+            root_abs.display()
+        ));
+    }
+    Ok(target_abs)
+}
+
+#[tauri::command]
+pub fn runtime_read_file(path: String, repo_root: String) -> Result<String, String> {
+    let target = PathBuf::from(&path);
+    let repo = PathBuf::from(&repo_root);
+    let resolved = validate_inside_repo_root(&target, &repo)?;
+    let metadata = std::fs::metadata(&resolved)
+        .map_err(|e| format!("failed to stat {}: {e}", resolved.display()))?;
+    if metadata.len() > MAX_READ_BYTES {
+        return Err(format!(
+            "file too large to read via runtime bridge: {} bytes (max {})",
+            metadata.len(),
+            MAX_READ_BYTES
+        ));
+    }
+    std::fs::read_to_string(&resolved)
+        .map_err(|e| format!("failed to read {}: {e}", resolved.display()))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn runtime_spawn(
+    app: AppHandle,
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+    command: String,
+    args: Vec<String>,
+    cwd: String,
+    env: Option<HashMap<String, String>>,
+    timeout_ms: Option<u64>,
+) -> Result<(), String> {
+    let cwd_path = PathBuf::from(&cwd);
+    let _ = cwd_path
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize cwd {}: {e}", cwd_path.display()))?;
+
+    let mut cmd = Command::new(&command);
+    cmd.args(&args)
+        .current_dir(&cwd_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
+    if let Some(envs) = env {
+        for (k, v) in envs {
+            cmd.env(k, v);
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to spawn {command}: {e}"))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "failed to capture stdout".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "failed to capture stderr".to_string())?;
+
+    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+    state.register(run_id.clone(), cancel_tx);
+
+    let app_for_task = app.clone();
+    let run_id_task = run_id.clone();
+
+    let _ = app.emit(
+        RUNTIME_EVENT_CHANNEL,
+        RuntimeProcessEvent::Started {
+            run_id: run_id.clone(),
+            timestamp: now_iso8601(),
+        },
+    );
+
+    tokio::spawn(async move {
+        let app = app_for_task;
+        let run_id = run_id_task;
+        let mut stdout_reader = BufReader::new(stdout).lines();
+        let mut stderr_reader = BufReader::new(stderr).lines();
+
+        let timeout_fut: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
+            match timeout_ms {
+                Some(ms) => Box::pin(tokio::time::sleep(std::time::Duration::from_millis(ms))),
+                None => Box::pin(std::future::pending::<()>()),
+            };
+        tokio::pin!(timeout_fut);
+
+        let final_event: Option<RuntimeProcessEvent>;
+        loop {
+            tokio::select! {
+                line = stdout_reader.next_line() => match line {
+                    Ok(Some(text)) => {
+                        let _ = app.emit(
+                            RUNTIME_EVENT_CHANNEL,
+                            RuntimeProcessEvent::Stdout {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                text,
+                            },
+                        );
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        final_event = Some(RuntimeProcessEvent::Error {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            message: format!("stdout read error: {e}"),
+                        });
+                        let _ = child.kill().await;
+                        break;
+                    }
+                },
+                line = stderr_reader.next_line() => match line {
+                    Ok(Some(text)) => {
+                        let _ = app.emit(
+                            RUNTIME_EVENT_CHANNEL,
+                            RuntimeProcessEvent::Stderr {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                text,
+                            },
+                        );
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        final_event = Some(RuntimeProcessEvent::Error {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            message: format!("stderr read error: {e}"),
+                        });
+                        let _ = child.kill().await;
+                        break;
+                    }
+                },
+                exit = child.wait() => {
+                    match exit {
+                        Ok(status) => {
+                            final_event = Some(RuntimeProcessEvent::Exited {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                exit_code: status.code(),
+                            });
+                        }
+                        Err(e) => {
+                            final_event = Some(RuntimeProcessEvent::Error {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                message: format!("wait error: {e}"),
+                            });
+                        }
+                    }
+                    break;
+                },
+                _ = &mut timeout_fut => {
+                    let _ = child.kill().await;
+                    final_event = Some(RuntimeProcessEvent::Timeout {
+                        run_id: run_id.clone(),
+                        timestamp: now_iso8601(),
+                    });
+                    break;
+                },
+                _ = &mut cancel_rx => {
+                    let _ = child.kill().await;
+                    final_event = Some(RuntimeProcessEvent::Cancelled {
+                        run_id: run_id.clone(),
+                        timestamp: now_iso8601(),
+                    });
+                    break;
+                },
+            }
+        }
+
+        // drain remaining lines
+        while let Ok(Some(text)) = stdout_reader.next_line().await {
+            let _ = app.emit(
+                RUNTIME_EVENT_CHANNEL,
+                RuntimeProcessEvent::Stdout {
+                    run_id: run_id.clone(),
+                    timestamp: now_iso8601(),
+                    text,
+                },
+            );
+        }
+        while let Ok(Some(text)) = stderr_reader.next_line().await {
+            let _ = app.emit(
+                RUNTIME_EVENT_CHANNEL,
+                RuntimeProcessEvent::Stderr {
+                    run_id: run_id.clone(),
+                    timestamp: now_iso8601(),
+                    text,
+                },
+            );
+        }
+
+        if let Some(ev) = final_event {
+            let _ = app.emit(RUNTIME_EVENT_CHANNEL, ev);
+        }
+
+        let state: State<'_, RuntimeBridgeState> = app.state();
+        let mut map = state.inner.lock().expect("runtime bridge state poisoned");
+        map.remove(&run_id);
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn runtime_cancel(state: State<'_, RuntimeBridgeState>, run_id: String) -> Result<(), String> {
+    if let Some(tx) = state.take(&run_id) {
+        let _ = tx.send(());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_tmp_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("circuit-runtime-{tag}-{nanos}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn read_file_returns_content_inside_repo_root() {
+        let repo = unique_tmp_dir("ok");
+        let file = repo.join("hello.txt");
+        fs::write(&file, "hi").unwrap();
+        let got = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect("read should succeed");
+        assert_eq!(got, "hi");
+    }
+
+    #[test]
+    fn read_file_rejects_path_outside_repo_root() {
+        let repo = unique_tmp_dir("deny");
+        let other_repo = unique_tmp_dir("other");
+        let file = other_repo.join("secret.txt");
+        fs::write(&file, "shh").unwrap();
+        let err = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("read should be rejected");
+        assert!(err.contains("outside repository root"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn read_file_rejects_traversal_escape() {
+        let repo = unique_tmp_dir("trav");
+        let other_repo = unique_tmp_dir("trav-other");
+        let outside = other_repo.join("evil.txt");
+        fs::write(&outside, "x").unwrap();
+        let traversal = repo.join("..").join(outside.file_name().unwrap());
+        let err = runtime_read_file(
+            traversal.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("read should be rejected");
+        assert!(
+            err.contains("outside repository root") || err.contains("failed to canonicalize"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn read_file_rejects_oversized_file() {
+        let repo = unique_tmp_dir("big");
+        let file = repo.join("big.bin");
+        let big = vec![b'a'; (MAX_READ_BYTES + 1) as usize];
+        fs::write(&file, &big).unwrap();
+        let err = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("oversize read should be rejected");
+        assert!(err.contains("too large"), "unexpected: {err}");
+    }
+}
