@@ -2,7 +2,9 @@ export const WORKFLOW_VERSION = "0.1" as const;
 
 export type WorkflowVersion = typeof WORKFLOW_VERSION;
 
-export type WorkflowSkillProvider = "claude" | "codex";
+export const WORKFLOW_SKILL_PROVIDERS = ["claude", "codex", "shell", "git"] as const;
+
+export type WorkflowSkillProvider = (typeof WORKFLOW_SKILL_PROVIDERS)[number];
 
 export type WorkflowSkillRef = {
   provider: WorkflowSkillProvider;
