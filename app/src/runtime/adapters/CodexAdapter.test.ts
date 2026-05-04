@@ -87,6 +87,27 @@ describe("CodexAdapter", () => {
     expect(spawnCalls[0].cwd).toBe("/abs/path/to/sample-repo");
   });
 
+  it("C3 — canRun returns ok=false with exitCode detail when probe exits non-zero", async () => {
+    const { bridge } = spy(() => [
+      { event: { type: "exited", exitCode: 127 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    const availability = await adapter.canRun(makeContext());
+    expect(availability.ok).toBe(false);
+    expect(availability.reason).toContain("127");
+    expect(availability.details).toMatchObject({ exitCode: 127 });
+  });
+
+  it("C4 — canRun returns ok=false with reason when probe emits error", async () => {
+    const { bridge } = spy(() => [
+      { event: { type: "error", message: "ENOENT" } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    const availability = await adapter.canRun(makeContext());
+    expect(availability.ok).toBe(false);
+    expect(availability.reason).toContain("ENOENT");
+  });
+
   it("C5 — canRun with skipProbe returns ok immediately and does not spawn", async () => {
     const { bridge, spawnCalls } = spy();
     const adapter = new CodexAdapter({ bridge, skipProbe: true });
@@ -179,5 +200,46 @@ describe("CodexAdapter", () => {
     expect(result.logs).toEqual(received);
     expect(typeof result.startedAt).toBe("string");
     expect(typeof result.finishedAt).toBe("string");
+  });
+
+  describe("C11 — terminal event mapping", () => {
+    it("exited(2) → status=failed with exitCode=2", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "exited", exitCode: 2 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const result = await adapter.run(makeContext(), () => {});
+      expect(result.status).toBe("failed");
+      expect(result.exitCode).toBe(2);
+    });
+
+    it("cancelled → status=cancelled", async () => {
+      const { bridge } = spy(() => [{ event: { type: "cancelled" } }]);
+      const adapter = new CodexAdapter({ bridge });
+      const result = await adapter.run(makeContext(), () => {});
+      expect(result.status).toBe("cancelled");
+      expect(result.exitCode).toBeUndefined();
+    });
+
+    it("timeout → status=timeout", async () => {
+      const { bridge } = spy(() => [{ event: { type: "timeout" } }]);
+      const adapter = new CodexAdapter({ bridge });
+      const result = await adapter.run(makeContext(), () => {});
+      expect(result.status).toBe("timeout");
+      expect(result.exitCode).toBeUndefined();
+    });
+
+    it("error → status=failed with error event in logs", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "error", message: "boom" } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const received: AgentRunEvent[] = [];
+      const result = await adapter.run(makeContext(), (ev) => received.push(ev));
+      expect(result.status).toBe("failed");
+      const last = received[received.length - 1];
+      expect(last?.type).toBe("error");
+      if (last && last.type === "error") expect(last.message).toBe("boom");
+    });
   });
 });
