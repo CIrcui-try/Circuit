@@ -21,6 +21,7 @@ argument-hint: <Linear 이슈 ID 또는 브랜치명>
    - PR 자체가 없으면 (`gh` 가 not found 반환) 사용자에게 알리고 워크트리만 정리할지 확인.
 5. **워크트리 제거**:
    - `git worktree list` 로 `<branch>` 의 워크트리 경로 찾기.
+   - 워크트리가 이미 없는 경우 (직전에 `/rejoin` 으로 정리된 케이스) → `worktree not present, skipping` 한 줄만 출력하고 다음 단계로.
    - 워크트리 안에 미커밋 변경이 남아있으면 사용자에게 알리고 중단.
    - 현재 위치가 그 워크트리면 메인 레포로 cd 한 뒤 제거.
    - `git worktree remove .claude/worktrees/<branch>`. 파일 잠김 등으로 실패하면 사용자 확인 후 `--force`.
@@ -36,3 +37,4 @@ argument-hint: <Linear 이슈 ID 또는 브랜치명>
 - `develop` / `main` 에 직접 커밋·푸시하지 않는다.
 - Linear 이슈 상태 변경은 자동화에 위임 — 직접 변경 금지.
 - 상태 파일이 없는 케이스(takeoff 후 정상 정리)도 정상 동작이다 — 이슈 키 → 브랜치명 변환만 가능하면 된다.
+- PR 미머지 상태에서 워크트리만 정리하고 브랜치를 보존하려면 `/landing` 대신 `/rejoin` 을 사용한다. `/rejoin` 후 PR 이 머지되면 그대로 `/landing` 을 호출하면 된다 (워크트리 부재 케이스는 5단계에서 스킵 처리).
