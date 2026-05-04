@@ -15,8 +15,7 @@ develop의 변경사항을 모아 `release/x.y.z` 브랜치를 만들고 main으
 ### 1단계: 사전 확인
 
 1. **버전 인자 확인**: `$ARGUMENTS`가 비어 있거나 `x.y.z` 정규식 (`^\d+\.\d+\.\d+$`) 에 맞지 않으면 사용자에게 "버전을 `/release 0.2.1` 형식으로 명시해 주세요" 라고 알리고 즉시 중단.
-2. **계정 확인**: `gh auth status`로 현재 계정이 `enebin`인지 확인. 다르면 enebin으로 전환.
-3. **레포 루트 확인**: `git rev-parse --show-toplevel`이 `Reserviano` 루트인지 확인.
+2. **레포 루트 확인**: `git rev-parse --show-toplevel`이 `Reserviano` 루트인지 확인.
 4. **변경사항 확인**: `git status --porcelain` 결과가 비어 있어야 한다. uncommitted 변경이 있으면 알리고 중단 (release 작업에 의도치 않게 묶일 위험).
 5. **원격 최신화**: `git fetch origin main develop --tags`.
 6. **릴리즈 대상 존재 확인**: `git rev-list --count origin/main..origin/develop`이 0이면 "릴리즈할 변경사항 없음"으로 종료.
@@ -159,7 +158,6 @@ gh pr create \
 
 ## 주의사항
 
-- 계정은 반드시 `enebin`. gh 계정이 다르면 중단.
 - `--no-verify`, force push, 기타 destructive git 명령 금지.
 - develop에 uncommitted 변경이 있으면 절대 진행하지 않는다.
 - 본문에 이슈 번호·내부 모듈명·PR 번호가 새지 않게 검수.

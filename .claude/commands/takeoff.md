@@ -8,8 +8,6 @@ argument-hint: <Linear 이슈 ID> [--force]
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/takeoff CIR-15`.
 
-계정은 반드시 `enebin` 사용할 것!
-
 ## 인자 파싱
 
 1. `--force` 분리. 첫 토큰을 `<ISSUE>` 로.

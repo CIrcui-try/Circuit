@@ -8,8 +8,6 @@ argument-hint: <Linear 이슈 ID> [--force]
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/taxiing CIR-15`.
 
-계정은 반드시 `enebin` 사용할 것!
-
 ## 인자 파싱
 
 1. `--force` 분리. 첫 토큰을 `<ISSUE>` 로.
@@ -38,7 +36,6 @@ argument-hint: <Linear 이슈 ID> [--force]
    - `구현 단계` 항목을 TodoWrite 로 펼쳐 진행 상황 추적.
    - 코드 작성 시 백엔드는 Router → Service → Repository, 프런트엔드는 Data/Domain/Presentation 레이어 컨벤션을 따른다.
    - 의미 있는 단위마다 한국어 Conventional Commits 스타일로 커밋. 형식: `<type>: <설명> (<ISSUE>)` 예 `feat: 숫자 키패드 컴포넌트 추가 (CIR-21)`.
-   - author 는 `enebin`. **Co-Authored-By 트레일러 추가 금지.**
 5. **테스트 작성·실행**:
    - 백엔드 변경: `pytest` 통과 확인.
    - 프런트엔드 변경: Vitest(단위) 또는 Playwright(E2E), 그리고 `npm run build` 통과 확인.

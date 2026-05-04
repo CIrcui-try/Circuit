@@ -14,8 +14,6 @@ argument-hint: <significance: critical | major | minor (기본: major)>
 
 ## 절차
 
-계정은 반드시 `enebin`을 사용할 것!
-
 ### 1단계: PR 확인
 
 1. **현재 브랜치 확인**: `git branch --show-current`로 브랜치 이름을 가져온다.
@@ -88,7 +86,6 @@ argument-hint: <significance: critical | major | minor (기본: major)>
 
 - 커밋 메시지 형식: `fix: 코드 리뷰 반영 (<significance> 이상)`
   - 예: `fix: 코드 리뷰 반영 (major 이상)`
-- author는 `enebin`으로 설정한다. Co-Authored-By 트레일러는 추가하지 않는다.
 - 리모트 트래킹 브랜치가 있으면 `git push`, 없으면 `git push -u origin <브랜치이름>`.
 
 ## 주의사항

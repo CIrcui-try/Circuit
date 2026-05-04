@@ -8,8 +8,6 @@ argument-hint: <Linear 이슈 ID 또는 브랜치명>
 
 `$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/landing CIR-15`, `/landing kai/cir-15-fix-...`.
 
-계정은 반드시 `enebin` 사용할 것!
-
 ## 자기 단계 실행 절차
 
 1. **인자 확인**: `$ARGUMENTS` 비어있으면 사용법 안내 후 중단.
