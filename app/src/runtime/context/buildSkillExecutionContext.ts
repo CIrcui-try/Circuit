@@ -1,0 +1,117 @@
+import type { WorkflowSkillNode } from "../../workflow/schema";
+import type {
+  SkillExecutionContext,
+  SkillExecutionResult,
+} from "../contracts/SkillExecution";
+import { assertInsideRepoRoot } from "../safety/pathPolicy";
+import { parseSkillMeta } from "../../skills/parseSkillMeta";
+
+export const DEFAULT_TIMEOUT_MS = 300_000;
+
+export type ReadSkillFile = (
+  absPath: string,
+  repoRoot: string,
+) => Promise<string>;
+
+export interface BuildSkillExecutionContextDeps {
+  readSkillFile: ReadSkillFile;
+}
+
+export interface BuildSkillExecutionContextInput {
+  runId: string;
+  workflowId: string;
+  node: WorkflowSkillNode;
+  repository: { id: string; name: string; path: string };
+  previousOutputs: Record<string, SkillExecutionResult>;
+  timeoutMs?: number;
+  env?: Record<string, string>;
+}
+
+export async function buildSkillExecutionContext(
+  input: BuildSkillExecutionContextInput,
+  deps: BuildSkillExecutionContextDeps,
+): Promise<SkillExecutionContext> {
+  const {
+    runId,
+    workflowId,
+    node,
+    repository,
+    previousOutputs,
+    timeoutMs,
+    env,
+  } = input;
+
+  const skillFile = node.skillRef.skillFile;
+  const skillFileAbsPath = resolveSkillFilePath(skillFile, repository.path);
+  assertInsideRepoRoot(skillFileAbsPath, repository.path);
+
+  const rootDir = dirname(skillFileAbsPath);
+  const content = await deps.readSkillFile(skillFileAbsPath, repository.path);
+  const meta = parseSkillMeta(content, basename(rootDir));
+
+  return {
+    runId,
+    workflowId,
+    nodeId: node.id,
+    repository: {
+      id: repository.id,
+      name: repository.name,
+      path: repository.path,
+    },
+    skill: {
+      provider: node.skillRef.provider,
+      name: meta.name,
+      rootDir,
+      skillFile,
+      skillFileAbsPath,
+      content,
+    },
+    input: node.input ?? {},
+    previousOutputs,
+    execution: {
+      timeoutMs: timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      cwd: repository.path,
+      ...(env ? { env } : {}),
+    },
+  };
+}
+
+function resolveSkillFilePath(skillFile: string, repoRoot: string): string {
+  if (skillFile.startsWith("/")) return normalize(skillFile);
+  const joined = repoRoot.endsWith("/")
+    ? repoRoot + skillFile
+    : `${repoRoot}/${skillFile}`;
+  return normalize(joined);
+}
+
+function normalize(input: string): string {
+  if (input.length === 0) return ".";
+  const isAbsolute = input.startsWith("/");
+  const segments = input.split("/").filter((s) => s.length > 0 && s !== ".");
+  const stack: string[] = [];
+  for (const seg of segments) {
+    if (seg === "..") {
+      if (stack.length > 0 && stack[stack.length - 1] !== "..") {
+        stack.pop();
+      } else if (!isAbsolute) {
+        stack.push("..");
+      }
+    } else {
+      stack.push(seg);
+    }
+  }
+  const joined = stack.join("/");
+  if (isAbsolute) return "/" + joined;
+  return joined.length === 0 ? "." : joined;
+}
+
+function dirname(absPath: string): string {
+  const idx = absPath.lastIndexOf("/");
+  if (idx <= 0) return "/";
+  return absPath.slice(0, idx);
+}
+
+function basename(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx === -1 ? path : path.slice(idx + 1);
+}
