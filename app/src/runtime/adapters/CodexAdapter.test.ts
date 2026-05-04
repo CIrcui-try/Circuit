@@ -10,6 +10,7 @@ import type {
   SpawnOptions,
 } from "../bridge/RuntimeBridge";
 import type {
+  AgentRunEvent,
   SkillExecutionContext,
 } from "./AgentAdapter";
 import { CodexAdapter } from "./CodexAdapter";
@@ -92,5 +93,91 @@ describe("CodexAdapter", () => {
     const availability = await adapter.canRun(makeContext());
     expect(availability).toEqual({ ok: true, details: { skipped: true } });
     expect(spawnCalls).toHaveLength(0);
+  });
+
+  it("C6 — run forwards cwd, env, timeoutMs from ctx.execution to spawn", async () => {
+    const { bridge, spawnCalls } = spy(() => [
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    await adapter.run(makeContext(), () => {});
+    expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0].cwd).toBe("/abs/path/to/sample-repo");
+    expect(spawnCalls[0].env).toEqual({ FOO: "bar" });
+    expect(spawnCalls[0].timeoutMs).toBe(300_000);
+  });
+
+  it("C7 — default command is 'codex exec <prompt>' with full prompt content", async () => {
+    const { bridge, spawnCalls } = spy(() => [
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    await adapter.run(makeContext(), () => {});
+    expect(spawnCalls[0].command).toBe("codex");
+    const args = spawnCalls[0].args;
+    expect(args[0]).toBe("exec");
+    const prompt = args[1];
+    expect(prompt).toContain("review-pr");
+    expect(prompt).toContain("Review the diff.");
+    expect(prompt).toContain(`"prompt": "review the diff"`);
+  });
+
+  it("C8 — custom buildCommand and buildPrompt are honored", async () => {
+    const { bridge, spawnCalls } = spy(() => [
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({
+      bridge,
+      buildPrompt: (ctx) => `PROMPT:${ctx.skill.name}`,
+      buildCommand: (_ctx, prompt) => ({
+        command: "/usr/local/bin/codex-wrapper",
+        args: ["chat", "--input", prompt],
+      }),
+    });
+    await adapter.run(makeContext(), () => {});
+    expect(spawnCalls[0].command).toBe("/usr/local/bin/codex-wrapper");
+    expect(spawnCalls[0].args).toEqual([
+      "chat",
+      "--input",
+      "PROMPT:review-pr",
+    ]);
+  });
+
+  it("C9 — runtime started/stdout/stderr/exited map to AgentRunEvent in order", async () => {
+    const { bridge } = spy(() => [
+      { event: { type: "started" } },
+      { event: { type: "stdout", text: "hello\n" } },
+      { event: { type: "stderr", text: "warn\n" } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    const received: AgentRunEvent[] = [];
+    await adapter.run(makeContext(), (ev) => received.push(ev));
+    expect(received.map((e) => e.type)).toEqual([
+      "start",
+      "stdout",
+      "stderr",
+      "finish",
+    ]);
+    const stdout = received[1];
+    if (stdout.type === "stdout") expect(stdout.text).toBe("hello\n");
+    const stderr = received[2];
+    if (stderr.type === "stderr") expect(stderr.text).toBe("warn\n");
+  });
+
+  it("C10 — exited(0) yields status=success with logs, exitCode, timestamps populated", async () => {
+    const { bridge } = spy(() => [
+      { event: { type: "started" } },
+      { event: { type: "stdout", text: "ok" } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    const received: AgentRunEvent[] = [];
+    const result = await adapter.run(makeContext(), (ev) => received.push(ev));
+    expect(result.status).toBe("success");
+    expect(result.exitCode).toBe(0);
+    expect(result.logs).toEqual(received);
+    expect(typeof result.startedAt).toBe("string");
+    expect(typeof result.finishedAt).toBe("string");
   });
 });
