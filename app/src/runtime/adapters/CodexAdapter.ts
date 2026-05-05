@@ -8,26 +8,26 @@ import type {
 } from "./AgentAdapter";
 import { probeViaBridge, runViaBridge } from "./runViaBridge";
 
-export interface ClaudeCommand {
+export interface CodexCommand {
   command: string;
   args: string[];
 }
 
-export interface ClaudeAdapterOptions {
+export interface CodexAdapterOptions {
   bridge: RuntimeBridge;
   buildCommand?: (
     ctx: SkillExecutionContext,
     prompt: string,
-  ) => ClaudeCommand;
+  ) => CodexCommand;
   buildPrompt?: (ctx: SkillExecutionContext) => string;
-  probeCommand?: ClaudeCommand;
+  probeCommand?: CodexCommand;
   probeTimeoutMs?: number;
   skipProbe?: boolean;
   newRunId?: (ctx: SkillExecutionContext) => string;
 }
 
-const DEFAULT_PROBE: ClaudeCommand = {
-  command: "claude",
+const DEFAULT_PROBE: CodexCommand = {
+  command: "codex",
   args: ["--version"],
 };
 
@@ -36,8 +36,8 @@ const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 function defaultBuildCommand(
   _ctx: SkillExecutionContext,
   prompt: string,
-): ClaudeCommand {
-  return { command: "claude", args: ["-p", prompt] };
+): CodexCommand {
+  return { command: "codex", args: ["exec", prompt] };
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {
@@ -57,18 +57,18 @@ function defaultRunId(ctx: SkillExecutionContext): string {
   return `${ctx.runId}::${ctx.nodeId}`;
 }
 
-export class ClaudeAdapter implements AgentAdapter {
-  readonly provider = "claude" as const;
+export class CodexAdapter implements AgentAdapter {
+  readonly provider = "codex" as const;
 
   private readonly bridge: RuntimeBridge;
-  private readonly buildCommand: NonNullable<ClaudeAdapterOptions["buildCommand"]>;
-  private readonly buildPrompt: NonNullable<ClaudeAdapterOptions["buildPrompt"]>;
-  private readonly probeCommand: ClaudeCommand;
+  private readonly buildCommand: NonNullable<CodexAdapterOptions["buildCommand"]>;
+  private readonly buildPrompt: NonNullable<CodexAdapterOptions["buildPrompt"]>;
+  private readonly probeCommand: CodexCommand;
   private readonly probeTimeoutMs: number;
   private readonly skipProbe: boolean;
-  private readonly newRunId: NonNullable<ClaudeAdapterOptions["newRunId"]>;
+  private readonly newRunId: NonNullable<CodexAdapterOptions["newRunId"]>;
 
-  constructor(opts: ClaudeAdapterOptions) {
+  constructor(opts: CodexAdapterOptions) {
     this.bridge = opts.bridge;
     this.buildCommand = opts.buildCommand ?? defaultBuildCommand;
     this.buildPrompt = opts.buildPrompt ?? defaultBuildPrompt;
