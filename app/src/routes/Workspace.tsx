@@ -9,10 +9,14 @@ import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
-import { createMockRunner } from "../runner/mockRunner";
+import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
+import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
 import { runWorkflow } from "../runner/runWorkflow";
 import type { RunnableEdge, RunnableNode } from "../runner/runner";
+import { createDefaultRegistry } from "../runtime/adapters/createDefaultRegistry";
+import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
+import type { WorkflowSkillNode } from "../workflow/schema";
 
 const NEW_WORKFLOW_VALUE = "__new__";
 
@@ -31,11 +35,44 @@ export function Workspace() {
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const isRunning = useRunStore((s) => s.status === "running");
   const resetRun = useRunStore((s) => s.reset);
+  const resetRunLog = useRunLogStore((s) => s.reset);
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  const runner = useMemo(() => createMockRunner({ delayMs: 250 }), []);
+  const runner = useMemo(() => {
+    if (!repo) return null;
+    const bridge = getRuntimeBridge();
+    const registry = createDefaultRegistry({ bridge });
+    return new RealWorkflowRunner({
+      registry,
+      bridge,
+      logStore: useRunLogStore,
+      getNode: (id) => {
+        const n = useWorkflowStore.getState().nodes.find((x) => x.id === id);
+        if (!n) return null;
+        const fullNode: WorkflowSkillNode = {
+          id: n.id,
+          type: "skill",
+          skillRef: n.data.skillRef,
+          label: n.data.label,
+          position: { x: n.position.x, y: n.position.y },
+          input: (n.data.input as Record<string, unknown> | undefined) ?? {},
+        };
+        return fullNode;
+      },
+      getRepository: () => {
+        const r = useRepositoryStore
+          .getState()
+          .repositories.find((x) => x.id === repo.id);
+        return r ? { id: r.id, name: r.name, path: r.path } : null;
+      },
+      getRunMeta: () => {
+        const s = useRunStore.getState();
+        return { runId: s.runId ?? "(idle)", workflowId: s.workflowId };
+      },
+    });
+  }, [repo]);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -44,9 +81,10 @@ export function Workspace() {
   useEffect(() => {
     resetWorkflow();
     resetRun();
+    resetRunLog();
     setWorkflows([]);
     setSaveStatus(null);
-  }, [repoId, resetWorkflow, resetRun]);
+  }, [repoId, resetWorkflow, resetRun, resetRunLog]);
 
   useEffect(() => {
     if (repo) {
@@ -83,6 +121,8 @@ export function Workspace() {
   }, [repo, refreshWorkflows]);
 
   const handleStart = useCallback(async () => {
+    if (!runner) return;
+    runner.reset();
     const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
     const runnable: RunnableNode[] = nodes.map((n) => ({
       id: n.id,
@@ -104,6 +144,11 @@ export function Workspace() {
       runner,
       store: useRunStore,
     });
+  }, [runner]);
+
+  const handleCancel = useCallback(() => {
+    if (!runner) return;
+    void runner.cancel();
   }, [runner]);
 
   const handleSelectWorkflow = useCallback(
@@ -186,6 +231,14 @@ export function Workspace() {
           disabled={!repo || isRunning || nodeCount === 0}
         >
           {isRunning ? "Running…" : "Start Circuit"}
+        </button>
+        <button
+          type="button"
+          data-testid="workflow-cancel"
+          onClick={handleCancel}
+          disabled={!isRunning}
+        >
+          Cancel
         </button>
         {saveStatus ? (
           <span className="workspace__toolbar-status" data-testid="workflow-save-status">

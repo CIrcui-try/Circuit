@@ -30,7 +30,7 @@ function runnableFrom(n: WorkflowSkillNode): RunnableNode {
   return {
     id: n.id,
     label: n.label,
-    skillRef: n.skillRef,
+    skillRef: { provider: "claude", skillFile: n.skillRef.skillFile },
   };
 }
 

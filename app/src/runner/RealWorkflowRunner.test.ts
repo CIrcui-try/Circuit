@@ -45,13 +45,14 @@ function workflowNode(
 }
 
 function runnable(node: WorkflowSkillNode): RunnableNode {
+  const provider = node.skillRef.provider;
+  if (provider !== "claude" && provider !== "codex") {
+    throw new Error(`unsupported provider in test: ${provider}`);
+  }
   return {
     id: node.id,
     label: node.label,
-    skillRef: {
-      provider: node.skillRef.provider,
-      skillFile: node.skillRef.skillFile,
-    },
+    skillRef: { provider, skillFile: node.skillRef.skillFile },
   };
 }
 

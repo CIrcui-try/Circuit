@@ -20,6 +20,8 @@ import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
+import { useRunLogStore } from "../runner/runLogStore";
+import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -51,6 +53,21 @@ beforeEach(() => {
   bridgeMock.loadWorkflow.mockReset();
   bridgeMock.loadWorkflow.mockResolvedValue("{}");
 
+  // RuntimeBridge stub so RealWorkflowRunner can route node executions through
+  // a fake spawn pipeline that always succeeds.
+  const runtimeBridge = createMockRuntimeBridge({
+    files: {
+      "/Users/me/alpha/.claude/skills/foo/SKILL.md":
+        "---\nname: Foo\n---\n\n# Foo\n",
+    },
+    scenario: () => [
+      { event: { type: "started" } },
+      { event: { type: "exited", exitCode: 0 } },
+    ],
+  });
+  (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+    runtimeBridge;
+
   useRepositoryStore.setState({
     repositories: [],
     selectedId: null,
@@ -59,6 +76,7 @@ beforeEach(() => {
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
+  useRunLogStore.getState().reset();
 });
 
 describe("Workspace", () => {
