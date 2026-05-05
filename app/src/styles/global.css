@@ -166,6 +166,60 @@ a:hover {
   border-bottom: 1px solid #2f2f36;
 }
 
+.run-log {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.run-log__line {
+  display: grid;
+  grid-template-columns: 90px 60px 1fr;
+  gap: 8px;
+  padding: 2px 12px;
+  color: #c8c8cf;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.run-log__line--stderr {
+  color: #f3a5a5;
+}
+
+.run-log__line--error {
+  color: #ff7a7a;
+}
+
+.run-log__line--result {
+  font-weight: 600;
+  border-top: 1px dashed #2f2f36;
+  margin-top: 2px;
+}
+
+.run-log__line--result-failed,
+.run-log__line--result-timeout,
+.run-log__line--result-cancelled {
+  color: #ff7a7a;
+}
+
+.run-log__line--result-success {
+  color: #8ee48e;
+}
+
+.run-log__node {
+  color: #8a8a92;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log__type {
+  color: #6f6f78;
+}
+
 .repository-list {
   max-width: 720px;
   margin: 0 auto;
