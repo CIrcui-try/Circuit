@@ -279,6 +279,139 @@ a:hover {
   color: #d6b8ff;
 }
 
+.cli-status-panel {
+  margin-bottom: 24px;
+  border: 1px solid #3a3a42;
+  border-radius: 8px;
+  background: #26262b;
+  overflow: hidden;
+}
+
+.cli-status-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2f2f36;
+}
+
+.cli-status-panel__title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8a92;
+}
+
+.cli-status-panel__refresh {
+  font-size: 12px;
+  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cli-status-panel__refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cli-status-spinner--inline {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+}
+
+.cli-status-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cli-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2f2f36;
+}
+
+.cli-status-row:last-child {
+  border-bottom: none;
+}
+
+.cli-status-row__name {
+  font-weight: 600;
+  min-width: 96px;
+}
+
+.cli-status-row__detail {
+  flex: 1;
+  color: #8a8a92;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.cli-status-row[data-status="error"] .cli-status-row__detail,
+.cli-status-row[data-status="missing"] .cli-status-row__detail {
+  color: #c8a097;
+}
+
+.cli-status-row__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.cli-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #5a5a62;
+  flex-shrink: 0;
+}
+
+.cli-status-dot--ok {
+  background: #5fb37a;
+  box-shadow: 0 0 0 3px rgba(95, 179, 122, 0.18);
+}
+
+.cli-status-dot--missing,
+.cli-status-dot--error {
+  background: #e5786a;
+  box-shadow: 0 0 0 3px rgba(229, 120, 106, 0.18);
+}
+
+.cli-status-dot--checking {
+  background: #d8b86a;
+  box-shadow: 0 0 0 3px rgba(216, 184, 106, 0.18);
+}
+
+.cli-status-dot--idle {
+  background: #5a5a62;
+}
+
+.cli-status-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(216, 184, 106, 0.25);
+  border-top-color: #d8b86a;
+  animation: cli-status-spin 0.8s linear infinite;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+@keyframes cli-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .skill-list {
   list-style: none;
   margin: 0;

@@ -111,12 +111,14 @@ export function createMockRuntimeBridge(
         listeners.set(runId, set);
       }
       set.add(listener);
-      return () => {
+      const unsub = (() => {
         const current = listeners.get(runId);
         if (!current) return;
         current.delete(listener);
         if (current.size === 0) listeners.delete(runId);
-      };
+      }) as Unsubscribe;
+      unsub.ready = Promise.resolve();
+      return unsub;
     },
     setScenario(next) {
       scenario = next;

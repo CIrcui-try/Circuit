@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { CliStatusPanel } from "../components/CliStatusPanel";
 import { getHostBridge } from "../host/bridge";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
@@ -46,6 +47,7 @@ export function RepositoryList() {
 
   return (
     <div className="repository-list">
+      <CliStatusPanel />
       <h1 className="repository-list__heading">Repositories</h1>
       <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
         <button
