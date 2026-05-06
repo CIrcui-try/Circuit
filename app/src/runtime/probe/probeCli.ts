@@ -97,6 +97,12 @@ export function probeCli(
     };
 
     const failSafe = setTimeout(() => {
+      const message = `probe timed out after ${timeoutMs}ms (stages: ${JSON.stringify(stages)})`;
+      // Surface the diagnostic dump in dev tools so it's copyable even when the
+      // panel truncates the row.
+      if (typeof console !== "undefined") {
+        console.warn(`[probeCli] ${command} ${args.join(" ")} — ${message}`);
+      }
       finish({
         ok: false,
         exitCode: null,
@@ -104,7 +110,7 @@ export function probeCli(
         stdoutFirstLine: firstLine(stdout),
         stderr,
         reason: "timeout",
-        errorMessage: `probe timed out after ${timeoutMs}ms (stages: ${JSON.stringify(stages)})`,
+        errorMessage: message,
       });
     }, timeoutMs + 500);
 

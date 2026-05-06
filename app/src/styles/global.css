@@ -349,9 +349,14 @@ a:hover {
   color: #8a8a92;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.cli-status-row[data-status="error"] .cli-status-row__detail,
+.cli-status-row[data-status="missing"] .cli-status-row__detail {
+  color: #c8a097;
 }
 
 .cli-status-row__sr {

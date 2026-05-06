@@ -94,7 +94,12 @@ export function CliStatusPanel() {
                 />
               )}
               <span className="cli-status-row__name">{CLI_LABELS[id]}</span>
-              <span className="cli-status-row__detail">{describe(entry)}</span>
+              <span
+                className="cli-status-row__detail"
+                title={describe(entry)}
+              >
+                {describe(entry)}
+              </span>
               <span className="cli-status-row__sr">
                 {STATUS_LABEL[entry.status]}
               </span>
