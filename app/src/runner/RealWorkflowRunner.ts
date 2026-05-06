@@ -9,6 +9,14 @@ import type { WorkflowSkillNode } from "../workflow/schema";
 import type { useRunLogStore } from "./runLogStore";
 import type { RunnableNode, RunResult, WorkflowRunner } from "./runner";
 
+export interface PersistRunLogArgs {
+  runId: string;
+  workflowId: string | null;
+  repository: { id: string; name: string; path: string };
+  events: ReturnType<typeof useRunLogStore.getState>["events"];
+  nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
+}
+
 export interface RealWorkflowRunnerOptions {
   registry: AdapterRegistry;
   bridge: RuntimeBridge;
@@ -16,6 +24,7 @@ export interface RealWorkflowRunnerOptions {
   getNode: (id: string) => WorkflowSkillNode | null;
   getRepository: () => { id: string; name: string; path: string } | null;
   getRunMeta: () => { runId: string; workflowId: string | null };
+  persistRunLog?: (args: PersistRunLogArgs) => Promise<void> | void;
 }
 
 export class RealWorkflowRunner implements WorkflowRunner {
@@ -104,6 +113,21 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
     this.opts.logStore.getState().setNodeResult(node.id, result);
     this.previousOutputs[node.id] = result;
+
+    if (this.opts.persistRunLog) {
+      const log = this.opts.logStore.getState();
+      try {
+        await this.opts.persistRunLog({
+          runId,
+          workflowId,
+          repository: repo,
+          events: log.events,
+          nodeResults: log.nodeResults,
+        });
+      } catch {
+        // best-effort persistence
+      }
+    }
 
     if (result.status === "success") return { ok: true };
     const exitSuffix =

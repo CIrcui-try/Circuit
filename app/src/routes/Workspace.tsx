@@ -7,7 +7,8 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
-import type { WorkflowSummaryDTO } from "../host/bridge";
+import { getHostBridge, type WorkflowSummaryDTO } from "../host/bridge";
+import { serializeRunLogJsonl } from "../runner/runLogPersistence";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -70,6 +71,19 @@ export function Workspace() {
       getRunMeta: () => {
         const s = useRunStore.getState();
         return { runId: s.runId ?? "(idle)", workflowId: s.workflowId };
+      },
+      persistRunLog: async ({
+        runId,
+        workflowId,
+        repository,
+        events,
+        nodeResults,
+      }) => {
+        if (!workflowId) return;
+        const host = getHostBridge();
+        if (!host.saveRunLog) return;
+        const jsonl = serializeRunLogJsonl(events, nodeResults);
+        await host.saveRunLog(repository.path, workflowId, runId, jsonl);
       },
     });
   }, [repo]);
