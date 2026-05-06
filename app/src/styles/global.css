@@ -640,6 +640,40 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  padding: 4px;
+  background: #1f1f24;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+.skill-node-menu__item {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.skill-node-menu__item:hover:not(:disabled) {
+  background: #2d2d33;
+}
+
+.skill-node-menu__item:disabled {
+  color: rgba(255, 255, 255, 0.35);
+  cursor: not-allowed;
+}
+
 .properties {
   margin: 0;
   padding: 12px;
