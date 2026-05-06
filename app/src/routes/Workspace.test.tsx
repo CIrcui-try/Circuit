@@ -264,6 +264,75 @@ describe("Workspace", () => {
     expect(useRunStore.getState().status).toBe("idle");
   });
 
+  it("W11: preview confirm is disabled when a node uses a non-allowlisted provider", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "shell:.shell/skills/danger",
+        provider: "shell" as never,
+        name: "Danger",
+        description: "",
+        rootDir: ".shell/skills/danger",
+        skillFile: ".shell/skills/danger/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByTestId("run-preview-blocked")).toBeInTheDocument();
+    expect(screen.getByTestId("run-preview-confirm")).toBeDisabled();
+  });
+
+  it("W12: preview shows sensitive warning when node prompt mentions destructive keywords; ack enables confirm", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    const fooId = useWorkflowStore.getState().nodes[0].id;
+    useWorkflowStore.setState((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === fooId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                input: { prompt: "please rm the build dir" },
+              },
+            }
+          : n,
+      ),
+    }));
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByTestId("run-preview-sensitive")).toBeInTheDocument();
+    const confirm = screen.getByTestId("run-preview-confirm");
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByTestId("run-preview-ack"));
+    expect(confirm).not.toBeDisabled();
+  });
+
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
     useWorkflowStore.getState().addSkillNode(
