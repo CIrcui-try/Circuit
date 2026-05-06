@@ -71,15 +71,19 @@ export function Sidebar({ repoId }: SidebarProps) {
         disabled: !absSkillFile,
         onSelect: () => {
           if (!absSkillFile) return;
-          // Tauri opener 의 openPath 는 OS LaunchServices 를 통해 default
-          // 앱으로 연다. macOS 에서 .md 에 default 가 없으면 reject 또는 silent
-          // no-op 가 나고 사용자는 "안 열린다" 로 인식 — Finder reveal 로 폴백.
+          // 1차: OS default 앱. macOS LaunchServices 가 .md 에 핸들러 없을 때
+          //      reject 가능 → 2차로 TextEdit (macOS 기본 내장) 으로 재시도.
           openPath(absSkillFile).catch((err) => {
             console.error(
-              `[Sidebar] openPath failed for ${absSkillFile}, falling back to revealItemInDir:`,
+              `[Sidebar] openPath(default) failed for ${absSkillFile}:`,
               err,
             );
-            void revealItemInDir(absSkillFile);
+            openPath(absSkillFile, "TextEdit").catch((err2) => {
+              console.error(
+                `[Sidebar] openPath(TextEdit) also failed for ${absSkillFile}:`,
+                err2,
+              );
+            });
           });
         },
       },
