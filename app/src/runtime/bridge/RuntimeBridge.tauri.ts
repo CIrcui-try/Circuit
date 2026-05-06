@@ -34,7 +34,7 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   subscribe(runId, listener: RuntimeProcessListener): Unsubscribe {
     let unlistenFn: (() => void) | null = null;
     let cancelled = false;
-    void listen<RuntimeProcessEvent>(RUNTIME_EVENT_CHANNEL, (msg) => {
+    const ready = listen<RuntimeProcessEvent>(RUNTIME_EVENT_CHANNEL, (msg) => {
       if (cancelled) return;
       if (msg.payload.runId !== runId) return;
       listener(msg.payload);
@@ -45,9 +45,11 @@ export const tauriRuntimeBridge: RuntimeBridge = {
         unlistenFn = u;
       }
     });
-    return () => {
+    const unsub = (() => {
       cancelled = true;
       if (unlistenFn) unlistenFn();
-    };
+    }) as Unsubscribe;
+    unsub.ready = ready;
+    return unsub;
   },
 };

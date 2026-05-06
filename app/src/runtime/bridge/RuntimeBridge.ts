@@ -9,7 +9,16 @@ export type RuntimeProcessEvent =
 
 export type RuntimeProcessListener = (event: RuntimeProcessEvent) => void;
 
-export type Unsubscribe = () => void;
+export interface Unsubscribe {
+  (): void;
+  /**
+   * Resolves once the underlying listener is fully registered with the host
+   * runtime. Awaiting this before calling `spawn` avoids dropped events for
+   * processes that exit faster than the IPC listener handshake completes
+   * (e.g. `claude --version`).
+   */
+  ready: Promise<void>;
+}
 
 export interface SpawnOptions {
   runId: string;
@@ -55,15 +64,18 @@ const tauriRuntimeBridgeProxy: RuntimeBridge = {
   spawn: (options) => loadTauriBridge().then((b) => b.spawn(options)),
   cancel: (runId) => loadTauriBridge().then((b) => b.cancel(runId)),
   subscribe: (runId, listener) => {
-    let unsub: Unsubscribe = () => {};
+    let inner: Unsubscribe | null = null;
     let cancelled = false;
-    void loadTauriBridge().then((b) => {
+    const ready = loadTauriBridge().then(async (b) => {
       if (cancelled) return;
-      unsub = b.subscribe(runId, listener);
+      inner = b.subscribe(runId, listener);
+      await inner.ready;
     });
-    return () => {
+    const unsub = (() => {
       cancelled = true;
-      unsub();
-    };
+      if (inner) inner();
+    }) as Unsubscribe;
+    unsub.ready = ready;
+    return unsub;
   },
 };

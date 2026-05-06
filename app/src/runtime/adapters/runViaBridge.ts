@@ -74,15 +74,17 @@ export function probeViaBridge(
       }
     });
 
-    bridge
-      .spawn({
-        runId,
-        command: cmd,
-        args,
-        cwd: ctx.execution.cwd,
-        env: ctx.execution.env,
-        timeoutMs,
-      })
+    unsubscribe.ready
+      .then(() =>
+        bridge.spawn({
+          runId,
+          command: cmd,
+          args,
+          cwd: ctx.execution.cwd,
+          env: ctx.execution.env,
+          timeoutMs,
+        }),
+      )
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         finish({
@@ -173,15 +175,17 @@ export function runViaBridge(
       }
     });
 
-    bridge
-      .spawn({
-        runId,
-        command: cmd,
-        args,
-        cwd: ctx.execution.cwd,
-        env: ctx.execution.env,
-        timeoutMs: ctx.execution.timeoutMs,
-      })
+    unsubscribe.ready
+      .then(() =>
+        bridge.spawn({
+          runId,
+          command: cmd,
+          args,
+          cwd: ctx.execution.cwd,
+          env: ctx.execution.env,
+          timeoutMs: ctx.execution.timeoutMs,
+        }),
+      )
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         emit({

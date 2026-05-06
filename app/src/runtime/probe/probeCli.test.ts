@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createMockRuntimeBridge } from "../bridge/RuntimeBridge.mock";
+import type {
+  RuntimeBridge,
+  Unsubscribe,
+} from "../bridge/RuntimeBridge";
 import { probeCli } from "./probeCli";
 
 describe("probeCli", () => {
@@ -94,6 +98,60 @@ describe("probeCli", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("timeout");
+  });
+
+  it("waits for subscribe.ready before invoking spawn (regression: dropped exit on fast commands)", async () => {
+    let releaseReady: () => void = () => {};
+    const ready = new Promise<void>((resolve) => {
+      releaseReady = resolve;
+    });
+
+    const spawnOrder: string[] = [];
+    const subscribers = new Map<
+      string,
+      (ev: import("../bridge/RuntimeBridge").RuntimeProcessEvent) => void
+    >();
+
+    const bridge: RuntimeBridge = {
+      readFile: vi.fn(),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      spawn: vi.fn(async (opts) => {
+        spawnOrder.push("spawn");
+        // emit terminal event immediately, simulating a very fast command.
+        queueMicrotask(() => {
+          subscribers.get(opts.runId)?.({
+            type: "exited",
+            runId: opts.runId,
+            timestamp: new Date().toISOString(),
+            exitCode: 0,
+          });
+        });
+        return { runId: opts.runId };
+      }),
+      subscribe: (runId, listener) => {
+        subscribers.set(runId, listener);
+        const unsub = (() => {
+          subscribers.delete(runId);
+        }) as Unsubscribe;
+        unsub.ready = ready;
+        return unsub;
+      },
+    };
+
+    const probePromise = probeCli(bridge, "claude", ["--version"], {
+      cwd: "/tmp",
+    });
+
+    // give microtasks a chance to run; spawn must NOT have been called yet.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(spawnOrder).toEqual([]);
+
+    releaseReady();
+    const result = await probePromise;
+    expect(spawnOrder).toEqual(["spawn"]);
+    expect(result.ok).toBe(true);
+    expect(result.exitCode).toBe(0);
   });
 
   it("maps unknown error to reason 'error' rather than 'missing'", async () => {

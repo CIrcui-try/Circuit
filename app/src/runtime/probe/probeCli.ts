@@ -136,15 +136,17 @@ export function probeCli(
       }
     });
 
-    bridge
-      .spawn({
-        runId,
-        command,
-        args,
-        cwd: opts.cwd,
-        env: opts.env,
-        timeoutMs,
-      })
+    unsubscribe.ready
+      .then(() =>
+        bridge.spawn({
+          runId,
+          command,
+          args,
+          cwd: opts.cwd,
+          env: opts.env,
+          timeoutMs,
+        }),
+      )
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         finish({
