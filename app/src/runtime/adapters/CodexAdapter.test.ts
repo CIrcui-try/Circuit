@@ -128,7 +128,7 @@ describe("CodexAdapter", () => {
     expect(spawnCalls[0].timeoutMs).toBe(300_000);
   });
 
-  it("C7 — default command is 'codex exec <prompt>' with full prompt content", async () => {
+  it("C7 — default command is 'codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check <prompt>' with full prompt content", async () => {
     const { bridge, spawnCalls } = spy(() => [
       { event: { type: "exited", exitCode: 0 } },
     ]);
@@ -136,8 +136,12 @@ describe("CodexAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].command).toBe("codex");
     const args = spawnCalls[0].args;
-    expect(args[0]).toBe("exec");
-    const prompt = args[1];
+    expect(args.slice(0, 3)).toEqual([
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+    ]);
+    const prompt = args[3];
     expect(prompt).toContain("review-pr");
     expect(prompt).toContain("Review the diff.");
     expect(prompt).toContain(`"prompt": "review the diff"`);
