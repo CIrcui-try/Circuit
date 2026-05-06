@@ -244,6 +244,77 @@ describe("buildSkillExecutionContext", () => {
     expect(dirnameCtx.skill.name).toBe("implement-feature");
   });
 
+  it("B9 rejects a relative repository.path", async () => {
+    await expect(
+      buildSkillExecutionContext(
+        {
+          runId: "r",
+          workflowId: "w",
+          node: makeNode(),
+          repository: { ...baseRepo, path: "relative/path" },
+          previousOutputs: {},
+        },
+        { readSkillFile: async () => skillContent },
+      ),
+    ).rejects.toThrow(/absolute/);
+  });
+
+  it("B10 rejects filesystem root as repository.path", async () => {
+    await expect(
+      buildSkillExecutionContext(
+        {
+          runId: "r",
+          workflowId: "w",
+          node: makeNode(),
+          repository: { ...baseRepo, path: "/" },
+          previousOutputs: {},
+        },
+        { readSkillFile: async () => skillContent },
+      ),
+    ).rejects.toThrow(/filesystem root/);
+  });
+
+  it("B11 clamps timeoutMs to MIN/MAX and ignores non-finite values", async () => {
+    const tooSmall = await buildSkillExecutionContext(
+      {
+        runId: "r",
+        workflowId: "w",
+        node: makeNode(),
+        repository: baseRepo,
+        previousOutputs: {},
+        timeoutMs: 5,
+      },
+      { readSkillFile: async () => skillContent },
+    );
+    expect(tooSmall.execution.timeoutMs).toBe(1_000);
+
+    const tooLarge = await buildSkillExecutionContext(
+      {
+        runId: "r",
+        workflowId: "w",
+        node: makeNode(),
+        repository: baseRepo,
+        previousOutputs: {},
+        timeoutMs: 999_999_999,
+      },
+      { readSkillFile: async () => skillContent },
+    );
+    expect(tooLarge.execution.timeoutMs).toBe(60 * 60 * 1000);
+
+    const nan = await buildSkillExecutionContext(
+      {
+        runId: "r",
+        workflowId: "w",
+        node: makeNode(),
+        repository: baseRepo,
+        previousOutputs: {},
+        timeoutMs: Number.NaN,
+      },
+      { readSkillFile: async () => skillContent },
+    );
+    expect(nan.execution.timeoutMs).toBe(DEFAULT_TIMEOUT_MS);
+  });
+
   it("B8 defaults node.input to an empty object when missing", async () => {
     const ctx = await buildSkillExecutionContext(
       {

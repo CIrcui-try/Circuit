@@ -41,6 +41,17 @@ export async function buildSkillExecutionContext(
     env,
   } = input;
 
+  if (!repository.path.startsWith("/")) {
+    throw new Error(
+      `repository.path must be an absolute path, got "${repository.path}"`,
+    );
+  }
+  const normalizedRoot = normalize(repository.path);
+  if (normalizedRoot === "/") {
+    throw new Error("repository.path cannot be filesystem root");
+  }
+  assertInsideRepoRoot(normalizedRoot, normalizedRoot);
+
   const skillFile = node.skillRef.skillFile;
   const skillFileAbsPath = resolveSkillFilePath(skillFile, repository.path);
   assertInsideRepoRoot(skillFileAbsPath, repository.path);
@@ -69,11 +80,22 @@ export async function buildSkillExecutionContext(
     input: node.input ?? {},
     previousOutputs,
     execution: {
-      timeoutMs: timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: repository.path,
       ...(env ? { env } : {}),
     },
   };
+}
+
+export const MIN_TIMEOUT_MS = 1_000;
+export const MAX_TIMEOUT_MS = 60 * 60 * 1000;
+
+function resolveTimeoutMs(timeoutMs: number | undefined): number {
+  if (timeoutMs == null) return DEFAULT_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs)) return DEFAULT_TIMEOUT_MS;
+  if (timeoutMs < MIN_TIMEOUT_MS) return MIN_TIMEOUT_MS;
+  if (timeoutMs > MAX_TIMEOUT_MS) return MAX_TIMEOUT_MS;
+  return Math.floor(timeoutMs);
 }
 
 function resolveSkillFilePath(skillFile: string, repoRoot: string): string {

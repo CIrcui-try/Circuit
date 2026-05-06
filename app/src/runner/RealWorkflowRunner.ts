@@ -63,6 +63,8 @@ export class RealWorkflowRunner implements WorkflowRunner {
       return { ok: false, reason: errorMessage(err) };
     }
 
+    const nodeTimeout = readNodeTimeoutMs(fullNode.input);
+
     let ctx;
     try {
       ctx = await buildSkillExecutionContext(
@@ -72,6 +74,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
           node: fullNode,
           repository: repo,
           previousOutputs: { ...this.previousOutputs },
+          ...(nodeTimeout != null ? { timeoutMs: nodeTimeout } : {}),
         },
         {
           readSkillFile: (abs, root) => this.opts.bridge.readFile(abs, root),
@@ -111,4 +114,15 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function readNodeTimeoutMs(
+  input: Record<string, unknown> | undefined,
+): number | undefined {
+  if (!input) return undefined;
+  const value = input.timeoutMs;
+  if (typeof value !== "number") return undefined;
+  if (!Number.isFinite(value)) return undefined;
+  if (value <= 0) return undefined;
+  return value;
 }
