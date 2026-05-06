@@ -1,14 +1,34 @@
 import { useRunLogStore } from "../../runner/runLogStore";
+import { useRunStore } from "../../runner/runStore";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
+
+function LogHeader({ isRunning }: { isRunning: boolean }) {
+  return (
+    <div className="panel-header panel-header--with-status">
+      <span>Run Log</span>
+      {isRunning ? (
+        <span className="panel-header__running" data-testid="run-log-running">
+          <span
+            className="cli-status-spinner cli-status-spinner--inline"
+            aria-hidden="true"
+            role="presentation"
+          />
+          running…
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 export function LogPanel() {
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
+  const isRunning = useRunStore((s) => s.status === "running");
 
   if (events.length === 0 && Object.keys(nodeResults).length === 0) {
     return (
       <footer className="workspace__log">
-        <div className="panel-header">Run Log</div>
+        <LogHeader isRunning={isRunning} />
         <div className="empty-state">No runs yet.</div>
       </footer>
     );
@@ -16,7 +36,7 @@ export function LogPanel() {
 
   return (
     <footer className="workspace__log">
-      <div className="panel-header">Run Log</div>
+      <LogHeader isRunning={isRunning} />
       <ul className="run-log" data-testid="run-log">
         {events.map((entry, i) => (
           <li

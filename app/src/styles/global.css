@@ -166,6 +166,28 @@ a:hover {
   border-bottom: 1px solid #2f2f36;
 }
 
+.panel-header--with-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header__running {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d8b86a;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.workspace__toolbar-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .run-log {
   list-style: none;
   margin: 0;

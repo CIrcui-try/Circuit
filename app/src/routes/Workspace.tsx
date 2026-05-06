@@ -227,10 +227,22 @@ export function Workspace() {
         <button
           type="button"
           data-testid="workflow-start"
+          className="workspace__toolbar-start"
           onClick={() => void handleStart()}
           disabled={!repo || isRunning || nodeCount === 0}
         >
-          {isRunning ? "Running…" : "Start Circuit"}
+          {isRunning ? (
+            <>
+              <span
+                className="cli-status-spinner cli-status-spinner--inline"
+                aria-hidden="true"
+                role="presentation"
+              />
+              Running…
+            </>
+          ) : (
+            "Start Circuit"
+          )}
         </button>
         <button
           type="button"
