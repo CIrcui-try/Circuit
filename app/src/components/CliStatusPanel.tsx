@@ -60,11 +60,11 @@ export function CliStatusPanel() {
           {isChecking ? "점검 중…" : "다시 점검"}
         </button>
       </header>
-      <ul className="cli-status-panel__list">
+      <div className="cli-status-panel__list">
         {ids.map((id) => {
           const entry = entries[id];
           return (
-            <li
+            <div
               key={id}
               className="cli-status-row"
               data-testid={`cli-status-row-${id}`}
@@ -79,10 +79,10 @@ export function CliStatusPanel() {
               <span className="cli-status-row__sr">
                 {STATUS_LABEL[entry.status]}
               </span>
-            </li>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </section>
   );
 }
