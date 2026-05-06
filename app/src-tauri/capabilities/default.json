@@ -6,8 +6,14 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "opener:allow-reveal-item-in-dir",
-    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$HOME/**", "app": true }]
+    },
     "dialog:allow-open",
     "store:default"
   ]
