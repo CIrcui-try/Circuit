@@ -60,14 +60,27 @@ export function Sidebar({ repoId }: SidebarProps) {
         label: "Show in Finder",
         disabled: !absSkillFile,
         onSelect: () => {
-          if (absSkillFile) void revealItemInDir(absSkillFile);
+          if (!absSkillFile) return;
+          revealItemInDir(absSkillFile).catch((err) => {
+            console.error("[Sidebar] revealItemInDir failed:", err);
+          });
         },
       },
       {
         label: "Open SKILL.md",
         disabled: !absSkillFile,
         onSelect: () => {
-          if (absSkillFile) void openPath(absSkillFile);
+          if (!absSkillFile) return;
+          // Tauri opener 의 openPath 는 OS LaunchServices 를 통해 default
+          // 앱으로 연다. macOS 에서 .md 에 default 가 없으면 reject 또는 silent
+          // no-op 가 나고 사용자는 "안 열린다" 로 인식 — Finder reveal 로 폴백.
+          openPath(absSkillFile).catch((err) => {
+            console.error(
+              `[Sidebar] openPath failed for ${absSkillFile}, falling back to revealItemInDir:`,
+              err,
+            );
+            void revealItemInDir(absSkillFile);
+          });
         },
       },
     ];
