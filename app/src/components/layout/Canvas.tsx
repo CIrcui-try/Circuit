@@ -4,12 +4,29 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Node as RFNode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useRef, useState, type DragEvent } from "react";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { nodeTypes } from "../canvas/SkillNode";
-import { useWorkflowStore } from "../../stores/workflowStore";
+import {
+  SkillNodeMenu,
+  type SkillNodeMenuItem,
+} from "../canvas/SkillNodeMenu";
+import { useRepositoryStore } from "../../stores/repositoryStore";
+import {
+  useWorkflowStore,
+  type SkillNode as SkillNodeType,
+} from "../../stores/workflowStore";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 
@@ -19,9 +36,21 @@ type SkillDragPayload = {
   name: string;
 };
 
+type MenuState = {
+  x: number;
+  y: number;
+  nodeId: string;
+  skillFile: string;
+};
+
+function joinPath(base: string, rel: string): string {
+  return `${base.replace(/\/+$/, "")}/${rel.replace(/^\/+/, "")}`;
+}
+
 function CanvasInner() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
     useWorkflowStore(
@@ -34,6 +63,10 @@ function CanvasInner() {
       })),
     );
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
+  const activeRepoPath = useRepositoryStore((s) => {
+    if (!s.selectedId) return null;
+    return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
+  });
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (event.dataTransfer.types.includes(SKILL_DRAG_MIME)) {
@@ -83,6 +116,52 @@ function CanvasInner() {
     [addSkillNode, screenToFlowPosition],
   );
 
+  const onNodeContextMenu = useCallback(
+    (event: ReactMouseEvent, node: RFNode) => {
+      event.preventDefault();
+      const skillNode = node as SkillNodeType;
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+        nodeId: skillNode.id,
+        skillFile: skillNode.data.skillRef.skillFile,
+      });
+    },
+    [],
+  );
+
+  const menuItems: SkillNodeMenuItem[] = useMemo(() => {
+    if (!menu) return [];
+    const absolutePath =
+      activeRepoPath && menu.skillFile
+        ? joinPath(activeRepoPath, menu.skillFile)
+        : null;
+    return [
+      {
+        label: "Show in Finder",
+        disabled: !absolutePath,
+        onSelect: () => {
+          if (absolutePath) void revealItemInDir(absolutePath);
+        },
+      },
+      {
+        label: "Open SKILL.md",
+        disabled: !absolutePath,
+        onSelect: () => {
+          if (absolutePath) void openPath(absolutePath);
+        },
+      },
+      {
+        label: "Remove from workflow",
+        onSelect: () => {
+          const store = useWorkflowStore.getState();
+          store.selectNode(menu.nodeId);
+          store.deleteSelected();
+        },
+      },
+    ];
+  }, [menu, activeRepoPath]);
+
   return (
     <section
       ref={wrapperRef}
@@ -100,6 +179,8 @@ function CanvasInner() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneClick={() => setMenu(null)}
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"
         fitView
@@ -107,6 +188,14 @@ function CanvasInner() {
         <Background gap={16} />
         <Controls />
       </ReactFlow>
+      {menu && (
+        <SkillNodeMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </section>
   );
 }
