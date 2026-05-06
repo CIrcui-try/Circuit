@@ -34,10 +34,35 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   subscribe(runId, listener: RuntimeProcessListener): Unsubscribe {
     let unlistenFn: (() => void) | null = null;
     let cancelled = false;
-    const ready = listen<RuntimeProcessEvent>(RUNTIME_EVENT_CHANNEL, (msg) => {
+    const ready = listen<unknown>(RUNTIME_EVENT_CHANNEL, (msg) => {
       if (cancelled) return;
-      if (msg.payload.runId !== runId) return;
-      listener(msg.payload);
+      const raw = msg.payload as Record<string, unknown> | null | undefined;
+      if (!raw || typeof raw !== "object") {
+        console.warn("[RuntimeBridge] event with non-object payload:", msg);
+        return;
+      }
+      const incomingRunId =
+        (raw.runId as string | undefined) ??
+        (raw.run_id as string | undefined);
+      // Always log in dev tools so the user can copy raw payloads when probes
+      // get stuck. This is a frontend bundle so the cost is just one console
+      // line per event.
+      console.debug(
+        `[RuntimeBridge] event received: runId=${String(incomingRunId)} type=${String(
+          raw.type,
+        )} (filter=${runId})`,
+        raw,
+      );
+      if (incomingRunId !== runId) return;
+      const exitCodeRaw =
+        (raw.exitCode as number | null | undefined) ??
+        (raw.exit_code as number | null | undefined);
+      const normalized = {
+        ...raw,
+        runId: incomingRunId,
+        exitCode: exitCodeRaw,
+      } as unknown as RuntimeProcessEvent;
+      listener(normalized);
     }).then((u) => {
       if (cancelled) {
         u();
