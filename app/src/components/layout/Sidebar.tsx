@@ -1,14 +1,28 @@
-import type { DragEvent } from "react";
+import { useState, type DragEvent } from "react";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { SKILL_DRAG_MIME } from "./Canvas";
+import {
+  SkillNodeMenu,
+  type SkillNodeMenuItem,
+} from "../canvas/SkillNodeMenu";
 
 type SidebarProps = {
   repoId?: string;
 };
 
+type MenuState = { x: number; y: number; skill: Skill };
+
 function dropPosition(index: number) {
   return { x: 80 + 32 * index, y: 80 + 32 * index };
+}
+
+function joinPath(base: string, rel: string): string {
+  const trimmedBase = base.replace(/\/+$/, "");
+  const trimmedRel = rel.replace(/^\/+/, "");
+  return `${trimmedBase}/${trimmedRel}`;
 }
 
 export function Sidebar({ repoId }: SidebarProps) {
@@ -16,6 +30,10 @@ export function Sidebar({ repoId }: SidebarProps) {
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
+  const repoPath = useRepositoryStore((s) =>
+    repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
+  );
+  const [menu, setMenu] = useState<MenuState | null>(null);
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -32,6 +50,27 @@ export function Sidebar({ repoId }: SidebarProps) {
   const handleAdd = (skill: Skill) => {
     const count = useWorkflowStore.getState().nodes.length;
     addSkillNode(skill, dropPosition(count));
+  };
+
+  const buildMenuItems = (skill: Skill): SkillNodeMenuItem[] => {
+    const absSkillFile =
+      repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
+    return [
+      {
+        label: "Show in Finder",
+        disabled: !absSkillFile,
+        onSelect: () => {
+          if (absSkillFile) void revealItemInDir(absSkillFile);
+        },
+      },
+      {
+        label: "Open SKILL.md",
+        disabled: !absSkillFile,
+        onSelect: () => {
+          if (absSkillFile) void openPath(absSkillFile);
+        },
+      },
+    ];
   };
 
   return (
@@ -56,6 +95,11 @@ export function Sidebar({ repoId }: SidebarProps) {
               data-skill-id={skill.id}
               draggable
               onDragStart={(event) => handleDragStart(event, skill)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setMenu({ x: event.clientX, y: event.clientY, skill });
+              }}
             >
               <div className="skill-list__row">
                 <span className="skill-list__name">{skill.name}</span>
@@ -83,6 +127,15 @@ export function Sidebar({ repoId }: SidebarProps) {
       )}
 
       {error && <div className="skill-list__error">{error}</div>}
+
+      {menu && (
+        <SkillNodeMenu
+          x={menu.x}
+          y={menu.y}
+          items={buildMenuItems(menu.skill)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </aside>
   );
 }
