@@ -6,6 +6,22 @@
   "permissions": [
     "core:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$HOME/**/.*/**" },
+        { "path": "$HOME/**/.*" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$HOME/**", "app": true },
+        { "path": "$HOME/**/.*/**", "app": true },
+        { "path": "$HOME/**/.*", "app": true }
+      ]
+    },
     "dialog:allow-open",
     "store:default"
   ]

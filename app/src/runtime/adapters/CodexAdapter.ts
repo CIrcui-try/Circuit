@@ -33,11 +33,26 @@ const DEFAULT_PROBE: CodexCommand = {
 
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
+// `codex exec` 는 첫 실행 시 디렉토리 신뢰 / 명령 승인 프롬프트를 띄우는데,
+// 우리는 stdin=null 로 spawn 하므로 그 프롬프트에 응답할 길이 없어 노드가
+// 무한 대기에 빠진다. `--dangerously-bypass-approvals-and-sandbox` 로 그
+// 프롬프트들을 모두 끄고, `--skip-git-repo-check` 로 비-git 디렉토리에서도
+// 실행되게 한다. 사용자는 Workspace 의 Start Circuit 을 명시적으로 눌러
+// 자동화에 옵트인한 상태이므로 per-command 승인은 적합한 UX 가 아니다.
+// 더 안전한 정책이 필요하면 호출자가 `buildCommand` 옵션으로 override.
 function defaultBuildCommand(
   _ctx: SkillExecutionContext,
   prompt: string,
 ): CodexCommand {
-  return { command: "codex", args: ["exec", prompt] };
+  return {
+    command: "codex",
+    args: [
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+      prompt,
+    ],
+  };
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {
