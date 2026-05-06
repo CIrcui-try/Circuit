@@ -200,7 +200,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W9: clicking Start Circuit drives the run store from idle to success", async () => {
+  it("W9: clicking Start opens the preview modal; confirming drives the run store to success", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -222,11 +222,46 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
+    // Modal should appear with the node row, run is not yet started.
+    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
+    expect(screen.getAllByTestId("run-preview-node-row")).toHaveLength(1);
+    expect(useRunStore.getState().status).toBe("idle");
+
+    fireEvent.click(screen.getByTestId("run-preview-confirm"));
+
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
     });
     const fooNodeId = useWorkflowStore.getState().nodes[0].id;
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
+  });
+
+  it("W10: cancel button on preview modal closes it without running", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("run-preview-cancel"));
+    expect(screen.queryByTestId("run-preview-modal")).not.toBeInTheDocument();
+    expect(useRunStore.getState().status).toBe("idle");
   });
 
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {

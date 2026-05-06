@@ -4,6 +4,16 @@ import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
 import { Sidebar } from "../components/layout/Sidebar";
+import {
+  RunPreviewModal,
+  type RunPreviewNode,
+} from "../components/run/RunPreviewModal";
+import { detectSensitiveAction } from "../runtime/safety/sensitiveAction";
+import {
+  DEFAULT_PROVIDER_ALLOWLIST,
+  createDefaultRegistry,
+} from "../runtime/adapters/createDefaultRegistry";
+import { DEFAULT_TIMEOUT_MS } from "../runtime/context/buildSkillExecutionContext";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
@@ -15,7 +25,6 @@ import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
 import { runWorkflow } from "../runner/runWorkflow";
 import type { RunnableEdge, RunnableNode } from "../runner/runner";
-import { createDefaultRegistry } from "../runtime/adapters/createDefaultRegistry";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
 import type { WorkflowSkillNode } from "../workflow/schema";
 
@@ -40,6 +49,8 @@ export function Workspace() {
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewNodes, setPreviewNodes] = useState<RunPreviewNode[]>([]);
 
   const runner = useMemo(() => {
     if (!repo) return null;
@@ -134,7 +145,47 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleStart = useCallback(async () => {
+  const handleStart = useCallback(() => {
+    if (!runner || !repo) return;
+    const { nodes } = useWorkflowStore.getState();
+    const skillsForRepo = useSkillStore.getState().byRepo[repo.id] ?? [];
+    const skillByFile = new Map(skillsForRepo.map((s) => [s.skillFile, s]));
+
+    const previewItems: RunPreviewNode[] = nodes.map((n) => {
+      const skill = skillByFile.get(n.data.skillRef.skillFile) ?? null;
+      const promptValue =
+        typeof n.data.input === "object" && n.data.input !== null
+          ? (n.data.input as Record<string, unknown>).prompt
+          : undefined;
+      const timeoutValue =
+        typeof n.data.input === "object" && n.data.input !== null
+          ? (n.data.input as Record<string, unknown>).timeoutMs
+          : undefined;
+      const sensitive = detectSensitiveAction({
+        skillName: skill?.name ?? n.data.label,
+        prompt: typeof promptValue === "string" ? promptValue : undefined,
+      });
+      const provider = n.data.skillRef.provider;
+      return {
+        id: n.id,
+        label: n.data.label,
+        provider,
+        skillFile: n.data.skillRef.skillFile,
+        commandSummary: `${provider}: ${n.data.skillRef.skillFile}`,
+        timeoutMs:
+          typeof timeoutValue === "number" && Number.isFinite(timeoutValue)
+            ? timeoutValue
+            : DEFAULT_TIMEOUT_MS,
+        sensitiveKeywords: sensitive.keywords,
+      };
+    });
+
+    setPreviewNodes(previewItems);
+    setPreviewOpen(true);
+  }, [runner, repo]);
+
+  const handleConfirmStart = useCallback(async () => {
+    setPreviewOpen(false);
     if (!runner) return;
     runner.reset();
     const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
@@ -159,6 +210,10 @@ export function Workspace() {
       store: useRunStore,
     });
   }, [runner]);
+
+  const handlePreviewCancel = useCallback(() => {
+    setPreviewOpen(false);
+  }, []);
 
   const handleCancel = useCallback(() => {
     if (!runner) return;
@@ -242,7 +297,7 @@ export function Workspace() {
           type="button"
           data-testid="workflow-start"
           className="workspace__toolbar-start"
-          onClick={() => void handleStart()}
+          onClick={handleStart}
           disabled={!repo || isRunning || nodeCount === 0}
         >
           {isRunning ? (
@@ -276,6 +331,15 @@ export function Workspace() {
       <Canvas />
       <PropertiesPanel />
       <LogPanel />
+      <RunPreviewModal
+        open={previewOpen}
+        workflowName={workflowName}
+        repoPath={repo?.path ?? ""}
+        nodes={previewNodes}
+        allowedProviders={DEFAULT_PROVIDER_ALLOWLIST}
+        onConfirm={() => void handleConfirmStart()}
+        onCancel={handlePreviewCancel}
+      />
     </div>
   );
 }
