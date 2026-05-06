@@ -51,6 +51,7 @@ export function Workspace() {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewNodes, setPreviewNodes] = useState<RunPreviewNode[]>([]);
+  const [cancelling, setCancelling] = useState(false);
 
   const runner = useMemo(() => {
     if (!repo) return null;
@@ -217,8 +218,13 @@ export function Workspace() {
 
   const handleCancel = useCallback(() => {
     if (!runner) return;
+    setCancelling(true);
     void runner.cancel();
   }, [runner]);
+
+  useEffect(() => {
+    if (!isRunning) setCancelling(false);
+  }, [isRunning]);
 
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
@@ -317,9 +323,9 @@ export function Workspace() {
           type="button"
           data-testid="workflow-cancel"
           onClick={handleCancel}
-          disabled={!isRunning}
+          disabled={!isRunning || cancelling}
         >
-          Cancel
+          {cancelling ? "Cancelling…" : "Cancel"}
         </button>
         {saveStatus ? (
           <span className="workspace__toolbar-status" data-testid="workflow-save-status">
