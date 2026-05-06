@@ -72,9 +72,26 @@ export function probeCli(
     const finish = (result: Omit<CliProbeResult, "durationMs">) => {
       if (settled) return;
       settled = true;
+      clearTimeout(failSafe);
       unsubscribe();
       resolve({ ...result, durationMs: Date.now() - startedAt });
     };
+
+    // Belt-and-suspenders: even if the bridge silently drops every event
+    // (subscribe race, IPC layer hiccup, etc.), the panel must never stay in
+    // "checking" forever. Give the bridge timeoutMs + 500ms slack to deliver
+    // a terminal event before we synthesize one ourselves.
+    const failSafe = setTimeout(() => {
+      finish({
+        ok: false,
+        exitCode: null,
+        stdout,
+        stdoutFirstLine: firstLine(stdout),
+        stderr,
+        reason: "timeout",
+        errorMessage: `probe timed out after ${timeoutMs}ms (no terminal event from bridge)`,
+      });
+    }, timeoutMs + 500);
 
     const unsubscribe = bridge.subscribe(runId, (ev) => {
       switch (ev.type) {
