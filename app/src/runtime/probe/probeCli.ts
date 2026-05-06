@@ -18,11 +18,18 @@ export interface CliProbeResult {
   durationMs: number;
 }
 
+export type CliProbeStage =
+  | "subscribing"
+  | "awaiting-listener"
+  | "spawning"
+  | "awaiting-output";
+
 export interface ProbeCliOptions {
   cwd: string;
   env?: Record<string, string>;
   timeoutMs?: number;
   runId?: string;
+  onStage?: (stage: CliProbeStage) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 3000;
@@ -69,6 +76,18 @@ export function probeCli(
     let stderr = "";
     let settled = false;
 
+    // Diagnostic stages — included in fail-safe error message so we can tell
+    // whether the bridge handshake or the spawn invoke is the culprit when
+    // events go missing in the wild.
+    const stages = {
+      subscribed: false,
+      ready: false,
+      spawnCalled: false,
+      spawnResolved: false,
+      spawnRejected: false,
+      anyEvent: false,
+    };
+
     const finish = (result: Omit<CliProbeResult, "durationMs">) => {
       if (settled) return;
       settled = true;
@@ -77,10 +96,6 @@ export function probeCli(
       resolve({ ...result, durationMs: Date.now() - startedAt });
     };
 
-    // Belt-and-suspenders: even if the bridge silently drops every event
-    // (subscribe race, IPC layer hiccup, etc.), the panel must never stay in
-    // "checking" forever. Give the bridge timeoutMs + 500ms slack to deliver
-    // a terminal event before we synthesize one ourselves.
     const failSafe = setTimeout(() => {
       finish({
         ok: false,
@@ -89,11 +104,12 @@ export function probeCli(
         stdoutFirstLine: firstLine(stdout),
         stderr,
         reason: "timeout",
-        errorMessage: `probe timed out after ${timeoutMs}ms (no terminal event from bridge)`,
+        errorMessage: `probe timed out after ${timeoutMs}ms (stages: ${JSON.stringify(stages)})`,
       });
     }, timeoutMs + 500);
 
     const unsubscribe = bridge.subscribe(runId, (ev) => {
+      stages.anyEvent = true;
       switch (ev.type) {
         case "stdout":
           stdout += ev.text;
@@ -153,18 +169,34 @@ export function probeCli(
       }
     });
 
+    const reportStage = (stage: CliProbeStage) => {
+      if (settled) return;
+      opts.onStage?.(stage);
+    };
+
+    stages.subscribed = true;
+    reportStage("awaiting-listener");
+
     unsubscribe.ready
-      .then(() =>
-        bridge.spawn({
+      .then(() => {
+        stages.ready = true;
+        stages.spawnCalled = true;
+        reportStage("spawning");
+        return bridge.spawn({
           runId,
           command,
           args,
           cwd: opts.cwd,
           env: opts.env,
           timeoutMs,
-        }),
-      )
+        });
+      })
+      .then(() => {
+        stages.spawnResolved = true;
+        reportStage("awaiting-output");
+      })
       .catch((err: unknown) => {
+        stages.spawnRejected = true;
         const message = err instanceof Error ? err.message : String(err);
         finish({
           ok: false,

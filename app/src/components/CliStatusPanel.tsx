@@ -28,7 +28,7 @@ function describe(entry: CliEntry): string {
     case "error":
       return entry.errorMessage ?? "오류";
     case "checking":
-      return "점검 중…";
+      return entry.progressLabel ?? "점검 중…";
     case "idle":
     default:
       return "확인 전";
@@ -57,7 +57,18 @@ export function CliStatusPanel() {
           disabled={isChecking}
           data-testid="cli-status-refresh"
         >
-          {isChecking ? "점검 중…" : "다시 점검"}
+          {isChecking ? (
+            <>
+              <span
+                className="cli-status-spinner cli-status-spinner--inline"
+                aria-hidden="true"
+                role="presentation"
+              />
+              점검 중…
+            </>
+          ) : (
+            "다시 점검"
+          )}
         </button>
       </header>
       <div className="cli-status-panel__list">
@@ -70,10 +81,18 @@ export function CliStatusPanel() {
               data-testid={`cli-status-row-${id}`}
               data-status={entry.status}
             >
-              <span
-                className={`cli-status-dot cli-status-dot--${entry.status}`}
-                aria-hidden="true"
-              />
+              {entry.status === "checking" ? (
+                <span
+                  className="cli-status-spinner"
+                  aria-hidden="true"
+                  role="presentation"
+                />
+              ) : (
+                <span
+                  className={`cli-status-dot cli-status-dot--${entry.status}`}
+                  aria-hidden="true"
+                />
+              )}
               <span className="cli-status-row__name">{CLI_LABELS[id]}</span>
               <span className="cli-status-row__detail">{describe(entry)}</span>
               <span className="cli-status-row__sr">

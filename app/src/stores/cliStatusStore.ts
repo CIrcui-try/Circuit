@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
 import type { RuntimeBridge } from "../runtime/bridge/RuntimeBridge";
-import { probeCli, type CliProbeResult } from "../runtime/probe/probeCli";
+import {
+  probeCli,
+  type CliProbeResult,
+  type CliProbeStage,
+} from "../runtime/probe/probeCli";
 
 export type CliId = "claude" | "codex";
 
@@ -18,7 +22,16 @@ export interface CliEntry {
   errorMessage?: string;
   durationMs?: number;
   checkedAt?: number;
+  /** Live progress label while status === "checking". */
+  progressLabel?: string;
 }
+
+const STAGE_LABELS: Record<CliProbeStage, string> = {
+  subscribing: "리스너 준비 중…",
+  "awaiting-listener": "리스너 등록 중…",
+  spawning: "프로세스 실행 중…",
+  "awaiting-output": "응답 대기 중…",
+};
 
 const PROBE_COMMANDS: Record<CliId, { command: string; args: string[] }> = {
   claude: { command: "claude", args: ["--version"] },
@@ -75,8 +88,8 @@ export const useCliStatusStore = create<CliStatusState>((set, get) => ({
     set({
       isChecking: true,
       entries: {
-        claude: { status: "checking" },
-        codex: { status: "checking" },
+        claude: { status: "checking", progressLabel: STAGE_LABELS.subscribing },
+        codex: { status: "checking", progressLabel: STAGE_LABELS.subscribing },
       },
     });
 
@@ -86,6 +99,19 @@ export const useCliStatusStore = create<CliStatusState>((set, get) => ({
         probeCli(bridge, PROBE_COMMANDS[id].command, PROBE_COMMANDS[id].args, {
           cwd,
           timeoutMs,
+          onStage: (stage) => {
+            const current = get().entries;
+            set({
+              entries: {
+                ...current,
+                [id]: {
+                  ...current[id],
+                  status: "checking",
+                  progressLabel: STAGE_LABELS[stage],
+                },
+              },
+            });
+          },
         }),
       ),
     );
