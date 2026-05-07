@@ -90,6 +90,34 @@ impl Workspace {
         m.last_turn = Some(boundary);
     }
 
+    /// Signal callers (tool calls, sub-agents) to stop. Marks the workspace as
+    /// `Aborting`; `release()` afterwards resets it to `Idle`. The persisted
+    /// metadata's `last_turn` already points at the latest completed turn —
+    /// that is the "settle to last completed turn" guarantee from CIR-30.
+    pub async fn abort(&self) -> Result<()> {
+        {
+            let mut g = self.state.lock().await;
+            match *g {
+                WorkspaceState::Attached => {
+                    *g = WorkspaceState::Aborting;
+                }
+                WorkspaceState::Aborting => return Ok(()),
+                other => {
+                    return Err(Error::InvalidState {
+                        expected: "Attached".into(),
+                        actual: other.label().into(),
+                    });
+                }
+            }
+        }
+        self.cancel.cancel();
+        Ok(())
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+
     pub(crate) async fn set_state(&self, target: WorkspaceState) {
         *self.state.lock().await = target;
     }

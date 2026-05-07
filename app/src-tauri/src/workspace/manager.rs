@@ -335,6 +335,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn abort_cancels_token_and_metadata_holds_last_turn() {
+        use crate::workspace::metadata::TurnBoundary;
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let last = TurnBoundary::now(2);
+        ws.record_turn(last).await;
+        // Mid-turn 3 starts but never completes — abort fires.
+        let token = ws.cancel_token();
+        ws.abort().await.unwrap();
+        assert_eq!(ws.state().await, WorkspaceState::Aborting);
+        assert!(token.is_cancelled());
+        // After release, state returns to Idle, last_turn still points to the
+        // last completed boundary (turn 2), not the aborted in-flight one.
+        ws.release().await.unwrap();
+        assert_eq!(ws.state().await, WorkspaceState::Idle);
+        let m = ws.metadata_snapshot().await;
+        assert_eq!(m.last_turn.unwrap().turn_index, 2);
+    }
+
+    #[tokio::test]
+    async fn abort_when_idle_is_invalid_state() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        ws.release().await.unwrap();
+        let result = ws.abort().await;
+        assert!(matches!(result, Err(Error::InvalidState { .. })));
+    }
+
+    #[tokio::test]
     async fn cleanup_clean_repo_persists_metadata_and_wipes_disk() {
         let (_src, _ws_root, mgr, url) = fixture().await;
         let ws = mgr.acquire("alice", &url).await.unwrap();
