@@ -1,20 +1,22 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::ipc::Channel;
+use tauri::State;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::oneshot;
 
-const RUNTIME_EVENT_CHANNEL: &str = "runtime://event";
 const MAX_READ_BYTES: u64 = 1024 * 1024;
+
+type RunRegistry = Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>;
 
 #[derive(Default)]
 pub struct RuntimeBridgeState {
-    inner: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    inner: RunRegistry,
 }
 
 impl RuntimeBridgeState {
@@ -27,11 +29,15 @@ impl RuntimeBridgeState {
         let mut map = self.inner.lock().expect("runtime bridge state poisoned");
         map.remove(run_id)
     }
+
+    fn inner_arc(&self) -> RunRegistry {
+        Arc::clone(&self.inner)
+    }
 }
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-enum RuntimeProcessEvent {
+pub enum RuntimeProcessEvent {
     Started {
         run_id: String,
         timestamp: String,
@@ -135,7 +141,6 @@ pub fn runtime_read_file(path: String, repo_root: String) -> Result<String, Stri
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn runtime_spawn(
-    app: AppHandle,
     state: State<'_, RuntimeBridgeState>,
     run_id: String,
     command: String,
@@ -143,6 +148,7 @@ pub async fn runtime_spawn(
     cwd: String,
     env: Option<HashMap<String, String>>,
     timeout_ms: Option<u64>,
+    on_event: Channel<RuntimeProcessEvent>,
 ) -> Result<(), String> {
     let cwd_path = PathBuf::from(&cwd);
     let _ = cwd_path
@@ -177,20 +183,22 @@ pub async fn runtime_spawn(
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
     state.register(run_id.clone(), cancel_tx);
 
-    let app_for_task = app.clone();
-    let run_id_task = run_id.clone();
+    // Channel<T> is cheap to clone and is safe to share across the spawn task
+    // and any post-task cleanup we add later (e.g. ApprovalRequest emit from a
+    // sibling helper).
+    let event = on_event;
+    let _ = event.send(RuntimeProcessEvent::Started {
+        run_id: run_id.clone(),
+        timestamp: now_iso8601(),
+    });
 
-    let _ = app.emit(
-        RUNTIME_EVENT_CHANNEL,
-        RuntimeProcessEvent::Started {
-            run_id: run_id.clone(),
-            timestamp: now_iso8601(),
-        },
-    );
+    let state_handle = state.inner_arc();
+    let run_id_task = run_id.clone();
+    let event_task = event.clone();
 
     tokio::spawn(async move {
-        let app = app_for_task;
         let run_id = run_id_task;
+        let event = event_task;
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
 
@@ -206,14 +214,11 @@ pub async fn runtime_spawn(
             tokio::select! {
                 line = stdout_reader.next_line() => match line {
                     Ok(Some(text)) => {
-                        let _ = app.emit(
-                            RUNTIME_EVENT_CHANNEL,
-                            RuntimeProcessEvent::Stdout {
-                                run_id: run_id.clone(),
-                                timestamp: now_iso8601(),
-                                text,
-                            },
-                        );
+                        let _ = event.send(RuntimeProcessEvent::Stdout {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -228,14 +233,11 @@ pub async fn runtime_spawn(
                 },
                 line = stderr_reader.next_line() => match line {
                     Ok(Some(text)) => {
-                        let _ = app.emit(
-                            RUNTIME_EVENT_CHANNEL,
-                            RuntimeProcessEvent::Stderr {
-                                run_id: run_id.clone(),
-                                timestamp: now_iso8601(),
-                                text,
-                            },
-                        );
+                        let _ = event.send(RuntimeProcessEvent::Stderr {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -288,32 +290,25 @@ pub async fn runtime_spawn(
 
         // drain remaining lines
         while let Ok(Some(text)) = stdout_reader.next_line().await {
-            let _ = app.emit(
-                RUNTIME_EVENT_CHANNEL,
-                RuntimeProcessEvent::Stdout {
-                    run_id: run_id.clone(),
-                    timestamp: now_iso8601(),
-                    text,
-                },
-            );
+            let _ = event.send(RuntimeProcessEvent::Stdout {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
         }
         while let Ok(Some(text)) = stderr_reader.next_line().await {
-            let _ = app.emit(
-                RUNTIME_EVENT_CHANNEL,
-                RuntimeProcessEvent::Stderr {
-                    run_id: run_id.clone(),
-                    timestamp: now_iso8601(),
-                    text,
-                },
-            );
+            let _ = event.send(RuntimeProcessEvent::Stderr {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
         }
 
         if let Some(ev) = final_event {
-            let _ = app.emit(RUNTIME_EVENT_CHANNEL, ev);
+            let _ = event.send(ev);
         }
 
-        let state: State<'_, RuntimeBridgeState> = app.state();
-        let mut map = state.inner.lock().expect("runtime bridge state poisoned");
+        let mut map = state_handle.lock().expect("runtime bridge state poisoned");
         map.remove(&run_id);
     });
 
