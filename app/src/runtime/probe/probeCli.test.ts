@@ -115,6 +115,7 @@ describe("probeCli", () => {
     const bridge: RuntimeBridge = {
       readFile: vi.fn(),
       cancel: vi.fn().mockResolvedValue(undefined),
+      sendInput: vi.fn().mockResolvedValue(undefined),
       spawn: vi.fn(async (opts) => {
         spawnOrder.push("spawn");
         // emit terminal event immediately, simulating a very fast command.
