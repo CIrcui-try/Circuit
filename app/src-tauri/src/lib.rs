@@ -2,6 +2,7 @@ mod run_log_store;
 mod runtime_bridge;
 mod skill_scan;
 mod workflow_store;
+pub mod workspace;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
