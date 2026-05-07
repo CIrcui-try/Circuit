@@ -146,3 +146,99 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     fs::rename(&tmp, path).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workspace::metadata::{WorkspaceId, WorkspaceMetadata};
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn metadata_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let store = WorkspaceStore::open(tmp.path()).await.unwrap();
+        let id = WorkspaceId::new("alice", "repo", 0);
+        let meta = WorkspaceMetadata {
+            id: id.clone(),
+            repo_url: "file:///dummy".into(),
+            user_id: "alice".into(),
+            head_commit: "deadbeef".into(),
+            branch: Some("main".into()),
+            dirty_files: vec![PathBuf::from("a.txt")],
+            stash_ref: Some("cafebabe".into()),
+            last_turn: None,
+        };
+        store.write_metadata(&meta).await.unwrap();
+        let loaded = store.read_metadata(&id).await.unwrap().unwrap();
+        assert_eq!(loaded.head_commit, "deadbeef");
+        assert_eq!(loaded.dirty_files, vec![PathBuf::from("a.txt")]);
+        assert_eq!(loaded.stash_ref.as_deref(), Some("cafebabe"));
+    }
+
+    #[tokio::test]
+    async fn action_log_append_and_replay() {
+        let tmp = TempDir::new().unwrap();
+        let store = WorkspaceStore::open(tmp.path()).await.unwrap();
+        let id = WorkspaceId::new("alice", "repo", 0);
+        store
+            .append_action(
+                &id,
+                &StoreAction::Acquire {
+                    head_commit: "abc".into(),
+                    branch: Some("main".into()),
+                },
+            )
+            .await
+            .unwrap();
+        store
+            .append_action(
+                &id,
+                &StoreAction::TurnComplete {
+                    turn_index: 1,
+                    head_commit: "abc".into(),
+                    dirty_files: vec![PathBuf::from("x.txt")],
+                },
+            )
+            .await
+            .unwrap();
+        let actions = store.read_actions(&id).await.unwrap();
+        assert_eq!(actions.len(), 2);
+        match &actions[1] {
+            StoreAction::TurnComplete { turn_index, .. } => assert_eq!(*turn_index, 1),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn stash_blob_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let store = WorkspaceStore::open(tmp.path()).await.unwrap();
+        let id = WorkspaceId::new("alice", "repo", 0);
+        let path = store
+            .save_stash_blob(&id, "sha1", b"bundle-bytes")
+            .await
+            .unwrap();
+        assert!(path.exists());
+        let loaded = store.load_stash_blob(&id, "sha1").await.unwrap();
+        assert_eq!(loaded.as_deref(), Some(&b"bundle-bytes"[..]));
+        let missing = store.load_stash_blob(&id, "nope").await.unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_metadata_keeps_action_log() {
+        let tmp = TempDir::new().unwrap();
+        let store = WorkspaceStore::open(tmp.path()).await.unwrap();
+        let id = WorkspaceId::new("alice", "repo", 0);
+        let meta = WorkspaceMetadata::empty(id.clone(), "alice".into(), "file:///x".into());
+        store.write_metadata(&meta).await.unwrap();
+        store
+            .append_action(&id, &StoreAction::Cleanup)
+            .await
+            .unwrap();
+        store.delete_workspace_artifacts(&id).await.unwrap();
+        assert!(store.read_metadata(&id).await.unwrap().is_none());
+        let actions = store.read_actions(&id).await.unwrap();
+        assert_eq!(actions.len(), 1);
+    }
+}
