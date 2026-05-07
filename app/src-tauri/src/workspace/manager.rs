@@ -135,6 +135,61 @@ impl WorkspaceManager {
         ws.release().await
     }
 
+    /// Begin a turn on `ws`. Captures HEAD as the rollback target, marks the
+    /// in-flight turn on the workspace, and writes a `TurnBegin` action to the
+    /// log so a crash before the matching `commit_turn` is recoverable.
+    pub async fn begin_turn(&self, ws: &Workspace, turn_index: u64) -> Result<()> {
+        let base_head = git_ops::head_commit(&ws.path).await?;
+        ws.begin_turn(turn_index, base_head.clone()).await?;
+        self.inner
+            .store
+            .append_action(
+                &ws.id,
+                &StoreAction::TurnBegin {
+                    turn_index,
+                    base_head,
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Settle the in-flight turn: turn the dirty changes into a real git
+    /// commit (so the boundary is a stable checkpoint), clear the in-flight
+    /// marker, persist the bumped `last_turn` + new HEAD to the Store, and
+    /// write a `TurnComplete` action. After this call returns, recovery
+    /// treats the turn as a hard checkpoint that survives crashes.
+    pub async fn commit_turn(&self, ws: &Workspace) -> Result<()> {
+        let boundary = ws.commit_turn().await?;
+        let dirty_files = git_ops::status(&ws.path)
+            .await?
+            .into_iter()
+            .map(|e| e.path)
+            .collect::<Vec<_>>();
+        git_ops::commit_all(&ws.path, &format!("turn {} (CIR-31)", boundary.turn_index))
+            .await?;
+        let head_commit = git_ops::head_commit(&ws.path).await?;
+        // Refresh metadata so the persisted head_commit matches the new commit.
+        {
+            let mut m = ws.metadata.write().await;
+            m.head_commit.clone_from(&head_commit);
+        }
+        let snapshot = ws.metadata_snapshot().await;
+        self.inner.store.write_metadata(&snapshot).await?;
+        self.inner
+            .store
+            .append_action(
+                &ws.id,
+                &StoreAction::TurnComplete {
+                    turn_index: boundary.turn_index,
+                    head_commit,
+                    dirty_files,
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn lookup(&self, id: &WorkspaceId) -> Option<Arc<Workspace>> {
         self.inner.registry.lock().await.get(id).cloned()
     }
@@ -204,6 +259,13 @@ impl WorkspaceManager {
     /// 3. Metadata exists, disk gone OR HEAD mismatched → replay the action log
     ///    onto a fresh re-clone via `cold_resume`. The recovered workspace is
     ///    `Idle`, ready to attach.
+    ///
+    /// Phase 3 (CIR-31): before returning, scan the action log for a
+    /// `TurnBegin` without a matching `TurnComplete`. If one is found, the
+    /// in-flight turn is rolled back — disk-intact branch hard-resets the
+    /// working tree to the captured `base_head`; cold-resume branch already
+    /// re-clones at the last settled HEAD. Either way a `TurnRollback` action
+    /// is appended so the log self-describes the recovery.
     pub async fn recover(&self, id: &WorkspaceId) -> Result<Arc<Workspace>> {
         let meta = self
             .inner
@@ -220,7 +282,27 @@ impl WorkspaceManager {
             }
         };
 
+        let actions = self.inner.store.read_actions(id).await?;
+        let pending = pending_turn_from_log(&actions);
+
         let ws = if disk_ok {
+            // Roll back any in-flight turn before snapshotting metadata, so
+            // the workspace state matches the last settled checkpoint.
+            if let Some((turn_index, ref base_head)) = pending {
+                ensure_inside(&self.inner.workspace_root, &path)?;
+                git_ops::reset_hard(&path, base_head).await?;
+                self.inner
+                    .store
+                    .append_action(
+                        id,
+                        &StoreAction::TurnRollback {
+                            turn_index,
+                            rolled_back_to: base_head.clone(),
+                        },
+                    )
+                    .await?;
+            }
+
             let live_meta = WorkspaceMetadata::snapshot(
                 id.clone(),
                 meta.user_id.clone(),
@@ -236,8 +318,23 @@ impl WorkspaceManager {
             };
             Workspace::new(id.clone(), path, merged)
         } else {
-            // Fall back to cold path: re-clone + checkout + stash apply.
-            self.cold_resume(&meta).await?
+            // cold_resume re-clones at meta.head_commit (the last settled HEAD)
+            // — that's already the rollback target for any pending turn. We
+            // only need to record the rollback in the action log.
+            let ws = self.cold_resume(&meta).await?;
+            if let Some((turn_index, _)) = pending {
+                self.inner
+                    .store
+                    .append_action(
+                        id,
+                        &StoreAction::TurnRollback {
+                            turn_index,
+                            rolled_back_to: meta.head_commit.clone(),
+                        },
+                    )
+                    .await?;
+            }
+            ws
         };
 
         self.register(Arc::clone(&ws)).await;
@@ -249,7 +346,14 @@ impl WorkspaceManager {
     ///
     /// Caller must own the workspace (it must be in Attached or Idle state) —
     /// the routine drives state through Cleaning → Removed.
+    ///
+    /// Phase 3 (CIR-31): if the workspace has an in-flight turn, cleanup is
+    /// rejected immediately with `Error::TurnInFlight`. Mid-turn evicts are
+    /// forbidden — the caller must wait for the turn to commit or abort.
     pub async fn cleanup(&self, ws: &Arc<Workspace>) -> Result<()> {
+        if ws.active_turn().await.is_some() {
+            return Err(Error::TurnInFlight(ws.id.0.clone()));
+        }
         // Transition to Cleaning, allowing both Idle (TTL-driven) and Attached (explicit) entry.
         {
             let mut g = ws.state_mut().await;
@@ -334,6 +438,31 @@ impl WorkspaceManager {
 enum Either {
     Reuse(Arc<Workspace>),
     Create(u32),
+}
+
+/// Walk the action log and return `Some((turn_index, base_head))` if the most
+/// recent `TurnBegin` has no matching `TurnComplete` or `TurnRollback`. Used
+/// by `recover` to detect and undo a turn that crashed mid-execution.
+fn pending_turn_from_log(actions: &[StoreAction]) -> Option<(u64, String)> {
+    let mut pending: Option<(u64, String)> = None;
+    for a in actions {
+        match a {
+            StoreAction::TurnBegin {
+                turn_index,
+                base_head,
+            } => {
+                pending = Some((*turn_index, base_head.clone()));
+            }
+            StoreAction::TurnComplete { turn_index, .. }
+            | StoreAction::TurnRollback { turn_index, .. } => {
+                if matches!(pending.as_ref(), Some((idx, _)) if *idx == *turn_index) {
+                    pending = None;
+                }
+            }
+            _ => {}
+        }
+    }
+    pending
 }
 
 fn repo_slug(repo_url: &str) -> String {
@@ -608,5 +737,224 @@ mod tests {
             .collect();
         assert!(names.iter().any(|n| n == "dirty.txt"));
         assert!(names.iter().any(|n| n == "README.md"));
+    }
+
+    #[tokio::test]
+    async fn begin_turn_records_turnbegin_with_current_head() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 1).await.unwrap();
+
+        let active = ws.active_turn().await.expect("active turn");
+        assert_eq!(active.turn_index, 1);
+        let head = ws.metadata_snapshot().await.head_commit;
+        assert_eq!(active.base_head, head);
+
+        let actions = mgr.store().read_actions(&ws.id).await.unwrap();
+        let begin = actions
+            .iter()
+            .filter_map(|a| match a {
+                StoreAction::TurnBegin {
+                    turn_index,
+                    base_head,
+                } => Some((*turn_index, base_head.clone())),
+                _ => None,
+            })
+            .last()
+            .expect("TurnBegin in log");
+        assert_eq!(begin.0, 1);
+        assert_eq!(begin.1, head);
+    }
+
+    #[tokio::test]
+    async fn commit_turn_clears_active_persists_metadata_and_logs_complete() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 5).await.unwrap();
+        tokio::fs::write(ws.path.join("scratch.txt"), b"hi\n")
+            .await
+            .unwrap();
+
+        mgr.commit_turn(&ws).await.unwrap();
+        assert!(ws.active_turn().await.is_none());
+
+        // last_turn must be persisted to the Store, not just in memory.
+        let stored = mgr.store().read_metadata(&ws.id).await.unwrap().unwrap();
+        assert_eq!(stored.last_turn.unwrap().turn_index, 5);
+
+        let actions = mgr.store().read_actions(&ws.id).await.unwrap();
+        let complete = actions
+            .iter()
+            .filter_map(|a| match a {
+                StoreAction::TurnComplete {
+                    turn_index,
+                    dirty_files,
+                    ..
+                } => Some((*turn_index, dirty_files.clone())),
+                _ => None,
+            })
+            .last()
+            .expect("TurnComplete in log");
+        assert_eq!(complete.0, 5);
+        let names: Vec<String> = complete
+            .1
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert!(names.iter().any(|n| n == "scratch.txt"));
+    }
+
+    #[tokio::test]
+    async fn commit_turn_without_begin_errors() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let result = mgr.commit_turn(&ws).await;
+        assert!(matches!(result, Err(Error::Other(_))));
+    }
+
+    #[test]
+    fn pending_turn_from_log_finds_unmatched_begin() {
+        let actions = vec![
+            StoreAction::Acquire {
+                head_commit: "h0".into(),
+                branch: Some("main".into()),
+            },
+            StoreAction::TurnBegin {
+                turn_index: 1,
+                base_head: "h0".into(),
+            },
+            StoreAction::TurnComplete {
+                turn_index: 1,
+                head_commit: "h1".into(),
+                dirty_files: vec![],
+            },
+            StoreAction::TurnBegin {
+                turn_index: 2,
+                base_head: "h1".into(),
+            },
+        ];
+        let pending = pending_turn_from_log(&actions);
+        assert_eq!(pending, Some((2, "h1".to_string())));
+    }
+
+    #[test]
+    fn pending_turn_from_log_clears_on_rollback() {
+        let actions = vec![
+            StoreAction::TurnBegin {
+                turn_index: 5,
+                base_head: "h5".into(),
+            },
+            StoreAction::TurnRollback {
+                turn_index: 5,
+                rolled_back_to: "h5".into(),
+            },
+        ];
+        assert!(pending_turn_from_log(&actions).is_none());
+    }
+
+    #[tokio::test]
+    async fn recover_rolls_back_uncommitted_turn_when_disk_intact() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        let head = ws.metadata_snapshot().await.head_commit.clone();
+
+        // Begin a turn, dirty the working tree, and "crash" before commit.
+        mgr.begin_turn(&ws, 1).await.unwrap();
+        tokio::fs::write(path.join("scratch.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        // Drop in-memory state but leave disk + Store + action log intact.
+        drop(ws);
+        mgr.unregister(&id).await;
+
+        let recovered = mgr.recover(&id).await.unwrap();
+        // Rollback target == base_head (the HEAD captured at begin_turn).
+        assert_eq!(recovered.metadata_snapshot().await.head_commit, head);
+        assert!(!recovered.path.join("scratch.txt").exists());
+        assert!(recovered.active_turn().await.is_none());
+
+        // Action log self-describes the rollback.
+        let actions = mgr.store().read_actions(&id).await.unwrap();
+        let last = actions.last().unwrap();
+        assert!(matches!(
+            last,
+            StoreAction::TurnRollback { turn_index: 1, .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn recover_logs_rollback_when_disk_lost() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let head = ws.metadata_snapshot().await.head_commit.clone();
+
+        // Begin a turn, drop a dirty file, then run cleanup so disk is wiped
+        // while the action log keeps the unmatched TurnBegin around.
+        mgr.begin_turn(&ws, 9).await.unwrap();
+        tokio::fs::write(ws.path.join("dirty.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        // cleanup would refuse mid-turn — abort the turn first to simulate the
+        // checkpoint-evictable "in-flight begin then turn aborted before commit"
+        // shape that the action log produces during a real crash.
+        ws.abort_turn().await;
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert!(!ws.path.exists());
+
+        // Forge a stray TurnBegin in the log so recover sees a pending turn
+        // that points at the just-cleaned head — exactly the state a crash
+        // between begin_turn and commit_turn produces (the begin already wrote
+        // to the log, but no commit/rollback ever followed).
+        mgr.store()
+            .append_action(
+                &id,
+                &StoreAction::TurnBegin {
+                    turn_index: 42,
+                    base_head: head.clone(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let recovered = mgr.recover(&id).await.unwrap();
+        assert!(recovered.path.exists());
+        // Cold resume restored the dirty file from stash; rollback only logs.
+        assert!(recovered.path.join("dirty.txt").exists());
+
+        let actions = mgr.store().read_actions(&id).await.unwrap();
+        let rollback = actions.iter().rev().find_map(|a| match a {
+            StoreAction::TurnRollback {
+                turn_index,
+                rolled_back_to,
+            } => Some((*turn_index, rolled_back_to.clone())),
+            _ => None,
+        });
+        assert_eq!(rollback, Some((42, head)));
+    }
+
+    #[tokio::test]
+    async fn cleanup_rejects_in_flight_workspace() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 1).await.unwrap();
+        ws.release().await.unwrap(); // Idle but turn still in flight.
+
+        let result = mgr.cleanup(&ws).await;
+        assert!(matches!(result, Err(Error::TurnInFlight(_))));
+        // Workspace must remain on disk and registered.
+        assert!(ws.path.exists());
+        assert!(mgr.lookup(&ws.id).await.is_some());
+
+        // After commit_turn, cleanup proceeds normally.
+        ws.attach().await.unwrap();
+        mgr.commit_turn(&ws).await.unwrap();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert!(!ws.path.exists());
     }
 }

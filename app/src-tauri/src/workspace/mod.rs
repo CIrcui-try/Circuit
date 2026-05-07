@@ -14,4 +14,4 @@ pub use errors::{Error, Result};
 pub use manager::WorkspaceManager;
 pub use metadata::{TurnBoundary, WorkspaceId, WorkspaceMetadata};
 pub use store::{StoreAction, WorkspaceStore};
-pub use workspace::{Workspace, WorkspaceState};
+pub use workspace::{InFlightTurn, Workspace, WorkspaceState};

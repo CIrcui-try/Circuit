@@ -21,7 +21,14 @@ impl Default for IdleTtlConfig {
 
 /// Inspect a workspace's last turn boundary and decide whether it has crossed
 /// the idle TTL.
+///
+/// Phase 3 (CIR-31): a workspace with an in-flight turn is **never** treated
+/// as expired regardless of its `last_turn` age — that enforces the
+/// "evict only on turn boundary" acceptance criterion.
 pub async fn is_idle_expired(ws: &Workspace, ttl: Duration, now: SystemTime) -> bool {
+    if ws.active_turn().await.is_some() {
+        return false;
+    }
     let snapshot = ws.metadata_snapshot().await;
     match snapshot.last_turn {
         // Never had a turn → don't auto-cleanup. Phase 2 leaves cold-start-only
@@ -118,5 +125,45 @@ mod tests {
         assert_eq!(victims[0], stale.id);
         assert!(mgr.lookup(&stale.id).await.is_none());
         assert!(mgr.lookup(&busy.id).await.is_some());
+    }
+
+    #[tokio::test]
+    async fn idle_with_in_flight_turn_is_not_expired() {
+        let (_src, _root, mgr, url) = build().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        // Ancient last_turn — but a turn is in flight, so TTL must NOT fire.
+        ws.record_turn(TurnBoundary {
+            turn_index: 1,
+            at_unix_ms: 1_000,
+        })
+        .await;
+        ws.begin_turn(2, "stub-base".into()).await.unwrap();
+
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(60 * 60);
+        assert!(!is_idle_expired(&ws, Duration::from_secs(60), now).await);
+    }
+
+    #[tokio::test]
+    async fn tick_skips_workspace_with_in_flight_turn_even_if_idle() {
+        let (_src, _root, mgr, url) = build().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        // Set ancient last_turn so TTL would otherwise fire.
+        ws.record_turn(TurnBoundary {
+            turn_index: 1,
+            at_unix_ms: 1_000,
+        })
+        .await;
+        // Begin a new turn but don't commit; release the workspace lock so it's
+        // formally Idle. The active_turn marker must still block cleanup —
+        // mid-turn evicts are explicitly forbidden by CIR-31.
+        ws.begin_turn(2, "stub-base".into()).await.unwrap();
+        ws.release().await.unwrap();
+
+        let victims = tick(&mgr, Duration::from_millis(0)).await;
+        assert!(
+            victims.is_empty(),
+            "in-flight workspace must not be evicted"
+        );
+        assert!(mgr.lookup(&ws.id).await.is_some());
     }
 }
