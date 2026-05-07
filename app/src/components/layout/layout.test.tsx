@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -19,9 +19,11 @@ import { LogPanel } from "./LogPanel";
 import { Canvas } from "./Canvas";
 import { nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
+import { useRunLogStore } from "../../runner/runLogStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
+  useRunLogStore.getState().reset();
 });
 
 describe("Layout shell", () => {
@@ -51,5 +53,31 @@ describe("Layout shell", () => {
 
   it("nodeTypes registers a 'skill' custom node", () => {
     expect(nodeTypes.skill).toBeDefined();
+  });
+
+  it("LogPanel renders an inline ApprovalPrompt for each pendingApproval and routes Allow → sendInput", async () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "approval_required",
+      timestamp: "t",
+      requestId: "rq-1",
+      prompt: "Do you trust this directory?",
+      approvalKind: "trust",
+    });
+
+    const sendInput = vi.fn(async () => {});
+    render(<LogPanel runtimeBridgeOverride={{ sendInput }} />);
+
+    const prompt = screen.getByTestId("approval-prompt");
+    expect(prompt).toHaveAttribute("data-request-id", "rq-1");
+    expect(prompt.textContent).toContain("Do you trust this directory?");
+
+    fireEvent.click(screen.getByTestId("approval-allow"));
+    // Microtask flush for the await inside handleRespond.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sendInput).toHaveBeenCalledWith("run_42", "y\n");
+    expect(useRunLogStore.getState().pendingApprovals).toEqual({});
   });
 });

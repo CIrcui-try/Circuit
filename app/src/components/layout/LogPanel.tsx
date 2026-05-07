@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
 import { getHostBridge, type RunLogEntryDTO } from "../../host/bridge";
 import { parseRunLogJsonl } from "../../runner/runLogPersistence";
-import { useRunLogStore } from "../../runner/runLogStore";
+import {
+  useRunLogStore,
+  type PendingApproval,
+} from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
+import { getRuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
+import { ApprovalPrompt } from "./ApprovalPrompt";
+
+export interface LogPanelProps {
+  /** Override the runtime bridge — used by tests / Storybook. */
+  runtimeBridgeOverride?: { sendInput: (runId: string, text: string) => Promise<void> };
+}
 
 function LogHeader({ isRunning }: { isRunning: boolean }) {
   return (
@@ -106,9 +116,14 @@ function PastRunsPicker({
   );
 }
 
-export function LogPanel() {
+export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
+  const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
+  const runId = useRunLogStore((s) => s.runId);
+  const resolvePendingApproval = useRunLogStore(
+    (s) => s.resolvePendingApproval,
+  );
   const isRunning = useRunStore((s) => s.status === "running");
   const repo = useRepositoryStore((s) =>
     s.selectedId
@@ -118,8 +133,24 @@ export function LogPanel() {
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
 
   const showPicker = repo && workflowId;
+  const approvals = Object.values(pendingApprovals);
 
-  if (events.length === 0 && Object.keys(nodeResults).length === 0) {
+  const handleRespond = async (request: PendingApproval, text: string) => {
+    if (!runId) return;
+    const bridge = runtimeBridgeOverride ?? getRuntimeBridge();
+    try {
+      await bridge.sendInput(runId, text);
+    } catch (err) {
+      console.error("[LogPanel] sendInput failed", err);
+    }
+    resolvePendingApproval(request.requestId);
+  };
+
+  if (
+    events.length === 0 &&
+    Object.keys(nodeResults).length === 0 &&
+    approvals.length === 0
+  ) {
     return (
       <footer className="workspace__log">
         <LogHeader isRunning={isRunning} />
@@ -159,6 +190,14 @@ export function LogPanel() {
             </span>
           </li>
         ))}
+        {approvals.map((approval) => (
+          <ApprovalPrompt
+            key={`approval-${approval.requestId}`}
+            request={approval}
+            onRespond={(text) => handleRespond(approval, text)}
+            onDismiss={() => resolvePendingApproval(approval.requestId)}
+          />
+        ))}
         {Object.entries(nodeResults).map(([nodeId, r]) => (
           <li
             key={`result-${nodeId}`}
@@ -190,6 +229,8 @@ function formatPayload(ev: AgentRunEvent): string {
       return ev.exitCode != null ? `exit ${ev.exitCode}` : "";
     case "status":
       return ev.status;
+    case "approval_required":
+      return ev.prompt;
     default:
       return "";
   }

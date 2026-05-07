@@ -61,6 +61,7 @@ function spy(scenario?: SpawnScenario): SpyBridge {
       return mock.spawn(opts);
     },
     cancel: (id) => mock.cancel(id),
+    sendInput: (id, text) => mock.sendInput(id, text),
     subscribe: (id, listener) => mock.subscribe(id, listener),
   };
   return { bridge, mock, spawnCalls };
@@ -128,7 +129,7 @@ describe("CodexAdapter", () => {
     expect(spawnCalls[0].timeoutMs).toBe(300_000);
   });
 
-  it("C7 — default command is 'codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check <prompt>' with full prompt content", async () => {
+  it("C7 — default command is 'codex exec <prompt>' with full prompt content (sandbox not bypassed)", async () => {
     const { bridge, spawnCalls } = spy(() => [
       { event: { type: "exited", exitCode: 0 } },
     ]);
@@ -136,12 +137,14 @@ describe("CodexAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].command).toBe("codex");
     const args = spawnCalls[0].args;
-    expect(args.slice(0, 3)).toEqual([
-      "exec",
-      "--dangerously-bypass-approvals-and-sandbox",
-      "--skip-git-repo-check",
-    ]);
-    const prompt = args[3];
+    expect(args).toHaveLength(2);
+    expect(args[0]).toBe("exec");
+    // Phase 16: interactive prompts are now forwarded via stdin, so the
+    // adapter must not bake `--dangerously-bypass-approvals-and-sandbox` (or
+    // any sandbox-disabling flag) into the default command.
+    expect(args).not.toContain("--dangerously-bypass-approvals-and-sandbox");
+    expect(args).not.toContain("--skip-git-repo-check");
+    const prompt = args[1];
     expect(prompt).toContain("review-pr");
     expect(prompt).toContain("Review the diff.");
     expect(prompt).toContain(`"prompt": "review the diff"`);

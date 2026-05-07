@@ -7,7 +7,7 @@ import type {
   Unsubscribe,
 } from "./RuntimeBridge";
 
-type ScenarioStep = {
+export type ScenarioStep = {
   delayMs?: number;
   event: Omit<RuntimeProcessEvent, "runId" | "timestamp">;
 };
@@ -31,6 +31,18 @@ export interface MockRuntimeBridge extends RuntimeBridge {
   setFile(path: string, content: string): void;
   removeFile(path: string): void;
   pendingRunIds(): string[];
+  /** Inputs received via `sendInput`, in order. Each entry is `{ runId, text }`. */
+  sentInputs(): ReadonlyArray<{ runId: string; text: string }>;
+  /**
+   * Register a callback invoked whenever `sendInput` is called for `runId`.
+   * Returning a {@link ScenarioStep} (or array of steps) emits those steps
+   * through the listener after the input is recorded — useful for scripting
+   * "child progresses after the user responds" flows.
+   */
+  onInput(
+    runId: string,
+    handler: (text: string) => void | ScenarioStep | ScenarioStep[],
+  ): void;
 }
 
 const TERMINAL_TYPES = new Set(["exited", "cancelled", "timeout", "error"]);
@@ -45,6 +57,11 @@ export function createMockRuntimeBridge(
   const files = new Map<string, string>(Object.entries(initial.files ?? {}));
   const runs = new Map<string, ActiveRun>();
   const listeners = new Map<string, Set<RuntimeProcessListener>>();
+  const inputs: { runId: string; text: string }[] = [];
+  const inputHandlers = new Map<
+    string,
+    (text: string) => void | ScenarioStep | ScenarioStep[]
+  >();
   let scenario: SpawnScenario | null = initial.scenario ?? null;
   const now = initial.now ?? (() => new Date().toISOString());
 
@@ -104,6 +121,26 @@ export function createMockRuntimeBridge(
       run.cancelled = true;
       emit(runId, { type: "cancelled" });
     },
+    async sendInput(runId, text) {
+      const run = runs.get(runId);
+      if (!run || run.finished) {
+        throw new Error(`mock: no active run for ${runId}`);
+      }
+      inputs.push({ runId, text });
+      const handler = inputHandlers.get(runId);
+      if (!handler) return;
+      const out = handler(text);
+      if (!out) return;
+      const steps = Array.isArray(out) ? out : [out];
+      for (const step of steps) {
+        if (run.finished || run.cancelled) break;
+        if (step.delayMs && step.delayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, step.delayMs));
+        }
+        if (run.finished || run.cancelled) break;
+        emit(runId, step.event);
+      }
+    },
     subscribe(runId, listener): Unsubscribe {
       let set = listeners.get(runId);
       if (!set) {
@@ -131,6 +168,12 @@ export function createMockRuntimeBridge(
     },
     pendingRunIds() {
       return Array.from(runs.keys());
+    },
+    sentInputs() {
+      return inputs;
+    },
+    onInput(runId, handler) {
+      inputHandlers.set(runId, handler);
     },
   };
 }

@@ -84,5 +84,62 @@ describe("runLogStore", () => {
     expect(s.events).toEqual([]);
     expect(s.nodeEvents).toEqual({});
     expect(s.nodeResults).toEqual({});
+    expect(s.pendingApprovals).toEqual({});
+  });
+
+  it("L5: appendEvent of approval_required adds an entry to pendingApprovals keyed by requestId", () => {
+    const ev: AgentRunEvent = {
+      type: "approval_required",
+      timestamp: "t-approval",
+      requestId: "rq-1",
+      prompt: "Do you trust this directory?",
+      approvalKind: "trust",
+    };
+    useRunLogStore.getState().appendEvent("a", ev);
+    const s = useRunLogStore.getState();
+    expect(s.events).toHaveLength(1);
+    expect(s.pendingApprovals["rq-1"]).toEqual({
+      requestId: "rq-1",
+      nodeId: "a",
+      prompt: "Do you trust this directory?",
+      approvalKind: "trust",
+      createdAt: "t-approval",
+    });
+  });
+
+  it("L6: resolvePendingApproval removes the entry and ignores unknown ids", () => {
+    useRunLogStore.getState().appendEvent("a", {
+      type: "approval_required",
+      timestamp: "t",
+      requestId: "rq-1",
+      prompt: "ok?",
+      approvalKind: "command",
+    });
+    useRunLogStore.getState().resolvePendingApproval("rq-1");
+    expect(useRunLogStore.getState().pendingApprovals).toEqual({});
+    // Unknown id is a no-op (no throw, no spurious state change).
+    useRunLogStore.getState().resolvePendingApproval("rq-unknown");
+    expect(useRunLogStore.getState().pendingApprovals).toEqual({});
+  });
+
+  it("L7: setNodeResult clears any pending approvals belonging to the finished node only", () => {
+    useRunLogStore.getState().appendEvent("a", {
+      type: "approval_required",
+      timestamp: "t-a",
+      requestId: "rq-a",
+      prompt: "p-a",
+      approvalKind: "trust",
+    });
+    useRunLogStore.getState().appendEvent("b", {
+      type: "approval_required",
+      timestamp: "t-b",
+      requestId: "rq-b",
+      prompt: "p-b",
+      approvalKind: "trust",
+    });
+    useRunLogStore.getState().setNodeResult("a", result());
+    const s = useRunLogStore.getState();
+    expect(s.pendingApprovals["rq-a"]).toBeUndefined();
+    expect(s.pendingApprovals["rq-b"]).toBeDefined();
   });
 });

@@ -276,6 +276,41 @@ a:hover {
   color: #8ee48e;
 }
 
+.run-log__line--approval {
+  background: #2a2418;
+  border-left: 2px solid #d4a72c;
+  color: #f0d99a;
+}
+
+.run-log__payload--approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.approval__choices,
+.approval__freeform {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.approval__freeform input {
+  background: #181818;
+  color: #f0d99a;
+  border: 1px solid #5a4d2a;
+  padding: 1px 4px;
+  font: inherit;
+}
+
+.approval__dismiss {
+  margin-left: auto;
+  background: transparent;
+  color: #f0d99a;
+  border: none;
+  cursor: pointer;
+}
+
 .run-log__node {
   color: #8a8a92;
   overflow: hidden;

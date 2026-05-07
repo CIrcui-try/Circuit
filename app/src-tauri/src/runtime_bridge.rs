@@ -1,37 +1,73 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
-use tokio::sync::oneshot;
+use tauri::ipc::Channel;
+use tauri::State;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{ChildStdin, Command};
+use tokio::sync::{oneshot, Mutex as AsyncMutex};
 
-const RUNTIME_EVENT_CHANNEL: &str = "runtime://event";
 const MAX_READ_BYTES: u64 = 1024 * 1024;
+
+struct RunHandle {
+    cancel: Option<oneshot::Sender<()>>,
+    stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+}
+
+type RunRegistry = Arc<Mutex<HashMap<String, RunHandle>>>;
 
 #[derive(Default)]
 pub struct RuntimeBridgeState {
-    inner: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    inner: RunRegistry,
 }
 
 impl RuntimeBridgeState {
-    fn register(&self, run_id: String, cancel_tx: oneshot::Sender<()>) {
+    fn register(
+        &self,
+        run_id: String,
+        cancel_tx: oneshot::Sender<()>,
+        stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+    ) {
         let mut map = self.inner.lock().expect("runtime bridge state poisoned");
-        map.insert(run_id, cancel_tx);
+        map.insert(
+            run_id,
+            RunHandle {
+                cancel: Some(cancel_tx),
+                stdin,
+            },
+        );
     }
 
-    fn take(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
+    fn take_cancel(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
         let mut map = self.inner.lock().expect("runtime bridge state poisoned");
-        map.remove(run_id)
+        map.get_mut(run_id).and_then(|h| h.cancel.take())
     }
+
+    fn stdin_for(&self, run_id: &str) -> Option<Arc<AsyncMutex<Option<ChildStdin>>>> {
+        let map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.get(run_id).map(|h| Arc::clone(&h.stdin))
+    }
+
+    fn inner_arc(&self) -> RunRegistry {
+        Arc::clone(&self.inner)
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalKind {
+    Trust,
+    Command,
+    Freeform,
 }
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-enum RuntimeProcessEvent {
+pub enum RuntimeProcessEvent {
     Started {
         run_id: String,
         timestamp: String,
@@ -63,6 +99,23 @@ enum RuntimeProcessEvent {
         run_id: String,
         timestamp: String,
         message: String,
+    },
+    /// Emitted when the spawned CLI is waiting for the user to answer an
+    /// interactive prompt (e.g. codex's "Do you trust this directory?"). The
+    /// caller must reply via `runtime_send_input(run_id, response)` before the
+    /// child can continue. **Not terminal** — the run keeps streaming.
+    ///
+    /// In v1 this variant is reserved for tests / future approval-detection
+    /// helpers. The production approval-forwarding path lives entirely in JS
+    /// (see `approvalProtocol.ts`) and pushes a synthetic AgentRunEvent based
+    /// on stderr lines, so Rust does not yet emit ApprovalRequest itself.
+    #[allow(dead_code)]
+    ApprovalRequest {
+        run_id: String,
+        timestamp: String,
+        request_id: String,
+        prompt: String,
+        kind: ApprovalKind,
     },
 }
 
@@ -135,7 +188,6 @@ pub fn runtime_read_file(path: String, repo_root: String) -> Result<String, Stri
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn runtime_spawn(
-    app: AppHandle,
     state: State<'_, RuntimeBridgeState>,
     run_id: String,
     command: String,
@@ -143,6 +195,7 @@ pub async fn runtime_spawn(
     cwd: String,
     env: Option<HashMap<String, String>>,
     timeout_ms: Option<u64>,
+    on_event: Channel<RuntimeProcessEvent>,
 ) -> Result<(), String> {
     let cwd_path = PathBuf::from(&cwd);
     let _ = cwd_path
@@ -154,7 +207,7 @@ pub async fn runtime_spawn(
         .current_dir(&cwd_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::null());
+        .stdin(Stdio::piped());
     if let Some(envs) = env {
         for (k, v) in envs {
             cmd.env(k, v);
@@ -173,24 +226,33 @@ pub async fn runtime_spawn(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "failed to capture stdin".to_string())?;
 
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    state.register(run_id.clone(), cancel_tx);
+    let stdin_slot = Arc::new(AsyncMutex::new(Some(stdin)));
+    state.register(run_id.clone(), cancel_tx, Arc::clone(&stdin_slot));
 
-    let app_for_task = app.clone();
+    // Channel<T> is cheap to clone and is safe to share across the spawn task
+    // and any post-task cleanup we add later (e.g. ApprovalRequest emit from a
+    // sibling helper).
+    let event = on_event;
+    let _ = event.send(RuntimeProcessEvent::Started {
+        run_id: run_id.clone(),
+        timestamp: now_iso8601(),
+    });
+
+    let state_handle = state.inner_arc();
     let run_id_task = run_id.clone();
-
-    let _ = app.emit(
-        RUNTIME_EVENT_CHANNEL,
-        RuntimeProcessEvent::Started {
-            run_id: run_id.clone(),
-            timestamp: now_iso8601(),
-        },
-    );
+    let event_task = event.clone();
+    let stdin_for_task = Arc::clone(&stdin_slot);
 
     tokio::spawn(async move {
-        let app = app_for_task;
         let run_id = run_id_task;
+        let event = event_task;
+        let stdin_slot = stdin_for_task;
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
 
@@ -206,14 +268,11 @@ pub async fn runtime_spawn(
             tokio::select! {
                 line = stdout_reader.next_line() => match line {
                     Ok(Some(text)) => {
-                        let _ = app.emit(
-                            RUNTIME_EVENT_CHANNEL,
-                            RuntimeProcessEvent::Stdout {
-                                run_id: run_id.clone(),
-                                timestamp: now_iso8601(),
-                                text,
-                            },
-                        );
+                        let _ = event.send(RuntimeProcessEvent::Stdout {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -228,14 +287,11 @@ pub async fn runtime_spawn(
                 },
                 line = stderr_reader.next_line() => match line {
                     Ok(Some(text)) => {
-                        let _ = app.emit(
-                            RUNTIME_EVENT_CHANNEL,
-                            RuntimeProcessEvent::Stderr {
-                                run_id: run_id.clone(),
-                                timestamp: now_iso8601(),
-                                text,
-                            },
-                        );
+                        let _ = event.send(RuntimeProcessEvent::Stderr {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -288,32 +344,32 @@ pub async fn runtime_spawn(
 
         // drain remaining lines
         while let Ok(Some(text)) = stdout_reader.next_line().await {
-            let _ = app.emit(
-                RUNTIME_EVENT_CHANNEL,
-                RuntimeProcessEvent::Stdout {
-                    run_id: run_id.clone(),
-                    timestamp: now_iso8601(),
-                    text,
-                },
-            );
+            let _ = event.send(RuntimeProcessEvent::Stdout {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
         }
         while let Ok(Some(text)) = stderr_reader.next_line().await {
-            let _ = app.emit(
-                RUNTIME_EVENT_CHANNEL,
-                RuntimeProcessEvent::Stderr {
-                    run_id: run_id.clone(),
-                    timestamp: now_iso8601(),
-                    text,
-                },
-            );
+            let _ = event.send(RuntimeProcessEvent::Stderr {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
         }
 
         if let Some(ev) = final_event {
-            let _ = app.emit(RUNTIME_EVENT_CHANNEL, ev);
+            let _ = event.send(ev);
         }
 
-        let state: State<'_, RuntimeBridgeState> = app.state();
-        let mut map = state.inner.lock().expect("runtime bridge state poisoned");
+        // Close stdin so any in-flight send_input rejects cleanly rather than
+        // blocking forever on a dead pipe.
+        {
+            let mut guard = stdin_slot.lock().await;
+            *guard = None;
+        }
+
+        let mut map = state_handle.lock().expect("runtime bridge state poisoned");
         map.remove(&run_id);
     });
 
@@ -322,9 +378,33 @@ pub async fn runtime_spawn(
 
 #[tauri::command]
 pub fn runtime_cancel(state: State<'_, RuntimeBridgeState>, run_id: String) -> Result<(), String> {
-    if let Some(tx) = state.take(&run_id) {
+    if let Some(tx) = state.take_cancel(&run_id) {
         let _ = tx.send(());
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_send_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+    text: String,
+) -> Result<(), String> {
+    let stdin_slot = state
+        .stdin_for(&run_id)
+        .ok_or_else(|| format!("no active run for id {run_id}"))?;
+    let mut guard = stdin_slot.lock().await;
+    let stdin = guard
+        .as_mut()
+        .ok_or_else(|| format!("stdin already closed for run {run_id}"))?;
+    stdin
+        .write_all(text.as_bytes())
+        .await
+        .map_err(|e| format!("stdin write failed: {e}"))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| format!("stdin flush failed: {e}"))?;
     Ok(())
 }
 

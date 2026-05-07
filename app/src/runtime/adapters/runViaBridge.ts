@@ -1,3 +1,4 @@
+import { detectApprovalPromptsInChunk } from "../bridge/approvalProtocol";
 import type { RuntimeBridge, RuntimeProcessEvent } from "../bridge/RuntimeBridge";
 import type {
   AdapterAvailability,
@@ -146,8 +147,36 @@ export function runViaBridge(
         case "stdout":
           emit({ type: "stdout", timestamp: ev.timestamp, text: ev.text });
           return;
-        case "stderr":
+        case "stderr": {
           emit({ type: "stderr", timestamp: ev.timestamp, text: ev.text });
+          // Heuristic approval detection runs on the JS side so adapters never
+          // need to know about it. Each match becomes its own non-terminal
+          // approval_required event so multi-prompt sessions surface every
+          // request.
+          const approvals = detectApprovalPromptsInChunk(ev.text);
+          for (const detected of approvals) {
+            emit({
+              type: "approval_required",
+              timestamp: ev.timestamp,
+              requestId: detected.requestId,
+              prompt: detected.prompt,
+              approvalKind: detected.kind,
+            });
+          }
+          return;
+        }
+        case "approvalRequest":
+          // Non-terminal: the child is still running and waiting for the user
+          // to call bridge.sendInput(runId, response). We surface the prompt
+          // through the sink so the UI can render it; the run promise stays
+          // pending until the eventual exited / cancelled / timeout event.
+          emit({
+            type: "approval_required",
+            timestamp: ev.timestamp,
+            requestId: ev.requestId,
+            prompt: ev.prompt,
+            approvalKind: ev.kind,
+          });
           return;
         case "exited": {
           const exitCode = ev.exitCode ?? undefined;

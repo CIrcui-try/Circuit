@@ -1,10 +1,19 @@
 import type { WorkflowSkillProvider } from "../../workflow/schema";
 
+export type ApprovalKind = "trust" | "command" | "freeform";
+
 export type AgentRunEvent =
   | { type: "start"; timestamp: string; message: string }
   | { type: "stdout"; timestamp: string; text: string }
   | { type: "stderr"; timestamp: string; text: string }
   | { type: "status"; timestamp: string; status: string }
+  | {
+      type: "approval_required";
+      timestamp: string;
+      requestId: string;
+      prompt: string;
+      approvalKind: ApprovalKind;
+    }
   | { type: "finish"; timestamp: string; exitCode?: number }
   | { type: "error"; timestamp: string; message: string };
 
