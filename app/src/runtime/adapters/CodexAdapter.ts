@@ -6,7 +6,35 @@ import type {
   SkillExecutionContext,
   SkillExecutionResult,
 } from "./AgentAdapter";
+import { buildSkillPrompt } from "./buildSkillPrompt";
 import { probeViaBridge, runViaBridge } from "./runViaBridge";
+
+// `codex exec` 는 비대화형 실행에서 자기가 받은 user prompt 를 stderr 로 그대로
+// echo 한다 (`user` 마커 → 본문 → `codex` 마커). Circuit 의 prompt 는 SKILL.md
+// 전문을 포함하므로, 그 echo 가 Run Log 에 그대로 흘러나오면 스킬 본문이 통째로
+// 한 줄씩 찍힌다. 마커 두 줄과 그 사이 본문만 떨궈내고 나머지 stderr (메타데이터
+// 배너, tokens used, 실제 에러) 는 그대로 통과시킨다.
+function wrapSinkDroppingPromptEcho(sink: AgentRunEventSink): AgentRunEventSink {
+  let dropping = false;
+  return (ev) => {
+    if (ev.type === "stderr") {
+      const trimmed = ev.text.trim();
+      if (!dropping) {
+        if (trimmed === "user") {
+          dropping = true;
+          return;
+        }
+      } else {
+        if (trimmed === "codex") {
+          dropping = false;
+          return;
+        }
+        return;
+      }
+    }
+    sink(ev);
+  };
+}
 
 export interface CodexCommand {
   command: string;
@@ -56,16 +84,7 @@ function defaultBuildCommand(
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {
-  const inputJson = JSON.stringify(ctx.input ?? {}, null, 2);
-  return [
-    `# Skill: ${ctx.skill.name}`,
-    "",
-    ctx.skill.content,
-    "",
-    "# Input",
-    "",
-    inputJson,
-  ].join("\n");
+  return buildSkillPrompt(ctx);
 }
 
 function defaultRunId(ctx: SkillExecutionContext): string {
@@ -117,7 +136,7 @@ export class CodexAdapter implements AgentAdapter {
       ctx,
       runId: this.newRunId(ctx),
       command,
-      sink,
+      sink: wrapSinkDroppingPromptEcho(sink),
     });
   }
 }

@@ -246,4 +246,121 @@ describe("CodexAdapter", () => {
       if (last && last.type === "error") expect(last.message).toBe("boom");
     });
   });
+
+  describe("C13 — previousOutputs are folded into the prompt", () => {
+    it("prepends an '# Upstream Outputs' section listing prior nodes' stdout", async () => {
+      const { bridge, spawnCalls } = spy(() => [
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const ctx = makeContext({
+        previousOutputs: {
+          a: {
+            status: "success",
+            exitCode: 0,
+            logs: [
+              {
+                type: "stdout",
+                timestamp: "t",
+                text: "plus_one: 1\n",
+              },
+            ],
+            startedAt: "t",
+            finishedAt: "t",
+          },
+        },
+      });
+      await adapter.run(ctx, () => {});
+      const prompt = spawnCalls[0].args[3];
+      expect(prompt).toContain("# Upstream Outputs");
+      expect(prompt).toContain("## a  (status: success, exit: 0)");
+      expect(prompt).toContain("plus_one: 1");
+    });
+
+    it("omits the upstream section entirely when previousOutputs is empty", async () => {
+      const { bridge, spawnCalls } = spy(() => [
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      await adapter.run(makeContext(), () => {});
+      const prompt = spawnCalls[0].args[3];
+      expect(prompt).not.toContain("# Upstream Outputs");
+    });
+  });
+
+  describe("C12 — codex prompt-echo stderr filtering", () => {
+    it("drops stderr lines between 'user' and 'codex' markers (and the markers themselves), passing other stderr through", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "OpenAI Codex v0.128.0" } },
+        { event: { type: "stderr", text: "--------" } },
+        { event: { type: "stderr", text: "user" } },
+        { event: { type: "stderr", text: "# Skill: hello-world" } },
+        { event: { type: "stderr", text: "<SKILL.md body line>" } },
+        { event: { type: "stderr", text: "# Input" } },
+        { event: { type: "stderr", text: "{}" } },
+        { event: { type: "stderr", text: "codex" } },
+        { event: { type: "stderr", text: "tokens used" } },
+        { event: { type: "stderr", text: "1,234" } },
+        { event: { type: "stdout", text: "hello world" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const received: AgentRunEvent[] = [];
+      await adapter.run(makeContext(), (ev) => received.push(ev));
+
+      const stderrTexts = received
+        .filter((e): e is Extract<AgentRunEvent, { type: "stderr" }> =>
+          e.type === "stderr",
+        )
+        .map((e) => e.text);
+      expect(stderrTexts).toEqual([
+        "OpenAI Codex v0.128.0",
+        "--------",
+        "tokens used",
+        "1,234",
+      ]);
+
+      const stdouts = received.filter((e) => e.type === "stdout");
+      expect(stdouts).toHaveLength(1);
+    });
+
+    it("passes stderr through unchanged when no 'user'/'codex' markers appear", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "warn: something" } },
+        { event: { type: "stderr", text: "another note" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const received: AgentRunEvent[] = [];
+      await adapter.run(makeContext(), (ev) => received.push(ev));
+
+      const stderrTexts = received
+        .filter((e): e is Extract<AgentRunEvent, { type: "stderr" }> =>
+          e.type === "stderr",
+        )
+        .map((e) => e.text);
+      expect(stderrTexts).toEqual(["warn: something", "another note"]);
+    });
+
+    it("matches markers only on exact trim equality (not substrings)", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "user input received" } },
+        { event: { type: "stderr", text: "codex started" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const received: AgentRunEvent[] = [];
+      await adapter.run(makeContext(), (ev) => received.push(ev));
+
+      const stderrTexts = received
+        .filter((e): e is Extract<AgentRunEvent, { type: "stderr" }> =>
+          e.type === "stderr",
+        )
+        .map((e) => e.text);
+      expect(stderrTexts).toEqual(["user input received", "codex started"]);
+    });
+  });
 });

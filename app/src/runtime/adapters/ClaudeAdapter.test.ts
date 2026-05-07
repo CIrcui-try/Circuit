@@ -201,6 +201,47 @@ describe("ClaudeAdapter", () => {
     expect(typeof result.finishedAt).toBe("string");
   });
 
+  describe("C12 — previousOutputs are folded into the prompt", () => {
+    it("prepends an '# Upstream Outputs' section listing prior nodes' stdout", async () => {
+      const { bridge, spawnCalls } = spy(() => [
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new ClaudeAdapter({ bridge });
+      const ctx = makeContext({
+        previousOutputs: {
+          a: {
+            status: "success",
+            exitCode: 0,
+            logs: [
+              {
+                type: "stdout",
+                timestamp: "t",
+                text: "plus_one: 1\n",
+              },
+            ],
+            startedAt: "t",
+            finishedAt: "t",
+          },
+        },
+      });
+      await adapter.run(ctx, () => {});
+      const prompt = spawnCalls[0].args[1];
+      expect(prompt).toContain("# Upstream Outputs");
+      expect(prompt).toContain("## a  (status: success, exit: 0)");
+      expect(prompt).toContain("plus_one: 1");
+    });
+
+    it("omits the upstream section entirely when previousOutputs is empty", async () => {
+      const { bridge, spawnCalls } = spy(() => [
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new ClaudeAdapter({ bridge });
+      await adapter.run(makeContext(), () => {});
+      const prompt = spawnCalls[0].args[1];
+      expect(prompt).not.toContain("# Upstream Outputs");
+    });
+  });
+
   describe("C11 — terminal event mapping", () => {
     it("exited(2) → status=failed with exitCode=2", async () => {
       const { bridge } = spy(() => [

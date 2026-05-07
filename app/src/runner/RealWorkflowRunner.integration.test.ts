@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { AdapterRegistry } from "../runtime/adapters/AdapterRegistry";
+import { ClaudeAdapter } from "../runtime/adapters/ClaudeAdapter";
 import { FakeAgentAdapter } from "../runtime/adapters/FakeAgentAdapter";
+import type {
+  RuntimeBridge,
+  SpawnOptions,
+} from "../runtime/bridge/RuntimeBridge";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
 import type { AgentRunEvent } from "../runtime/contracts/SkillExecution";
 import type { WorkflowSkillNode } from "../workflow/schema";
@@ -128,6 +133,75 @@ describe("RealWorkflowRunner + runWorkflow integration", () => {
       "c",
     ]);
     expect(Object.keys(log.nodeResults).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("threads previous node's stdout into the next node's prompt (real ClaudeAdapter)", async () => {
+    const a = workflowNode("a");
+    const b = workflowNode("b");
+    const nodes = new Map([a, b].map((n) => [n.id, n]));
+
+    const mock = createMockRuntimeBridge({
+      files: { [SKILL_ABS_PATH]: SKILL_CONTENT },
+      scenario: (opts) => {
+        const nodeId = opts.runId.split("::").pop();
+        return [
+          { event: { type: "started" } },
+          { event: { type: "stdout", text: `out-from-${nodeId}\n` } },
+          { event: { type: "exited", exitCode: 0 } },
+        ];
+      },
+    });
+    const spawnCalls: SpawnOptions[] = [];
+    const bridge: RuntimeBridge = {
+      readFile: (p, r) => mock.readFile(p, r),
+      spawn: async (opts) => {
+        spawnCalls.push(opts);
+        return mock.spawn(opts);
+      },
+      cancel: (id) => mock.cancel(id),
+      subscribe: (id, l) => mock.subscribe(id, l),
+    };
+
+    const adapter = new ClaudeAdapter({ bridge, skipProbe: true });
+    const registry = new AdapterRegistry();
+    registry.register(adapter);
+
+    const runner = new RealWorkflowRunner({
+      registry,
+      bridge,
+      logStore: useRunLogStore,
+      getNode: (id) => nodes.get(id) ?? null,
+      getRepository: () => REPO,
+      getRunMeta: () => {
+        const s = useRunStore.getState();
+        return { runId: s.runId ?? "", workflowId: s.workflowId };
+      },
+    });
+    runner.reset();
+
+    const outcome = await runWorkflow({
+      nodes: [runnableFrom(a), runnableFrom(b)],
+      edges: [{ id: "e1", source: "a", target: "b" }],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_chain",
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(spawnCalls.map((c) => c.runId)).toEqual([
+      "run_chain::a",
+      "run_chain::b",
+    ]);
+
+    const aPrompt = spawnCalls[0].args[1];
+    expect(aPrompt).not.toContain("# Upstream Outputs");
+
+    const bPrompt = spawnCalls[1].args[1];
+    expect(bPrompt).toContain("# Upstream Outputs");
+    expect(bPrompt).toContain("## a  (status: success, exit: 0)");
+    expect(bPrompt).toContain("out-from-a");
   });
 
   it("stops the workflow on first failure and marks downstream nodes skipped", async () => {

@@ -6,6 +6,7 @@ import type {
   SkillExecutionContext,
   SkillExecutionResult,
 } from "./AgentAdapter";
+import { buildSkillPrompt } from "./buildSkillPrompt";
 import { probeViaBridge, runViaBridge } from "./runViaBridge";
 
 export interface ClaudeCommand {
@@ -41,16 +42,7 @@ function defaultBuildCommand(
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {
-  const inputJson = JSON.stringify(ctx.input ?? {}, null, 2);
-  return [
-    `# Skill: ${ctx.skill.name}`,
-    "",
-    ctx.skill.content,
-    "",
-    "# Input",
-    "",
-    inputJson,
-  ].join("\n");
+  return buildSkillPrompt(ctx);
 }
 
 function defaultRunId(ctx: SkillExecutionContext): string {
