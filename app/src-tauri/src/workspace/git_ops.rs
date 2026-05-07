@@ -92,34 +92,28 @@ pub async fn status(workspace: &Path) -> Result<Vec<PorcelainEntry>> {
 
 /// Stash all changes (including untracked) and return the resulting stash SHA, or
 /// `None` when there is nothing to stash.
+///
+/// Uses `git stash push --include-untracked` (instead of `stash create + store`)
+/// because the latter quietly returns empty stdout when only untracked files exist.
 pub async fn stash_save(workspace: &Path, message: &str) -> Result<Option<String>> {
-    // `git stash create` writes a stash commit without touching the stash list.
-    // We then `stash store` it so it is referenced and survives until we drop it.
-    let sha_out = run(
-        Some(workspace),
-        &["stash", "create", "--include-untracked", "--", message],
-    )
-    .await;
-    let sha = match sha_out {
-        Ok(s) => s.trim().to_owned(),
-        // Older git versions don't accept `-- <message>` for `stash create`. Retry without.
-        Err(Error::Git { .. }) => {
-            let s = run(Some(workspace), &["stash", "create", "--include-untracked"]).await?;
-            s.trim().to_owned()
-        }
-        Err(e) => return Err(e),
-    };
-    if sha.is_empty() {
+    // Bail early on a clean tree so we can return None deterministically.
+    let entries = status(workspace).await?;
+    if entries.is_empty() {
         return Ok(None);
     }
     run(
         Some(workspace),
-        &["stash", "store", "-m", message, &sha],
+        &["stash", "push", "--include-untracked", "-m", message],
     )
     .await?;
-    // Reset working tree so cleanup can wipe the directory cleanly.
-    run(Some(workspace), &["reset", "--hard", "HEAD"]).await?;
-    run(Some(workspace), &["clean", "-fd"]).await?;
+    // The newest stash entry is the one we just created; resolve its commit SHA.
+    let sha = run(Some(workspace), &["rev-parse", "stash@{0}"])
+        .await?
+        .trim()
+        .to_owned();
+    if sha.is_empty() {
+        return Ok(None);
+    }
     Ok(Some(sha))
 }
 
@@ -132,18 +126,41 @@ pub async fn stash_apply(workspace: &Path, sha: &str) -> Result<()> {
 
 /// Export a stash commit as a `.bundle` byte blob — used to persist the stash
 /// across workspace cleanup so cold resume can restore it.
+///
+/// `git bundle` requires named refs (not bare SHAs), so we attach a temporary
+/// tag pointing at the stash commit, bundle that tag, then drop it. The bundle
+/// is bounded by `--not <base>` (the commit the stash was based on), keeping
+/// the blob small; the destination clone must already contain `<base>`.
 pub async fn export_stash_bundle(workspace: &Path, sha: &str) -> Result<Vec<u8>> {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(workspace)
-        .args(["bundle", "create", "-", sha]);
-    let out = cmd.output().await?;
-    if !out.status.success() {
-        return Err(Error::Git {
-            code: out.status.code().unwrap_or(-1),
-            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-        });
-    }
-    Ok(out.stdout)
+    let base = run(Some(workspace), &["rev-parse", &format!("{sha}^1")])
+        .await?
+        .trim()
+        .to_owned();
+    let tag = format!("__cir30_stash_{}", &sha[..12.min(sha.len())]);
+    // Force-update so retries don't fail.
+    run(Some(workspace), &["tag", "-f", &tag, sha]).await?;
+    let bundle_result = (async {
+        let mut cmd = Command::new("git");
+        cmd.current_dir(workspace).args([
+            "bundle",
+            "create",
+            "-",
+            &format!("refs/tags/{tag}"),
+            "--not",
+            &base,
+        ]);
+        let out = cmd.output().await?;
+        if !out.status.success() {
+            return Err(Error::Git {
+                code: out.status.code().unwrap_or(-1),
+                stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+            });
+        }
+        Ok(out.stdout)
+    })
+    .await;
+    let _ = run(Some(workspace), &["tag", "-d", &tag]).await;
+    bundle_result
 }
 
 /// Import a previously-exported bundle back into the workspace's object DB.
@@ -183,4 +200,132 @@ pub async fn init_repo_with_initial_commit(path: &Path) -> Result<()> {
     run(Some(path), &["add", "README.md"]).await?;
     run(Some(path), &["commit", "-m", "init"]).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use tokio::fs;
+
+    async fn fresh_repo() -> TempDir {
+        let dir = TempDir::new().unwrap();
+        init_repo_with_initial_commit(dir.path()).await.unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    async fn head_and_branch_on_fresh_repo() {
+        let dir = fresh_repo().await;
+        let head = head_commit(dir.path()).await.unwrap();
+        assert_eq!(head.len(), 40); // SHA-1 hex
+        assert_eq!(
+            current_branch(dir.path()).await.unwrap().as_deref(),
+            Some("main")
+        );
+    }
+
+    #[tokio::test]
+    async fn status_lists_dirty_files() {
+        let dir = fresh_repo().await;
+        fs::write(dir.path().join("a.txt"), b"a\n").await.unwrap();
+        fs::write(dir.path().join("README.md"), b"# changed\n")
+            .await
+            .unwrap();
+        let entries = status(dir.path()).await.unwrap();
+        let names: Vec<_> = entries
+            .iter()
+            .map(|e| e.path.to_string_lossy().into_owned())
+            .collect();
+        assert!(names.iter().any(|n| n == "a.txt"));
+        assert!(names.iter().any(|n| n == "README.md"));
+    }
+
+    #[tokio::test]
+    async fn stash_save_returns_sha_and_clears_working_tree() {
+        let dir = fresh_repo().await;
+        fs::write(dir.path().join("dirty.txt"), b"dirty\n")
+            .await
+            .unwrap();
+        let sha = stash_save(dir.path(), "cir30")
+            .await
+            .unwrap()
+            .expect("stash sha");
+        assert_eq!(sha.len(), 40);
+        let after = status(dir.path()).await.unwrap();
+        assert!(
+            after.is_empty(),
+            "expected clean working tree after stash, got {after:?}"
+        );
+        // file is gone
+        assert!(!dir.path().join("dirty.txt").exists());
+    }
+
+    #[tokio::test]
+    async fn stash_save_on_clean_returns_none() {
+        let dir = fresh_repo().await;
+        let sha = stash_save(dir.path(), "noop").await.unwrap();
+        assert!(sha.is_none());
+    }
+
+    #[tokio::test]
+    async fn stash_apply_restores_dirty_file() {
+        let dir = fresh_repo().await;
+        fs::write(dir.path().join("dirty.txt"), b"dirty\n")
+            .await
+            .unwrap();
+        let sha = stash_save(dir.path(), "cir30").await.unwrap().unwrap();
+        // Working tree clean, file gone.
+        assert!(!dir.path().join("dirty.txt").exists());
+        stash_apply(dir.path(), &sha).await.unwrap();
+        let restored = fs::read(dir.path().join("dirty.txt")).await.unwrap();
+        assert_eq!(restored, b"dirty\n");
+    }
+
+    #[tokio::test]
+    async fn clone_from_local_repo() {
+        let src = fresh_repo().await;
+        let dst_parent = TempDir::new().unwrap();
+        let dst = dst_parent.path().join("clone");
+        let src_url = format!("file://{}", src.path().display());
+        clone(&src_url, &dst).await.unwrap();
+        let head_src = head_commit(src.path()).await.unwrap();
+        let head_dst = head_commit(&dst).await.unwrap();
+        assert_eq!(head_src, head_dst);
+    }
+
+    #[tokio::test]
+    async fn checkout_existing_branch() {
+        let dir = fresh_repo().await;
+        // create another branch
+        run(Some(dir.path()), &["checkout", "-b", "feature"])
+            .await
+            .unwrap();
+        checkout(dir.path(), "main").await.unwrap();
+        assert_eq!(
+            current_branch(dir.path()).await.unwrap().as_deref(),
+            Some("main")
+        );
+    }
+
+    #[tokio::test]
+    async fn export_and_import_stash_bundle() {
+        let dir = fresh_repo().await;
+        fs::write(dir.path().join("dirty.txt"), b"dirty\n")
+            .await
+            .unwrap();
+        let sha = stash_save(dir.path(), "cir30").await.unwrap().unwrap();
+        let bundle = export_stash_bundle(dir.path(), &sha).await.unwrap();
+        assert!(!bundle.is_empty());
+
+        // simulate clone then re-import
+        let dst_parent = TempDir::new().unwrap();
+        let dst = dst_parent.path().join("re");
+        let src_url = format!("file://{}", dir.path().display());
+        clone(&src_url, &dst).await.unwrap();
+        import_stash_bundle(&dst, &bundle).await.unwrap();
+        stash_apply(&dst, &sha).await.unwrap();
+        let restored = fs::read(dst.join("dirty.txt")).await.unwrap();
+        assert_eq!(restored, b"dirty\n");
+    }
 }
