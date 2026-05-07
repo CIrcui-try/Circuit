@@ -7,6 +7,8 @@ pub enum Error {
     AlreadyAttached(String),
     #[error("workspace not found: {0}")]
     NotFound(String),
+    #[error("workspace turn in flight: {0}")]
+    TurnInFlight(String),
     #[error("workspace state invalid: expected {expected}, got {actual}")]
     InvalidState { expected: String, actual: String },
     #[error("path escape: {0:?} is outside workspace root")]
