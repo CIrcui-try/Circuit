@@ -46,6 +46,20 @@ pub async fn checkout(workspace: &Path, target: &str) -> Result<()> {
         .map(|_| ())
 }
 
+/// Hard-reset the working tree to `sha` and discard every untracked file.
+/// Destructive — used by Phase 3 (CIR-31) crash recovery to roll an in-flight
+/// turn back to its pre-turn HEAD, which means *no* dirty residue (tracked
+/// or untracked) may survive. Caller must already have validated that `sha`
+/// is the known turn base, not arbitrary user input.
+pub async fn reset_hard(workspace: &Path, sha: &str) -> Result<()> {
+    if sha.is_empty() {
+        return Err(Error::Other("reset_hard: empty sha".into()));
+    }
+    run(Some(workspace), &["reset", "--hard", sha]).await?;
+    run(Some(workspace), &["clean", "-fd"]).await?;
+    Ok(())
+}
+
 pub async fn head_commit(workspace: &Path) -> Result<String> {
     let out = run(Some(workspace), &["rev-parse", "HEAD"]).await?;
     Ok(out.trim().to_owned())
@@ -306,6 +320,37 @@ mod tests {
             current_branch(dir.path()).await.unwrap().as_deref(),
             Some("main")
         );
+    }
+
+    #[tokio::test]
+    async fn reset_hard_drops_dirty_changes_and_reverts_head() {
+        let dir = fresh_repo().await;
+        let head = head_commit(dir.path()).await.unwrap();
+        // Add a second commit so HEAD has somewhere to be moved back from.
+        fs::write(dir.path().join("README.md"), b"# changed\n")
+            .await
+            .unwrap();
+        run(Some(dir.path()), &["add", "README.md"]).await.unwrap();
+        run(Some(dir.path()), &["commit", "-m", "second"])
+            .await
+            .unwrap();
+        // Plus an uncommitted dirty file.
+        fs::write(dir.path().join("dirty.txt"), b"WIP\n")
+            .await
+            .unwrap();
+
+        reset_hard(dir.path(), &head).await.unwrap();
+        assert_eq!(head_commit(dir.path()).await.unwrap(), head);
+        assert!(!dir.path().join("dirty.txt").exists());
+        let restored = fs::read(dir.path().join("README.md")).await.unwrap();
+        assert_eq!(restored, b"# init\n");
+    }
+
+    #[tokio::test]
+    async fn reset_hard_rejects_empty_sha() {
+        let dir = fresh_repo().await;
+        let result = reset_hard(dir.path(), "").await;
+        assert!(matches!(result, Err(Error::Other(_))));
     }
 
     #[tokio::test]

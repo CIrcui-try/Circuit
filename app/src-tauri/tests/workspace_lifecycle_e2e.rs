@@ -149,7 +149,9 @@ async fn crash_recovery_replays_from_action_log_when_disk_lost() {
         .iter()
         .map(|a| match a {
             StoreAction::Acquire { .. } => "Acquire",
+            StoreAction::TurnBegin { .. } => "TurnBegin",
             StoreAction::TurnComplete { .. } => "TurnComplete",
+            StoreAction::TurnRollback { .. } => "TurnRollback",
             StoreAction::Stash { .. } => "Stash",
             StoreAction::Cleanup => "Cleanup",
             StoreAction::ColdResume { .. } => "ColdResume",
