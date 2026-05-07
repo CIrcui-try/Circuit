@@ -295,7 +295,14 @@ impl WorkspaceManager {
     ///
     /// Caller must own the workspace (it must be in Attached or Idle state) —
     /// the routine drives state through Cleaning → Removed.
+    ///
+    /// Phase 3 (CIR-31): if the workspace has an in-flight turn, cleanup is
+    /// rejected immediately with `Error::TurnInFlight`. Mid-turn evicts are
+    /// forbidden — the caller must wait for the turn to commit or abort.
     pub async fn cleanup(&self, ws: &Arc<Workspace>) -> Result<()> {
+        if ws.active_turn().await.is_some() {
+            return Err(Error::TurnInFlight(ws.id.0.clone()));
+        }
         // Transition to Cleaning, allowing both Idle (TTL-driven) and Attached (explicit) entry.
         {
             let mut g = ws.state_mut().await;
@@ -727,5 +734,26 @@ mod tests {
         let ws = mgr.acquire("alice", &url).await.unwrap();
         let result = mgr.commit_turn(&ws).await;
         assert!(matches!(result, Err(Error::Other(_))));
+    }
+
+    #[tokio::test]
+    async fn cleanup_rejects_in_flight_workspace() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 1).await.unwrap();
+        ws.release().await.unwrap(); // Idle but turn still in flight.
+
+        let result = mgr.cleanup(&ws).await;
+        assert!(matches!(result, Err(Error::TurnInFlight(_))));
+        // Workspace must remain on disk and registered.
+        assert!(ws.path.exists());
+        assert!(mgr.lookup(&ws.id).await.is_some());
+
+        // After commit_turn, cleanup proceeds normally.
+        ws.attach().await.unwrap();
+        mgr.commit_turn(&ws).await.unwrap();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert!(!ws.path.exists());
     }
 }
