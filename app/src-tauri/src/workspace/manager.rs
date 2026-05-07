@@ -1,13 +1,43 @@
 use crate::workspace::errors::{Error, Result};
 use crate::workspace::git_ops;
 use crate::workspace::metadata::{WorkspaceId, WorkspaceMetadata};
-use crate::workspace::store::{StoreAction, WorkspaceStore};
+use crate::workspace::store::{ReconcileStrategy, StoreAction, WorkspaceStore};
 use crate::workspace::workspace::{Workspace, WorkspaceState};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+
+/// Phase 4 (CIR-32): typed result of `WorkspaceManager::reconcile`.
+///
+/// Each variant maps 1:1 to a branch of the divergence policy:
+///
+/// 1. `HeadMatch` — Store metadata's `head_commit` equals the workspace's
+///    `git rev-parse HEAD`. Nothing was changed on disk; the workspace is
+///    re-registered as `Idle` and reusable.
+/// 2. `Replay` — disk exists but HEAD diverged (external push, user
+///    `git commit`, branch switch, etc.). The workspace was reset_hard'd to
+///    `to` (= Store's recorded head) and any persisted stash was re-applied.
+/// 3. `ColdResume { reason }` — disk was wiped or unreadable, so the
+///    workspace was rebuilt from Store metadata via `cold_resume`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReconcileOutcome {
+    HeadMatch,
+    Replay { from: String, to: String },
+    ColdResume { reason: ColdResumeReason },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ColdResumeReason {
+    /// Workspace directory does not exist.
+    MissingDisk,
+    /// `git rev-parse HEAD` failed (`.git` corrupt / not a git repo).
+    HeadUnreadable,
+    /// In-place `Replay` was attempted but a git op failed; we fell back to
+    /// a full re-clone.
+    ReplayFailed,
+}
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceManager {
@@ -251,22 +281,42 @@ impl WorkspaceManager {
 
     /// Attempt to restore an in-memory `Workspace` for `id` after a crash.
     ///
+    /// Phase 4 (CIR-32) made this a thin wrapper around [`reconcile`], which
+    /// returns a typed [`ReconcileOutcome`]. Use `reconcile` directly if you
+    /// need to know which branch of the divergence policy ran (e.g. for
+    /// telemetry); use `recover` when you only want the workspace back.
+    pub async fn recover(&self, id: &WorkspaceId) -> Result<Arc<Workspace>> {
+        let (ws, _) = self.reconcile(id).await?;
+        Ok(ws)
+    }
+
+    /// Phase 4 (CIR-32): single source of truth for the Store ↔ Workspace
+    /// divergence policy. **Store wins, Workspace is derived.**
+    ///
     /// Decision tree:
     /// 1. No metadata in Store → `Error::NotFound`. Caller decides what to do
     ///    (e.g. drop, or treat as fresh acquire).
     /// 2. Metadata exists, disk path exists, and `git rev-parse HEAD` matches
-    ///    `meta.head_commit` → re-register as `Idle`. Workspace is reusable.
-    /// 3. Metadata exists, disk gone OR HEAD mismatched → replay the action log
-    ///    onto a fresh re-clone via `cold_resume`. The recovered workspace is
-    ///    `Idle`, ready to attach.
+    ///    `meta.head_commit` → [`ReconcileOutcome::HeadMatch`]. Workspace is
+    ///    re-registered as `Idle` and reusable, no disk mutation.
+    /// 3. Metadata exists, disk path exists, but HEAD diverged (external
+    ///    push, user `git commit`, etc.) → [`ReconcileOutcome::Replay`].
+    ///    `git reset --hard meta.head_commit` + re-apply persisted stash if
+    ///    any. If the replay's git ops fail, fall back to cold-resume with
+    ///    [`ColdResumeReason::ReplayFailed`].
+    /// 4. Metadata exists, disk gone or `.git` unreadable →
+    ///    [`ReconcileOutcome::ColdResume`] via [`cold_resume`]. The variant's
+    ///    `reason` distinguishes [`ColdResumeReason::MissingDisk`] from
+    ///    [`ColdResumeReason::HeadUnreadable`].
     ///
-    /// Phase 3 (CIR-31): before returning, scan the action log for a
-    /// `TurnBegin` without a matching `TurnComplete`. If one is found, the
-    /// in-flight turn is rolled back — disk-intact branch hard-resets the
-    /// working tree to the captured `base_head`; cold-resume branch already
-    /// re-clones at the last settled HEAD. Either way a `TurnRollback` action
-    /// is appended so the log self-describes the recovery.
-    pub async fn recover(&self, id: &WorkspaceId) -> Result<Arc<Workspace>> {
+    /// In every successful branch a [`StoreAction::Reconcile`] is appended so
+    /// the action log is self-describing. Phase 3 (CIR-31) pending-turn
+    /// rollback still runs first — the in-flight turn is undone and a
+    /// [`StoreAction::TurnRollback`] precedes the `Reconcile` entry.
+    pub async fn reconcile(
+        &self,
+        id: &WorkspaceId,
+    ) -> Result<(Arc<Workspace>, ReconcileOutcome)> {
         let meta = self
             .inner
             .store
@@ -275,69 +325,199 @@ impl WorkspaceManager {
             .ok_or_else(|| Error::NotFound(id.0.clone()))?;
         let path = meta.disk_path.clone();
 
-        let disk_ok = path.exists() && {
-            match git_ops::head_commit(&path).await {
-                Ok(head) => head == meta.head_commit,
-                Err(_) => false,
-            }
-        };
-
+        let disk_state = self.classify_disk(&path, &meta.head_commit).await;
         let actions = self.inner.store.read_actions(id).await?;
         let pending = pending_turn_from_log(&actions);
 
-        let ws = if disk_ok {
-            // Roll back any in-flight turn before snapshotting metadata, so
-            // the workspace state matches the last settled checkpoint.
-            if let Some((turn_index, ref base_head)) = pending {
-                ensure_inside(&self.inner.workspace_root, &path)?;
-                git_ops::reset_hard(&path, base_head).await?;
-                self.inner
-                    .store
-                    .append_action(
-                        id,
-                        &StoreAction::TurnRollback {
-                            turn_index,
-                            rolled_back_to: base_head.clone(),
-                        },
-                    )
-                    .await?;
+        let (ws, outcome) = match disk_state {
+            DiskState::HeadMatch => {
+                self.handle_pending_turn_in_place(id, &path, &pending).await?;
+                let ws = self.snapshot_workspace(id, &meta, &path).await?;
+                (ws, ReconcileOutcome::HeadMatch)
             }
-
-            let live_meta = WorkspaceMetadata::snapshot(
-                id.clone(),
-                meta.user_id.clone(),
-                meta.repo_url.clone(),
-                &path,
-            )
-            .await?;
-            // Preserve last_turn / stash_ref from disk-persisted metadata.
-            let merged = WorkspaceMetadata {
-                stash_ref: meta.stash_ref.clone(),
-                last_turn: meta.last_turn,
-                ..live_meta
-            };
-            Workspace::new(id.clone(), path, merged)
-        } else {
-            // cold_resume re-clones at meta.head_commit (the last settled HEAD)
-            // — that's already the rollback target for any pending turn. We
-            // only need to record the rollback in the action log.
-            let ws = self.cold_resume(&meta).await?;
-            if let Some((turn_index, _)) = pending {
-                self.inner
-                    .store
-                    .append_action(
-                        id,
-                        &StoreAction::TurnRollback {
-                            turn_index,
-                            rolled_back_to: meta.head_commit.clone(),
-                        },
-                    )
-                    .await?;
+            DiskState::HeadDiverged { live_head } => {
+                match self.try_replay(id, &meta, &path, &pending).await {
+                    Ok(()) => {
+                        let ws = self.snapshot_workspace(id, &meta, &path).await?;
+                        (
+                            ws,
+                            ReconcileOutcome::Replay {
+                                from: live_head,
+                                to: meta.head_commit.clone(),
+                            },
+                        )
+                    }
+                    Err(_) => {
+                        let ws = self.cold_resume_with_pending(&meta, &pending).await?;
+                        (
+                            ws,
+                            ReconcileOutcome::ColdResume {
+                                reason: ColdResumeReason::ReplayFailed,
+                            },
+                        )
+                    }
+                }
             }
-            ws
+            DiskState::HeadUnreadable => {
+                let ws = self.cold_resume_with_pending(&meta, &pending).await?;
+                (
+                    ws,
+                    ReconcileOutcome::ColdResume {
+                        reason: ColdResumeReason::HeadUnreadable,
+                    },
+                )
+            }
+            DiskState::Missing => {
+                let ws = self.cold_resume_with_pending(&meta, &pending).await?;
+                (
+                    ws,
+                    ReconcileOutcome::ColdResume {
+                        reason: ColdResumeReason::MissingDisk,
+                    },
+                )
+            }
         };
 
+        let (strategy, before_head) = match &outcome {
+            ReconcileOutcome::HeadMatch => (ReconcileStrategy::HeadMatch, Some(meta.head_commit.clone())),
+            ReconcileOutcome::Replay { from, .. } => (ReconcileStrategy::Replay, Some(from.clone())),
+            ReconcileOutcome::ColdResume { .. } => (ReconcileStrategy::ColdResume, None),
+        };
+        self.inner
+            .store
+            .append_action(
+                id,
+                &StoreAction::Reconcile {
+                    strategy,
+                    before_head,
+                    after_head: meta.head_commit.clone(),
+                },
+            )
+            .await?;
+
         self.register(Arc::clone(&ws)).await;
+        Ok((ws, outcome))
+    }
+
+    async fn classify_disk(&self, path: &Path, expected_head: &str) -> DiskState {
+        if !path.exists() {
+            return DiskState::Missing;
+        }
+        match git_ops::head_commit(path).await {
+            Ok(head) if head == expected_head => DiskState::HeadMatch,
+            Ok(head) => DiskState::HeadDiverged { live_head: head },
+            Err(_) => DiskState::HeadUnreadable,
+        }
+    }
+
+    /// Replay branch: disk is intact but HEAD diverged. Reset to Store's
+    /// recorded head, restore any persisted stash, and roll back a pending
+    /// turn if the action log left one open. Failures bubble up so the
+    /// caller can demote to `ColdResume { reason: ReplayFailed }`.
+    async fn try_replay(
+        &self,
+        id: &WorkspaceId,
+        meta: &WorkspaceMetadata,
+        path: &Path,
+        pending: &Option<(u64, String)>,
+    ) -> Result<()> {
+        ensure_inside(&self.inner.workspace_root, path)?;
+        // For an in-flight turn, reset to the turn's base_head (which equals
+        // or precedes meta.head_commit) — same target as the existing pending
+        // rollback flow. Otherwise reset to Store's recorded head.
+        let target = pending
+            .as_ref()
+            .map(|(_, h)| h.clone())
+            .unwrap_or_else(|| meta.head_commit.clone());
+        git_ops::reset_hard(path, &target).await?;
+
+        if let Some((turn_index, base_head)) = pending {
+            self.inner
+                .store
+                .append_action(
+                    id,
+                    &StoreAction::TurnRollback {
+                        turn_index: *turn_index,
+                        rolled_back_to: base_head.clone(),
+                    },
+                )
+                .await?;
+        }
+
+        if let Some(sha) = meta.stash_ref.clone() {
+            // The bundle may already be in the object DB (no-op import) or
+            // not (loose disk after manual reclone). Try import + apply; on
+            // any failure the caller demotes to cold-resume.
+            if let Some(bundle) = self.inner.store.load_stash_blob(&meta.id, &sha).await? {
+                git_ops::import_stash_bundle(path, &bundle).await?;
+                git_ops::stash_apply(path, &sha).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_pending_turn_in_place(
+        &self,
+        id: &WorkspaceId,
+        path: &Path,
+        pending: &Option<(u64, String)>,
+    ) -> Result<()> {
+        if let Some((turn_index, base_head)) = pending {
+            ensure_inside(&self.inner.workspace_root, path)?;
+            git_ops::reset_hard(path, base_head).await?;
+            self.inner
+                .store
+                .append_action(
+                    id,
+                    &StoreAction::TurnRollback {
+                        turn_index: *turn_index,
+                        rolled_back_to: base_head.clone(),
+                    },
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn snapshot_workspace(
+        &self,
+        id: &WorkspaceId,
+        meta: &WorkspaceMetadata,
+        path: &Path,
+    ) -> Result<Arc<Workspace>> {
+        let live_meta = WorkspaceMetadata::snapshot(
+            id.clone(),
+            meta.user_id.clone(),
+            meta.repo_url.clone(),
+            path,
+        )
+        .await?;
+        let merged = WorkspaceMetadata {
+            stash_ref: meta.stash_ref.clone(),
+            last_turn: meta.last_turn,
+            ..live_meta
+        };
+        Ok(Workspace::new(id.clone(), path.to_path_buf(), merged))
+    }
+
+    async fn cold_resume_with_pending(
+        &self,
+        meta: &WorkspaceMetadata,
+        pending: &Option<(u64, String)>,
+    ) -> Result<Arc<Workspace>> {
+        let ws = self.cold_resume(meta).await?;
+        if let Some((turn_index, _)) = pending {
+            self.inner
+                .store
+                .append_action(
+                    &meta.id,
+                    &StoreAction::TurnRollback {
+                        turn_index: *turn_index,
+                        rolled_back_to: meta.head_commit.clone(),
+                    },
+                )
+                .await?;
+        }
         Ok(ws)
     }
 
@@ -438,6 +618,13 @@ impl WorkspaceManager {
 enum Either {
     Reuse(Arc<Workspace>),
     Create(u32),
+}
+
+enum DiskState {
+    Missing,
+    HeadMatch,
+    HeadDiverged { live_head: String },
+    HeadUnreadable,
 }
 
 /// Walk the action log and return `Some((turn_index, base_head))` if the most
@@ -876,12 +1063,17 @@ mod tests {
         assert!(!recovered.path.join("scratch.txt").exists());
         assert!(recovered.active_turn().await.is_none());
 
-        // Action log self-describes the rollback.
+        // Action log self-describes the rollback. Phase 4 (CIR-32) appends
+        // a `Reconcile` entry after the rollback, so the rollback is the
+        // second-to-last action.
         let actions = mgr.store().read_actions(&id).await.unwrap();
-        let last = actions.last().unwrap();
-        assert!(matches!(
-            last,
+        assert!(actions.iter().any(|a| matches!(
+            a,
             StoreAction::TurnRollback { turn_index: 1, .. }
+        )));
+        assert!(matches!(
+            actions.last().unwrap(),
+            StoreAction::Reconcile { .. }
         ));
     }
 
