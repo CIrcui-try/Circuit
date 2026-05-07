@@ -56,6 +56,15 @@ impl RuntimeBridgeState {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalKind {
+    Trust,
+    Command,
+    Freeform,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum RuntimeProcessEvent {
@@ -90,6 +99,23 @@ pub enum RuntimeProcessEvent {
         run_id: String,
         timestamp: String,
         message: String,
+    },
+    /// Emitted when the spawned CLI is waiting for the user to answer an
+    /// interactive prompt (e.g. codex's "Do you trust this directory?"). The
+    /// caller must reply via `runtime_send_input(run_id, response)` before the
+    /// child can continue. **Not terminal** — the run keeps streaming.
+    ///
+    /// In v1 this variant is reserved for tests / future approval-detection
+    /// helpers. The production approval-forwarding path lives entirely in JS
+    /// (see `approvalProtocol.ts`) and pushes a synthetic AgentRunEvent based
+    /// on stderr lines, so Rust does not yet emit ApprovalRequest itself.
+    #[allow(dead_code)]
+    ApprovalRequest {
+        run_id: String,
+        timestamp: String,
+        request_id: String,
+        prompt: String,
+        kind: ApprovalKind,
     },
 }
 

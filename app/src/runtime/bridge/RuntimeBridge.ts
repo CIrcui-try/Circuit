@@ -1,3 +1,5 @@
+export type RuntimeApprovalKind = "trust" | "command" | "freeform";
+
 export type RuntimeProcessEvent =
   | { type: "started"; runId: string; timestamp: string }
   | { type: "stdout"; runId: string; timestamp: string; text: string }
@@ -5,7 +7,15 @@ export type RuntimeProcessEvent =
   | { type: "exited"; runId: string; timestamp: string; exitCode: number | null }
   | { type: "cancelled"; runId: string; timestamp: string }
   | { type: "timeout"; runId: string; timestamp: string }
-  | { type: "error"; runId: string; timestamp: string; message: string };
+  | { type: "error"; runId: string; timestamp: string; message: string }
+  | {
+      type: "approvalRequest";
+      runId: string;
+      timestamp: string;
+      requestId: string;
+      prompt: string;
+      kind: RuntimeApprovalKind;
+    };
 
 export type RuntimeProcessListener = (event: RuntimeProcessEvent) => void;
 

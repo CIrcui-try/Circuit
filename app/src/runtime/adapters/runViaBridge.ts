@@ -149,6 +149,19 @@ export function runViaBridge(
         case "stderr":
           emit({ type: "stderr", timestamp: ev.timestamp, text: ev.text });
           return;
+        case "approvalRequest":
+          // Non-terminal: the child is still running and waiting for the user
+          // to call bridge.sendInput(runId, response). We surface the prompt
+          // through the sink so the UI can render it; the run promise stays
+          // pending until the eventual exited / cancelled / timeout event.
+          emit({
+            type: "approval_required",
+            timestamp: ev.timestamp,
+            requestId: ev.requestId,
+            prompt: ev.prompt,
+            approvalKind: ev.kind,
+          });
+          return;
         case "exited": {
           const exitCode = ev.exitCode ?? undefined;
           emit({ type: "finish", timestamp: ev.timestamp, exitCode });
