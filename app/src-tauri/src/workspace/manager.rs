@@ -527,6 +527,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cold_resume_restores_dirty_state_from_metadata_only() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        tokio::fs::write(ws.path.join("dirty.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        // Read the persisted metadata back out — that's the only input cold_resume needs.
+        let meta = mgr.store().read_metadata(&ws.id).await.unwrap().unwrap();
+        let resumed = mgr.cold_resume(&meta).await.unwrap();
+        assert!(resumed.path.exists());
+        let restored = tokio::fs::read(resumed.path.join("dirty.txt"))
+            .await
+            .unwrap();
+        assert_eq!(restored, b"WIP\n");
+        // ColdResume action must have been appended to the log.
+        let actions = mgr.store().read_actions(&ws.id).await.unwrap();
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, StoreAction::ColdResume { .. })),
+            "expected ColdResume action in {actions:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn cold_resume_without_stash_just_reclones_at_head() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let head = ws.metadata_snapshot().await.head_commit.clone();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        let meta = mgr.store().read_metadata(&ws.id).await.unwrap().unwrap();
+        assert!(meta.stash_ref.is_none());
+        let resumed = mgr.cold_resume(&meta).await.unwrap();
+        let resumed_head = resumed.metadata_snapshot().await.head_commit;
+        assert_eq!(resumed_head, head);
+        assert!(resumed.path.join("README.md").exists());
+    }
+
+    #[tokio::test]
     async fn recover_unknown_id_returns_not_found() {
         let (_src, _ws_root, mgr, _url) = fixture().await;
         let result = mgr.recover(&WorkspaceId::new("ghost", "nope", 0)).await;
