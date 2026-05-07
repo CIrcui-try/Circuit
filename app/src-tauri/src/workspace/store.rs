@@ -162,6 +162,7 @@ mod tests {
             id: id.clone(),
             repo_url: "file:///dummy".into(),
             user_id: "alice".into(),
+            disk_path: PathBuf::from("/tmp/ws"),
             head_commit: "deadbeef".into(),
             branch: Some("main".into()),
             dirty_files: vec![PathBuf::from("a.txt")],

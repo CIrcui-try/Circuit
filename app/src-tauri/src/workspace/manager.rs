@@ -143,6 +143,107 @@ impl WorkspaceManager {
         self.inner.registry.lock().await.values().cloned().collect()
     }
 
+    /// Cold-path resume: re-create a workspace from persisted metadata only.
+    /// re-clone the repo URL → checkout the recorded HEAD commit → if a stash
+    /// bundle was saved during cleanup, import + apply it so dirty files
+    /// reappear. Returns the rebuilt workspace in `Idle` state.
+    pub async fn cold_resume(&self, meta: &WorkspaceMetadata) -> Result<Arc<Workspace>> {
+        let path = meta.disk_path.clone();
+        if path.exists() {
+            // Stale residue from a partial crash → wipe and re-clone fresh.
+            ensure_inside(&self.inner.workspace_root, &path)?;
+            tokio::fs::remove_dir_all(&path).await?;
+        }
+        git_ops::clone(&meta.repo_url, &path).await?;
+        git_ops::checkout(&path, &meta.head_commit).await?;
+
+        let mut applied_sha: Option<String> = None;
+        if let Some(sha) = meta.stash_ref.clone() {
+            if let Some(bundle) = self.inner.store.load_stash_blob(&meta.id, &sha).await? {
+                git_ops::import_stash_bundle(&path, &bundle).await?;
+                git_ops::stash_apply(&path, &sha).await?;
+                applied_sha = Some(sha);
+            }
+        }
+
+        // Rebuild metadata against the freshly-cloned working tree, but keep
+        // the persisted stash_ref + last_turn — those describe the prior session.
+        let live_meta = WorkspaceMetadata::snapshot(
+            meta.id.clone(),
+            meta.user_id.clone(),
+            meta.repo_url.clone(),
+            &path,
+        )
+        .await?;
+        let merged = WorkspaceMetadata {
+            stash_ref: meta.stash_ref.clone(),
+            last_turn: meta.last_turn,
+            ..live_meta
+        };
+        self.inner.store.write_metadata(&merged).await?;
+        self.inner
+            .store
+            .append_action(
+                &meta.id,
+                &StoreAction::ColdResume {
+                    head_commit: merged.head_commit.clone(),
+                    stash_applied: applied_sha,
+                },
+            )
+            .await?;
+        Ok(Workspace::new(meta.id.clone(), path, merged))
+    }
+
+    /// Attempt to restore an in-memory `Workspace` for `id` after a crash.
+    ///
+    /// Decision tree:
+    /// 1. No metadata in Store → `Error::NotFound`. Caller decides what to do
+    ///    (e.g. drop, or treat as fresh acquire).
+    /// 2. Metadata exists, disk path exists, and `git rev-parse HEAD` matches
+    ///    `meta.head_commit` → re-register as `Idle`. Workspace is reusable.
+    /// 3. Metadata exists, disk gone OR HEAD mismatched → replay the action log
+    ///    onto a fresh re-clone via `cold_resume`. The recovered workspace is
+    ///    `Idle`, ready to attach.
+    pub async fn recover(&self, id: &WorkspaceId) -> Result<Arc<Workspace>> {
+        let meta = self
+            .inner
+            .store
+            .read_metadata(id)
+            .await?
+            .ok_or_else(|| Error::NotFound(id.0.clone()))?;
+        let path = meta.disk_path.clone();
+
+        let disk_ok = path.exists() && {
+            match git_ops::head_commit(&path).await {
+                Ok(head) => head == meta.head_commit,
+                Err(_) => false,
+            }
+        };
+
+        let ws = if disk_ok {
+            let live_meta = WorkspaceMetadata::snapshot(
+                id.clone(),
+                meta.user_id.clone(),
+                meta.repo_url.clone(),
+                &path,
+            )
+            .await?;
+            // Preserve last_turn / stash_ref from disk-persisted metadata.
+            let merged = WorkspaceMetadata {
+                stash_ref: meta.stash_ref.clone(),
+                last_turn: meta.last_turn,
+                ..live_meta
+            };
+            Workspace::new(id.clone(), path, merged)
+        } else {
+            // Fall back to cold path: re-clone + checkout + stash apply.
+            self.cold_resume(&meta).await?
+        };
+
+        self.register(Arc::clone(&ws)).await;
+        Ok(ws)
+    }
+
     /// Graceful idle-TTL cleanup: snapshot working tree → stash dirty files →
     /// persist metadata + stash bundle to Store → wipe disk → mark Removed.
     ///
@@ -376,6 +477,60 @@ mod tests {
         let meta = mgr.store().read_metadata(&id).await.unwrap().unwrap();
         assert!(meta.stash_ref.is_none());
         assert!(mgr.lookup(&id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn recover_from_clean_disk_reuses_existing_workspace() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        let head = ws.metadata_snapshot().await.head_commit.clone();
+        // Persist metadata so recover can find it.
+        mgr.store()
+            .write_metadata(&ws.metadata_snapshot().await)
+            .await
+            .unwrap();
+        // Simulate crash: drop in-memory workspace, but leave disk + metadata intact.
+        ws.release().await.unwrap();
+        mgr.unregister(&id).await;
+
+        let recovered = mgr.recover(&id).await.unwrap();
+        assert_eq!(recovered.id, id);
+        assert_eq!(recovered.path, path);
+        assert_eq!(recovered.metadata_snapshot().await.head_commit, head);
+        assert_eq!(recovered.state().await, WorkspaceState::Idle);
+    }
+
+    #[tokio::test]
+    async fn recover_from_missing_disk_falls_back_to_cold_resume() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        // Take a snapshot, save stash with dirty file, then run cleanup so disk is wiped.
+        tokio::fs::write(path.join("scratch.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert!(!path.exists());
+
+        let recovered = mgr.recover(&id).await.unwrap();
+        assert!(recovered.path.exists());
+        assert_eq!(recovered.id, id);
+        // Stash applied → scratch.txt restored.
+        let restored = tokio::fs::read(recovered.path.join("scratch.txt"))
+            .await
+            .unwrap();
+        assert_eq!(restored, b"WIP\n");
+    }
+
+    #[tokio::test]
+    async fn recover_unknown_id_returns_not_found() {
+        let (_src, _ws_root, mgr, _url) = fixture().await;
+        let result = mgr.recover(&WorkspaceId::new("ghost", "nope", 0)).await;
+        assert!(matches!(result, Err(Error::NotFound(_))));
     }
 
     #[tokio::test]

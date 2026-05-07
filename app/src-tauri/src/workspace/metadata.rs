@@ -41,6 +41,9 @@ pub struct WorkspaceMetadata {
     pub id: WorkspaceId,
     pub repo_url: String,
     pub user_id: String,
+    /// Absolute path on disk. Stored in metadata so cold-resume / crash-recovery
+    /// can find the working directory without re-deriving it from the repo URL.
+    pub disk_path: PathBuf,
     pub head_commit: String,
     pub branch: Option<String>,
     pub dirty_files: Vec<PathBuf>,
@@ -54,6 +57,7 @@ impl WorkspaceMetadata {
             id,
             repo_url,
             user_id,
+            disk_path: PathBuf::new(),
             head_commit: String::new(),
             branch: None,
             dirty_files: Vec::new(),
@@ -86,6 +90,7 @@ impl WorkspaceMetadata {
             id,
             repo_url,
             user_id,
+            disk_path: workspace_path.to_path_buf(),
             head_commit,
             branch,
             dirty_files,
