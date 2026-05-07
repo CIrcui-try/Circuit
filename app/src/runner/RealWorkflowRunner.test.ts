@@ -327,6 +327,38 @@ describe("RealWorkflowRunner", () => {
     }
   });
 
+  it("R10: forwards numeric node.input.timeoutMs to ctx.execution.timeoutMs", async () => {
+    const node = workflowNode("a", "claude", { timeoutMs: 7_500 });
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      result: { status: "success" },
+    });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(adapter.seenContexts[0].execution.timeoutMs).toBe(7_500);
+  });
+
+  it("R11: ignores non-numeric or non-positive node.input.timeoutMs", async () => {
+    const a = workflowNode("a", "claude", { timeoutMs: "fast" });
+    const b = workflowNode("b", "claude", { timeoutMs: -100 });
+    const harness = makeHarness({ nodes: [a, b] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      result: { status: "success" },
+    });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(a));
+    await harness.runner.runNode(runnable(b));
+
+    // 둘 다 default 로 떨어진다.
+    expect(adapter.seenContexts[0].execution.timeoutMs).toBe(300_000);
+    expect(adapter.seenContexts[1].execution.timeoutMs).toBe(300_000);
+  });
+
   it("missing node id is reported as RunResult.ok=false", async () => {
     const harness = makeHarness({ nodes: [] });
     const ghost: RunnableNode = {

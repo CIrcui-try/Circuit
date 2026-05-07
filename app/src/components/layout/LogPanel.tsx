@@ -1,5 +1,10 @@
+import { useEffect, useState } from "react";
+import { getHostBridge, type RunLogEntryDTO } from "../../host/bridge";
+import { parseRunLogJsonl } from "../../runner/runLogPersistence";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useWorkflowStore } from "../../stores/workflowStore";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
 
 function LogHeader({ isRunning }: { isRunning: boolean }) {
@@ -20,15 +25,111 @@ function LogHeader({ isRunning }: { isRunning: boolean }) {
   );
 }
 
+function PastRunsPicker({
+  repoPath,
+  workflowId,
+  isRunning,
+}: {
+  repoPath: string;
+  workflowId: string;
+  isRunning: boolean;
+}) {
+  const [entries, setEntries] = useState<RunLogEntryDTO[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const host = getHostBridge();
+    if (!host.listRunLogs) {
+      setEntries([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await host.listRunLogs!(repoPath, workflowId);
+        if (!cancelled) setEntries(list);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, workflowId]);
+
+  const handleSelect = async (runId: string) => {
+    if (runId === "") return;
+    const host = getHostBridge();
+    if (!host.loadRunLog) return;
+    try {
+      const jsonl = await host.loadRunLog(repoPath, workflowId, runId);
+      const parsed = parseRunLogJsonl(jsonl);
+      const store = useRunLogStore.getState();
+      store.beginRun({ runId, workflowId });
+      for (const e of parsed.events) {
+        store.appendEvent(e.nodeId, e.event);
+      }
+      for (const [nodeId, r] of Object.entries(parsed.nodeResults)) {
+        store.setNodeResult(nodeId, r);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  if (entries.length === 0 && !error) return null;
+
+  return (
+    <div className="run-log__past" data-testid="run-log-past-runs">
+      <label className="run-log__past-label">Past runs:</label>
+      <select
+        data-testid="run-log-past-select"
+        defaultValue=""
+        disabled={isRunning}
+        onChange={(e) => void handleSelect(e.target.value)}
+      >
+        <option value="">— select —</option>
+        {entries.map((e) => (
+          <option key={e.runId} value={e.runId}>
+            {e.runId}
+          </option>
+        ))}
+      </select>
+      {error ? (
+        <span className="run-log__past-error" data-testid="run-log-past-error">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function LogPanel() {
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
   const isRunning = useRunStore((s) => s.status === "running");
+  const repo = useRepositoryStore((s) =>
+    s.selectedId
+      ? s.repositories.find((r) => r.id === s.selectedId) ?? null
+      : null,
+  );
+  const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
+
+  const showPicker = repo && workflowId;
 
   if (events.length === 0 && Object.keys(nodeResults).length === 0) {
     return (
       <footer className="workspace__log">
         <LogHeader isRunning={isRunning} />
+        {showPicker ? (
+          <PastRunsPicker
+            repoPath={repo.path}
+            workflowId={workflowId}
+            isRunning={isRunning}
+          />
+        ) : null}
         <div className="empty-state">No runs yet.</div>
       </footer>
     );
@@ -37,6 +138,13 @@ export function LogPanel() {
   return (
     <footer className="workspace__log">
       <LogHeader isRunning={isRunning} />
+      {showPicker ? (
+        <PastRunsPicker
+          repoPath={repo.path}
+          workflowId={workflowId}
+          isRunning={isRunning}
+        />
+      ) : null}
       <ul className="run-log" data-testid="run-log">
         {events.map((entry, i) => (
           <li

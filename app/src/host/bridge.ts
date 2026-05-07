@@ -15,6 +15,11 @@ export type WorkflowSummaryDTO = {
   updatedAt: string;
 };
 
+export type RunLogEntryDTO = {
+  runId: string;
+  savedAt: string;
+};
+
 export interface HostBridge {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
@@ -23,6 +28,21 @@ export interface HostBridge {
   listWorkflows(repoPath: string): Promise<WorkflowSummaryDTO[]>;
   loadWorkflow(repoPath: string, workflowId: string): Promise<string>;
   saveWorkflow(repoPath: string, workflowId: string, json: string): Promise<void>;
+  saveRunLog?(
+    repoPath: string,
+    workflowId: string,
+    runId: string,
+    jsonl: string,
+  ): Promise<void>;
+  listRunLogs?(
+    repoPath: string,
+    workflowId: string,
+  ): Promise<RunLogEntryDTO[]>;
+  loadRunLog?(
+    repoPath: string,
+    workflowId: string,
+    runId: string,
+  ): Promise<string>;
 }
 
 declare global {

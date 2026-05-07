@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkflowSkillProvider } from "../../workflow/schema";
 import {
   AdapterRegistry,
+  ProviderNotAllowedError,
   UnknownProviderError,
 } from "./AdapterRegistry";
 import type {
@@ -82,5 +83,53 @@ describe("AdapterRegistry", () => {
     registry.register(second);
     expect(registry.get("claude")).toBe(second);
     expect(registry.list()).toEqual(["claude"]);
+  });
+
+  it("R6 — null allowlist (default) accepts any registered provider", () => {
+    const registry = new AdapterRegistry();
+    registry.register(stubAdapter("claude"));
+    expect(registry.getAllowlist()).toBeNull();
+    expect(registry.isAllowed("claude")).toBe(true);
+    expect(registry.isAllowed("codex")).toBe(true);
+    expect(registry.get("claude").provider).toBe("claude");
+  });
+
+  it("R7 — get throws ProviderNotAllowedError when provider is outside the allowlist", () => {
+    const registry = new AdapterRegistry();
+    registry.register(stubAdapter("claude"));
+    registry.register(stubAdapter("codex"));
+    registry.setAllowlist(["claude"]);
+    expect(registry.isAllowed("codex")).toBe(false);
+
+    let caught: unknown;
+    try {
+      registry.get("codex");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ProviderNotAllowedError);
+    const err = caught as ProviderNotAllowedError;
+    expect(err.provider).toBe("codex");
+    expect(err.allowlist).toEqual(["claude"]);
+    expect(err.message).toContain("codex");
+  });
+
+  it("R8 — setAllowlist(null) clears the restriction", () => {
+    const registry = new AdapterRegistry();
+    registry.register(stubAdapter("claude"));
+    registry.register(stubAdapter("codex"));
+    registry.setAllowlist(["claude"]);
+    registry.setAllowlist(null);
+    expect(registry.getAllowlist()).toBeNull();
+    expect(registry.get("codex").provider).toBe("codex");
+  });
+
+  it("R9 — getAllowlist returns a defensive copy", () => {
+    const registry = new AdapterRegistry();
+    registry.setAllowlist(["claude", "codex"]);
+    const snapshot = registry.getAllowlist();
+    expect(snapshot).toEqual(["claude", "codex"]);
+    snapshot!.pop();
+    expect(registry.getAllowlist()).toEqual(["claude", "codex"]);
   });
 });

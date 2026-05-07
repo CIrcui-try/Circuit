@@ -9,6 +9,14 @@ import type { WorkflowSkillNode } from "../workflow/schema";
 import type { useRunLogStore } from "./runLogStore";
 import type { RunnableNode, RunResult, WorkflowRunner } from "./runner";
 
+export interface PersistRunLogArgs {
+  runId: string;
+  workflowId: string | null;
+  repository: { id: string; name: string; path: string };
+  events: ReturnType<typeof useRunLogStore.getState>["events"];
+  nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
+}
+
 export interface RealWorkflowRunnerOptions {
   registry: AdapterRegistry;
   bridge: RuntimeBridge;
@@ -16,6 +24,7 @@ export interface RealWorkflowRunnerOptions {
   getNode: (id: string) => WorkflowSkillNode | null;
   getRepository: () => { id: string; name: string; path: string } | null;
   getRunMeta: () => { runId: string; workflowId: string | null };
+  persistRunLog?: (args: PersistRunLogArgs) => Promise<void> | void;
 }
 
 export class RealWorkflowRunner implements WorkflowRunner {
@@ -63,6 +72,8 @@ export class RealWorkflowRunner implements WorkflowRunner {
       return { ok: false, reason: errorMessage(err) };
     }
 
+    const nodeTimeout = readNodeTimeoutMs(fullNode.input);
+
     let ctx;
     try {
       ctx = await buildSkillExecutionContext(
@@ -72,6 +83,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
           node: fullNode,
           repository: repo,
           previousOutputs: { ...this.previousOutputs },
+          ...(nodeTimeout != null ? { timeoutMs: nodeTimeout } : {}),
         },
         {
           readSkillFile: (abs, root) => this.opts.bridge.readFile(abs, root),
@@ -102,6 +114,21 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.opts.logStore.getState().setNodeResult(node.id, result);
     this.previousOutputs[node.id] = result;
 
+    if (this.opts.persistRunLog) {
+      const log = this.opts.logStore.getState();
+      try {
+        await this.opts.persistRunLog({
+          runId,
+          workflowId,
+          repository: repo,
+          events: log.events,
+          nodeResults: log.nodeResults,
+        });
+      } catch {
+        // best-effort persistence
+      }
+    }
+
     if (result.status === "success") return { ok: true };
     const exitSuffix =
       result.exitCode != null ? ` (exit ${result.exitCode})` : "";
@@ -111,4 +138,15 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function readNodeTimeoutMs(
+  input: Record<string, unknown> | undefined,
+): number | undefined {
+  if (!input) return undefined;
+  const value = input.timeoutMs;
+  if (typeof value !== "number") return undefined;
+  if (!Number.isFinite(value)) return undefined;
+  if (value <= 0) return undefined;
+  return value;
 }
