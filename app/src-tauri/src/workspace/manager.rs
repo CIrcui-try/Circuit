@@ -1149,4 +1149,205 @@ mod tests {
         mgr.cleanup(&ws).await.unwrap();
         assert!(!ws.path.exists());
     }
+
+    // ---------- Phase 4 (CIR-32) reconcile unit coverage ----------
+
+    /// Helper: run a single git command in `path` and return stdout. Used by
+    /// the reconcile divergence tests to simulate "user did `git commit`" or
+    /// "external push moved HEAD" without going through the full lifecycle.
+    async fn run_git(path: &Path, args: &[&str]) -> String {
+        let out = tokio::process::Command::new("git")
+            .current_dir(path)
+            .args(args)
+            .output()
+            .await
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr),
+        );
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    }
+
+    #[tokio::test]
+    async fn reconcile_head_match_is_a_no_op() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let head = ws.metadata_snapshot().await.head_commit.clone();
+        mgr.store()
+            .write_metadata(&ws.metadata_snapshot().await)
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        mgr.unregister(&id).await;
+
+        let (recovered, outcome) = mgr.reconcile(&id).await.unwrap();
+        assert_eq!(outcome, ReconcileOutcome::HeadMatch);
+        assert_eq!(recovered.metadata_snapshot().await.head_commit, head);
+
+        // Action log must contain a Reconcile entry tagged HeadMatch.
+        let actions = mgr.store().read_actions(&id).await.unwrap();
+        let reconcile = actions.iter().rev().find_map(|a| match a {
+            StoreAction::Reconcile {
+                strategy,
+                after_head,
+                ..
+            } => Some((strategy.clone(), after_head.clone())),
+            _ => None,
+        });
+        assert_eq!(reconcile, Some((ReconcileStrategy::HeadMatch, head)));
+    }
+
+    #[tokio::test]
+    async fn reconcile_diverged_head_replays_to_store_head() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        let store_head = ws.metadata_snapshot().await.head_commit.clone();
+        mgr.store()
+            .write_metadata(&ws.metadata_snapshot().await)
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        mgr.unregister(&id).await;
+
+        // Simulate external push / user commit: drop a new commit on top of
+        // HEAD without going through begin_turn / commit_turn, so Store's
+        // recorded head_commit no longer matches the disk's HEAD.
+        tokio::fs::write(path.join("rogue.txt"), b"rogue\n")
+            .await
+            .unwrap();
+        run_git(&path, &["add", "-A"]).await;
+        run_git(
+            &path,
+            &[
+                "-c",
+                "user.email=rogue@cir32.local",
+                "-c",
+                "user.name=rogue",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-m",
+                "external",
+            ],
+        )
+        .await;
+        let diverged_head = run_git(&path, &["rev-parse", "HEAD"]).await.trim().to_owned();
+        assert_ne!(diverged_head, store_head);
+
+        let (recovered, outcome) = mgr.reconcile(&id).await.unwrap();
+        match &outcome {
+            ReconcileOutcome::Replay { from, to } => {
+                assert_eq!(from, &diverged_head);
+                assert_eq!(to, &store_head);
+            }
+            other => panic!("expected Replay, got {other:?}"),
+        }
+        // Disk HEAD restored to Store's recorded head_commit; rogue file gone.
+        let live_head = git_ops::head_commit(&recovered.path).await.unwrap();
+        assert_eq!(live_head, store_head);
+        assert!(!recovered.path.join("rogue.txt").exists());
+    }
+
+    #[tokio::test]
+    async fn reconcile_missing_disk_cold_resumes() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert!(!path.exists());
+
+        let (recovered, outcome) = mgr.reconcile(&id).await.unwrap();
+        assert_eq!(
+            outcome,
+            ReconcileOutcome::ColdResume {
+                reason: ColdResumeReason::MissingDisk,
+            }
+        );
+        assert!(recovered.path.exists());
+    }
+
+    #[tokio::test]
+    async fn reconcile_unreadable_head_cold_resumes() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        ws.release().await.unwrap();
+        mgr.unregister(&id).await;
+
+        // Corrupt the .git directory by removing HEAD so rev-parse errors.
+        tokio::fs::remove_dir_all(path.join(".git")).await.unwrap();
+        // Leave path on disk so classify_disk picks HeadUnreadable, not Missing.
+        assert!(path.exists());
+
+        let (_recovered, outcome) = mgr.reconcile(&id).await.unwrap();
+        assert_eq!(
+            outcome,
+            ReconcileOutcome::ColdResume {
+                reason: ColdResumeReason::HeadUnreadable,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn reconcile_pending_turn_with_diverged_head_rolls_back_via_replay() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        let base_head = ws.metadata_snapshot().await.head_commit.clone();
+
+        // Begin a turn, advance HEAD with a real commit, persist that head
+        // to Store's metadata to mimic a real settled-then-reopened turn,
+        // then "crash" with a stray TurnBegin still in the action log.
+        mgr.begin_turn(&ws, 1).await.unwrap();
+        tokio::fs::write(path.join("scratch.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        // Move disk HEAD past base_head with a rogue external commit so
+        // reconcile sees BOTH a pending turn AND a diverged HEAD.
+        run_git(&path, &["add", "-A"]).await;
+        run_git(
+            &path,
+            &[
+                "-c",
+                "user.email=rogue@cir32.local",
+                "-c",
+                "user.name=rogue",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-m",
+                "rogue",
+            ],
+        )
+        .await;
+        ws.release().await.unwrap();
+        drop(ws);
+        mgr.unregister(&id).await;
+
+        let (recovered, outcome) = mgr.reconcile(&id).await.unwrap();
+        assert!(matches!(outcome, ReconcileOutcome::Replay { .. }));
+        // Replay target is the pending turn's base_head, which equals Store's
+        // recorded head_commit at this point.
+        assert_eq!(recovered.metadata_snapshot().await.head_commit, base_head);
+        assert!(!recovered.path.join("scratch.txt").exists());
+
+        let actions = mgr.store().read_actions(&id).await.unwrap();
+        assert!(actions.iter().any(|a| matches!(
+            a,
+            StoreAction::TurnRollback { turn_index: 1, .. }
+        )));
+        assert!(matches!(
+            actions.last().unwrap(),
+            StoreAction::Reconcile { strategy: ReconcileStrategy::Replay, .. }
+        ));
+    }
 }
