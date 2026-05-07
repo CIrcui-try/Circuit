@@ -322,11 +322,11 @@ impl WorkspaceManager {
         Ok(())
     }
 
-    pub(crate) async fn register(&self, ws: Arc<Workspace>) {
+    pub async fn register(&self, ws: Arc<Workspace>) {
         self.inner.registry.lock().await.insert(ws.id.clone(), ws);
     }
 
-    pub(crate) async fn unregister(&self, id: &WorkspaceId) -> Option<Arc<Workspace>> {
+    pub async fn unregister(&self, id: &WorkspaceId) -> Option<Arc<Workspace>> {
         self.inner.registry.lock().await.remove(id)
     }
 }
