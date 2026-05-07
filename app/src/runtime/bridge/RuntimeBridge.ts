@@ -33,6 +33,11 @@ export interface RuntimeBridge {
   readFile(absPath: string, repoRoot: string): Promise<string>;
   spawn(options: SpawnOptions): Promise<{ runId: string }>;
   cancel(runId: string): Promise<void>;
+  /**
+   * Write to the child process's stdin. The runtime keeps stdin open until the
+   * child exits. The caller is responsible for line termination (e.g. `y\n`).
+   */
+  sendInput(runId: string, text: string): Promise<void>;
   subscribe(runId: string, listener: RuntimeProcessListener): Unsubscribe;
 }
 
@@ -63,6 +68,8 @@ const tauriRuntimeBridgeProxy: RuntimeBridge = {
     loadTauriBridge().then((b) => b.readFile(absPath, repoRoot)),
   spawn: (options) => loadTauriBridge().then((b) => b.spawn(options)),
   cancel: (runId) => loadTauriBridge().then((b) => b.cancel(runId)),
+  sendInput: (runId, text) =>
+    loadTauriBridge().then((b) => b.sendInput(runId, text)),
   subscribe: (runId, listener) => {
     let inner: Unsubscribe | null = null;
     let cancelled = false;

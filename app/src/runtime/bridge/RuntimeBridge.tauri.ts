@@ -90,6 +90,9 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   async cancel(runId) {
     await invoke<void>("runtime_cancel", { runId });
   },
+  async sendInput(runId, text) {
+    await invoke<void>("runtime_send_input", { runId, text });
+  },
   subscribe(runId, listener: RuntimeProcessListener): Unsubscribe {
     const binding = getOrCreateBinding(runId);
     binding.listeners.add(listener);

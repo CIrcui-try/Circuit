@@ -132,6 +132,62 @@ describe("createMockRuntimeBridge / spawn streaming", () => {
     expect(calls).not.toContain("exited");
   });
 
+  it("records sendInput calls and lets onInput handler emit follow-up events", async () => {
+    const events: RuntimeProcessEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "Do you trust this directory?" } },
+      ],
+    });
+    bridge.subscribe("r-input", (ev) => events.push(ev));
+    bridge.onInput("r-input", (text) => {
+      if (text === "y\n") {
+        return [
+          { event: { type: "stdout", text: "ok" } },
+          { event: { type: "exited", exitCode: 0 } },
+        ];
+      }
+      return undefined;
+    });
+    await bridge.spawn({
+      runId: "r-input",
+      command: "codex",
+      args: ["exec", "p"],
+      cwd: "/repo",
+    });
+    await nextTick();
+    await bridge.sendInput("r-input", "y\n");
+    await nextTick();
+    expect(bridge.sentInputs()).toEqual([{ runId: "r-input", text: "y\n" }]);
+    expect(events.map((e) => e.type)).toEqual([
+      "started",
+      "stderr",
+      "stdout",
+      "exited",
+    ]);
+  });
+
+  it("rejects sendInput for an unknown or finished run", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [{ event: { type: "exited", exitCode: 0 } }],
+    });
+    await expect(bridge.sendInput("nope", "y\n")).rejects.toThrow(
+      /no active run/,
+    );
+    bridge.subscribe("r-done", () => {});
+    await bridge.spawn({
+      runId: "r-done",
+      command: "echo",
+      args: [],
+      cwd: "/repo",
+    });
+    await nextTick();
+    await expect(bridge.sendInput("r-done", "y\n")).rejects.toThrow(
+      /no active run/,
+    );
+  });
+
   it("removes finished runs from pendingRunIds after exited event", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [{ event: { type: "exited", exitCode: 0 } }],

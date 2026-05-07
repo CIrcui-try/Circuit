@@ -6,13 +6,18 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::State;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
-use tokio::sync::oneshot;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{ChildStdin, Command};
+use tokio::sync::{oneshot, Mutex as AsyncMutex};
 
 const MAX_READ_BYTES: u64 = 1024 * 1024;
 
-type RunRegistry = Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>;
+struct RunHandle {
+    cancel: Option<oneshot::Sender<()>>,
+    stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+}
+
+type RunRegistry = Arc<Mutex<HashMap<String, RunHandle>>>;
 
 #[derive(Default)]
 pub struct RuntimeBridgeState {
@@ -20,14 +25,30 @@ pub struct RuntimeBridgeState {
 }
 
 impl RuntimeBridgeState {
-    fn register(&self, run_id: String, cancel_tx: oneshot::Sender<()>) {
+    fn register(
+        &self,
+        run_id: String,
+        cancel_tx: oneshot::Sender<()>,
+        stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+    ) {
         let mut map = self.inner.lock().expect("runtime bridge state poisoned");
-        map.insert(run_id, cancel_tx);
+        map.insert(
+            run_id,
+            RunHandle {
+                cancel: Some(cancel_tx),
+                stdin,
+            },
+        );
     }
 
-    fn take(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
+    fn take_cancel(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
         let mut map = self.inner.lock().expect("runtime bridge state poisoned");
-        map.remove(run_id)
+        map.get_mut(run_id).and_then(|h| h.cancel.take())
+    }
+
+    fn stdin_for(&self, run_id: &str) -> Option<Arc<AsyncMutex<Option<ChildStdin>>>> {
+        let map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.get(run_id).map(|h| Arc::clone(&h.stdin))
     }
 
     fn inner_arc(&self) -> RunRegistry {
@@ -160,7 +181,7 @@ pub async fn runtime_spawn(
         .current_dir(&cwd_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::null());
+        .stdin(Stdio::piped());
     if let Some(envs) = env {
         for (k, v) in envs {
             cmd.env(k, v);
@@ -179,9 +200,14 @@ pub async fn runtime_spawn(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "failed to capture stdin".to_string())?;
 
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    state.register(run_id.clone(), cancel_tx);
+    let stdin_slot = Arc::new(AsyncMutex::new(Some(stdin)));
+    state.register(run_id.clone(), cancel_tx, Arc::clone(&stdin_slot));
 
     // Channel<T> is cheap to clone and is safe to share across the spawn task
     // and any post-task cleanup we add later (e.g. ApprovalRequest emit from a
@@ -195,10 +221,12 @@ pub async fn runtime_spawn(
     let state_handle = state.inner_arc();
     let run_id_task = run_id.clone();
     let event_task = event.clone();
+    let stdin_for_task = Arc::clone(&stdin_slot);
 
     tokio::spawn(async move {
         let run_id = run_id_task;
         let event = event_task;
+        let stdin_slot = stdin_for_task;
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
 
@@ -308,6 +336,13 @@ pub async fn runtime_spawn(
             let _ = event.send(ev);
         }
 
+        // Close stdin so any in-flight send_input rejects cleanly rather than
+        // blocking forever on a dead pipe.
+        {
+            let mut guard = stdin_slot.lock().await;
+            *guard = None;
+        }
+
         let mut map = state_handle.lock().expect("runtime bridge state poisoned");
         map.remove(&run_id);
     });
@@ -317,9 +352,33 @@ pub async fn runtime_spawn(
 
 #[tauri::command]
 pub fn runtime_cancel(state: State<'_, RuntimeBridgeState>, run_id: String) -> Result<(), String> {
-    if let Some(tx) = state.take(&run_id) {
+    if let Some(tx) = state.take_cancel(&run_id) {
         let _ = tx.send(());
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_send_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+    text: String,
+) -> Result<(), String> {
+    let stdin_slot = state
+        .stdin_for(&run_id)
+        .ok_or_else(|| format!("no active run for id {run_id}"))?;
+    let mut guard = stdin_slot.lock().await;
+    let stdin = guard
+        .as_mut()
+        .ok_or_else(|| format!("stdin already closed for run {run_id}"))?;
+    stdin
+        .write_all(text.as_bytes())
+        .await
+        .map_err(|e| format!("stdin write failed: {e}"))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| format!("stdin flush failed: {e}"))?;
     Ok(())
 }
 
