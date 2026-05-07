@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
+import { ResizeHandle } from "../components/layout/ResizeHandle";
 import { Sidebar } from "../components/layout/Sidebar";
 import {
   RunPreviewModal,
@@ -337,6 +338,9 @@ export function Workspace() {
       <Canvas />
       <PropertiesPanel />
       <LogPanel />
+      <ResizeHandle direction="sidebar" />
+      <ResizeHandle direction="props" />
+      <ResizeHandle direction="log" />
       <RunPreviewModal
         open={previewOpen}
         workflowName={workflowName}

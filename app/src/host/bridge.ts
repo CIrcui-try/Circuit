@@ -20,6 +20,12 @@ export type RunLogEntryDTO = {
   savedAt: string;
 };
 
+export type LayoutPrefsDTO = {
+  sidebarWidth: number;
+  propsWidth: number;
+  logHeight: number;
+};
+
 export interface HostBridge {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
@@ -43,6 +49,8 @@ export interface HostBridge {
     workflowId: string,
     runId: string,
   ): Promise<string>;
+  loadLayout?(): Promise<LayoutPrefsDTO | null>;
+  saveLayout?(prefs: LayoutPrefsDTO): Promise<void>;
 }
 
 declare global {

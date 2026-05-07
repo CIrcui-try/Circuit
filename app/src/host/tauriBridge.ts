@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type {
   HostBridge,
+  LayoutPrefsDTO,
   RawSkill,
   RunLogEntryDTO,
   WorkflowSummaryDTO,
@@ -11,6 +12,7 @@ import type { Repository } from "../stores/repositoryStore";
 
 const STORE_FILE = "repositories.json";
 const STORE_KEY = "repositories";
+const LAYOUT_KEY = "layout";
 
 const store = new LazyStore(STORE_FILE);
 
@@ -73,5 +75,15 @@ export const tauriHostBridge: HostBridge = {
       workflowId,
       runId,
     });
+  },
+
+  async loadLayout() {
+    const stored = await store.get<LayoutPrefsDTO>(LAYOUT_KEY);
+    return stored ?? null;
+  },
+
+  async saveLayout(prefs: LayoutPrefsDTO) {
+    await store.set(LAYOUT_KEY, prefs);
+    await store.save();
   },
 };

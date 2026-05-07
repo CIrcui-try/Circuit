@@ -8,6 +8,11 @@
   background-color: #1e1e22;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --sidebar-width: 240px;
+  --props-width: 280px;
+  --log-height: 180px;
+  --skill-running-accent: #6aa9ff;
 }
 
 * {
@@ -62,14 +67,54 @@ a:hover {
 
 .workspace {
   display: grid;
-  grid-template-columns: 240px 1fr 280px;
-  grid-template-rows: 44px 1fr 180px;
+  grid-template-columns: var(--sidebar-width) 1fr var(--props-width);
+  grid-template-rows: 44px 1fr var(--log-height);
   grid-template-areas:
     "toolbar toolbar  toolbar"
     "sidebar canvas   props"
     "log     log      log";
   height: 100vh;
   width: 100vw;
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.resize-handle:hover,
+.resize-handle.is-active {
+  background: rgba(106, 169, 255, 0.35);
+}
+
+.resize-handle--sidebar,
+.resize-handle--props {
+  top: 44px;
+  bottom: var(--log-height);
+  width: 8px;
+  cursor: col-resize;
+}
+
+.resize-handle--sidebar {
+  left: var(--sidebar-width);
+  margin-left: -4px;
+}
+
+.resize-handle--props {
+  right: var(--props-width);
+  margin-right: -4px;
+}
+
+.resize-handle--log {
+  left: 0;
+  right: 0;
+  bottom: var(--log-height);
+  height: 8px;
+  margin-bottom: -4px;
+  cursor: row-resize;
 }
 
 .workspace__toolbar {
@@ -618,18 +663,45 @@ a:hover {
 }
 
 .skill-node--running {
-  background: #1f2c3a;
-  border-color: #6aa9ff;
-  box-shadow: 0 0 0 1px #6aa9ff inset;
-  animation: skill-node-pulse 1.2s ease-in-out infinite;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(#1f2c3a, #1f2c3a) padding-box,
+    linear-gradient(
+        90deg,
+        var(--skill-running-accent) 0%,
+        #b6dcff 25%,
+        var(--skill-running-accent) 50%,
+        #4a80c4 75%,
+        var(--skill-running-accent) 100%
+      )
+      border-box;
+  background-size: 100% 100%, 300% 100%;
+  background-position: 0 0, 0 0;
+  animation: skill-node-wave 2.4s linear infinite,
+    skill-node-glow 1.8s ease-in-out infinite;
 }
 
-@keyframes skill-node-pulse {
+@keyframes skill-node-wave {
+  to {
+    background-position: 0 0, 300% 0;
+  }
+}
+
+@keyframes skill-node-glow {
   0%, 100% {
-    box-shadow: 0 0 0 1px #6aa9ff inset, 0 0 0 0 rgba(106, 169, 255, 0.4);
+    box-shadow: 0 0 0 0 rgba(106, 169, 255, 0.45);
   }
   50% {
-    box-shadow: 0 0 0 1px #6aa9ff inset, 0 0 0 4px rgba(106, 169, 255, 0.18);
+    box-shadow: 0 0 8px 2px rgba(106, 169, 255, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-node--running {
+    animation: none;
+    border-color: var(--skill-running-accent);
+    background: #1f2c3a;
+    box-shadow: 0 0 0 1px var(--skill-running-accent) inset;
   }
 }
 
