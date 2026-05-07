@@ -139,6 +139,88 @@ impl WorkspaceManager {
         self.inner.registry.lock().await.get(id).cloned()
     }
 
+    pub async fn registry_snapshot(&self) -> Vec<Arc<Workspace>> {
+        self.inner.registry.lock().await.values().cloned().collect()
+    }
+
+    /// Graceful idle-TTL cleanup: snapshot working tree → stash dirty files →
+    /// persist metadata + stash bundle to Store → wipe disk → mark Removed.
+    ///
+    /// Caller must own the workspace (it must be in Attached or Idle state) —
+    /// the routine drives state through Cleaning → Removed.
+    pub async fn cleanup(&self, ws: &Arc<Workspace>) -> Result<()> {
+        // Transition to Cleaning, allowing both Idle (TTL-driven) and Attached (explicit) entry.
+        {
+            let mut g = ws.state_mut().await;
+            match *g {
+                WorkspaceState::Idle | WorkspaceState::Attached => {
+                    *g = WorkspaceState::Cleaning;
+                }
+                WorkspaceState::Cleaning | WorkspaceState::Removed => return Ok(()),
+                other => {
+                    return Err(Error::InvalidState {
+                        expected: "Idle|Attached".into(),
+                        actual: format!("{other:?}"),
+                    });
+                }
+            }
+        }
+
+        // Snapshot current state.
+        let mut meta = WorkspaceMetadata::snapshot(
+            ws.id.clone(),
+            ws.metadata_snapshot().await.user_id.clone(),
+            ws.metadata_snapshot().await.repo_url.clone(),
+            &ws.path,
+        )
+        .await?;
+        meta.last_turn = ws.metadata_snapshot().await.last_turn;
+
+        // Stash dirty changes and persist the bundle so cold_resume can restore them.
+        if !meta.dirty_files.is_empty() {
+            if let Some(sha) = git_ops::stash_save(&ws.path, "cir30-cleanup").await? {
+                let bundle = git_ops::export_stash_bundle(&ws.path, &sha).await?;
+                self.inner
+                    .store
+                    .save_stash_blob(&ws.id, &sha, &bundle)
+                    .await?;
+                self.inner
+                    .store
+                    .append_action(
+                        &ws.id,
+                        &StoreAction::Stash {
+                            stash_sha: sha.clone(),
+                            dirty_files: meta.dirty_files.clone(),
+                        },
+                    )
+                    .await?;
+                meta.stash_ref = Some(sha);
+            }
+        }
+
+        // Persist metadata BEFORE wiping disk.
+        self.inner.store.write_metadata(&meta).await?;
+        self.inner
+            .store
+            .append_action(&ws.id, &StoreAction::Cleanup)
+            .await?;
+
+        // Wipe the working directory. Path-escape guard: must be under root.
+        ensure_inside(&self.inner.workspace_root, &ws.path)?;
+        if ws.path.exists() {
+            tokio::fs::remove_dir_all(&ws.path).await?;
+        }
+
+        // Update in-memory state and de-register.
+        {
+            let mut m = ws.metadata.write().await;
+            *m = meta;
+        }
+        ws.set_state(WorkspaceState::Removed).await;
+        self.inner.registry.lock().await.remove(&ws.id);
+        Ok(())
+    }
+
     pub(crate) async fn register(&self, ws: Arc<Workspace>) {
         self.inner.registry.lock().await.insert(ws.id.clone(), ws);
     }
@@ -171,6 +253,16 @@ fn repo_slug(repo_url: &str) -> String {
 fn parse_index(id_str: &str, user_id: &str, slug: &str) -> Option<u32> {
     let prefix = format!("{user_id}__{slug}__");
     id_str.strip_prefix(&prefix)?.parse().ok()
+}
+
+fn ensure_inside(root: &Path, path: &Path) -> Result<()> {
+    let root_canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let path_canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if path_canon.starts_with(&root_canon) {
+        Ok(())
+    } else {
+        Err(Error::PathEscape(path_canon))
+    }
 }
 
 #[cfg(test)]
@@ -240,5 +332,55 @@ mod tests {
         assert_eq!(repo_slug("https://github.com/foo/bar.git"), "bar");
         assert_eq!(repo_slug("file:///tmp/a/b/"), "b");
         assert_eq!(repo_slug("git@github.com:foo/baz.git"), "baz");
+    }
+
+    #[tokio::test]
+    async fn cleanup_clean_repo_persists_metadata_and_wipes_disk() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let id = ws.id.clone();
+        let path = ws.path.clone();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        assert_eq!(ws.state().await, WorkspaceState::Removed);
+        assert!(!path.exists());
+        let meta = mgr.store().read_metadata(&id).await.unwrap().unwrap();
+        assert!(meta.stash_ref.is_none());
+        assert!(mgr.lookup(&id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn cleanup_dirty_repo_persists_stash_bundle() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        tokio::fs::write(ws.path.join("dirty.txt"), b"WIP\n")
+            .await
+            .unwrap();
+        tokio::fs::write(ws.path.join("README.md"), b"# changed\n")
+            .await
+            .unwrap();
+        ws.release().await.unwrap();
+        mgr.cleanup(&ws).await.unwrap();
+        let meta = mgr
+            .store()
+            .read_metadata(&ws.id)
+            .await
+            .unwrap()
+            .unwrap();
+        let sha = meta.stash_ref.expect("stash sha persisted");
+        let bundle = mgr
+            .store()
+            .load_stash_blob(&ws.id, &sha)
+            .await
+            .unwrap()
+            .expect("bundle persisted");
+        assert!(!bundle.is_empty());
+        let names: Vec<_> = meta
+            .dirty_files
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert!(names.iter().any(|n| n == "dirty.txt"));
+        assert!(names.iter().any(|n| n == "README.md"));
     }
 }

@@ -94,6 +94,10 @@ impl Workspace {
         *self.state.lock().await = target;
     }
 
+    pub(crate) async fn state_mut(&self) -> tokio::sync::MutexGuard<'_, WorkspaceState> {
+        self.state.lock().await
+    }
+
     pub fn cancel_token(&self) -> CancellationToken {
         self.cancel.clone()
     }
