@@ -46,6 +46,44 @@ pub async fn checkout(workspace: &Path, target: &str) -> Result<()> {
         .map(|_| ())
 }
 
+/// Stage every dirty change and create a single commit with `message`.
+/// Returns the new HEAD SHA, or `None` when the tree was already clean.
+///
+/// Phase 3 (CIR-31) calls this at every turn boundary so each settled turn
+/// becomes a real git commit — that is what makes `reset_hard(base_head)`
+/// during crash recovery preserve prior turns' work while discarding the
+/// uncommitted in-flight turn.
+///
+/// Author / committer identity and gpg signing are pinned via inline `-c`
+/// so the commit succeeds regardless of the host's global git config.
+pub async fn commit_all(workspace: &Path, message: &str) -> Result<Option<String>> {
+    run(Some(workspace), &["add", "-A"]).await?;
+    let staged = run(Some(workspace), &["diff", "--cached", "--name-only"]).await?;
+    if staged.trim().is_empty() {
+        return Ok(None);
+    }
+    run(
+        Some(workspace),
+        &[
+            "-c",
+            "user.email=workspace@cir31.local",
+            "-c",
+            "user.name=cir31-workspace",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            message,
+        ],
+    )
+    .await?;
+    let head = run(Some(workspace), &["rev-parse", "HEAD"])
+        .await?
+        .trim()
+        .to_owned();
+    Ok(Some(head))
+}
+
 /// Hard-reset the working tree to `sha` and discard every untracked file.
 /// Destructive — used by Phase 3 (CIR-31) crash recovery to roll an in-flight
 /// turn back to its pre-turn HEAD, which means *no* dirty residue (tracked

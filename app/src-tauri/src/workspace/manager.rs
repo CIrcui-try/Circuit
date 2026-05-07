@@ -154,17 +154,26 @@ impl WorkspaceManager {
         Ok(())
     }
 
-    /// Settle the in-flight turn: clear the marker, persist the bumped
-    /// `last_turn` to the Store, and write a `TurnComplete` action. After
-    /// this call returns, recovery treats the turn as a stable checkpoint.
+    /// Settle the in-flight turn: turn the dirty changes into a real git
+    /// commit (so the boundary is a stable checkpoint), clear the in-flight
+    /// marker, persist the bumped `last_turn` + new HEAD to the Store, and
+    /// write a `TurnComplete` action. After this call returns, recovery
+    /// treats the turn as a hard checkpoint that survives crashes.
     pub async fn commit_turn(&self, ws: &Workspace) -> Result<()> {
         let boundary = ws.commit_turn().await?;
-        let head_commit = git_ops::head_commit(&ws.path).await?;
         let dirty_files = git_ops::status(&ws.path)
             .await?
             .into_iter()
             .map(|e| e.path)
             .collect::<Vec<_>>();
+        git_ops::commit_all(&ws.path, &format!("turn {} (CIR-31)", boundary.turn_index))
+            .await?;
+        let head_commit = git_ops::head_commit(&ws.path).await?;
+        // Refresh metadata so the persisted head_commit matches the new commit.
+        {
+            let mut m = ws.metadata.write().await;
+            m.head_commit.clone_from(&head_commit);
+        }
         let snapshot = ws.metadata_snapshot().await;
         self.inner.store.write_metadata(&snapshot).await?;
         self.inner
