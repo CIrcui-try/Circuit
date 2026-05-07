@@ -135,6 +135,52 @@ impl WorkspaceManager {
         ws.release().await
     }
 
+    /// Begin a turn on `ws`. Captures HEAD as the rollback target, marks the
+    /// in-flight turn on the workspace, and writes a `TurnBegin` action to the
+    /// log so a crash before the matching `commit_turn` is recoverable.
+    pub async fn begin_turn(&self, ws: &Workspace, turn_index: u64) -> Result<()> {
+        let base_head = git_ops::head_commit(&ws.path).await?;
+        ws.begin_turn(turn_index, base_head.clone()).await?;
+        self.inner
+            .store
+            .append_action(
+                &ws.id,
+                &StoreAction::TurnBegin {
+                    turn_index,
+                    base_head,
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Settle the in-flight turn: clear the marker, persist the bumped
+    /// `last_turn` to the Store, and write a `TurnComplete` action. After
+    /// this call returns, recovery treats the turn as a stable checkpoint.
+    pub async fn commit_turn(&self, ws: &Workspace) -> Result<()> {
+        let boundary = ws.commit_turn().await?;
+        let head_commit = git_ops::head_commit(&ws.path).await?;
+        let dirty_files = git_ops::status(&ws.path)
+            .await?
+            .into_iter()
+            .map(|e| e.path)
+            .collect::<Vec<_>>();
+        let snapshot = ws.metadata_snapshot().await;
+        self.inner.store.write_metadata(&snapshot).await?;
+        self.inner
+            .store
+            .append_action(
+                &ws.id,
+                &StoreAction::TurnComplete {
+                    turn_index: boundary.turn_index,
+                    head_commit,
+                    dirty_files,
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn lookup(&self, id: &WorkspaceId) -> Option<Arc<Workspace>> {
         self.inner.registry.lock().await.get(id).cloned()
     }
@@ -608,5 +654,78 @@ mod tests {
             .collect();
         assert!(names.iter().any(|n| n == "dirty.txt"));
         assert!(names.iter().any(|n| n == "README.md"));
+    }
+
+    #[tokio::test]
+    async fn begin_turn_records_turnbegin_with_current_head() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 1).await.unwrap();
+
+        let active = ws.active_turn().await.expect("active turn");
+        assert_eq!(active.turn_index, 1);
+        let head = ws.metadata_snapshot().await.head_commit;
+        assert_eq!(active.base_head, head);
+
+        let actions = mgr.store().read_actions(&ws.id).await.unwrap();
+        let begin = actions
+            .iter()
+            .filter_map(|a| match a {
+                StoreAction::TurnBegin {
+                    turn_index,
+                    base_head,
+                } => Some((*turn_index, base_head.clone())),
+                _ => None,
+            })
+            .last()
+            .expect("TurnBegin in log");
+        assert_eq!(begin.0, 1);
+        assert_eq!(begin.1, head);
+    }
+
+    #[tokio::test]
+    async fn commit_turn_clears_active_persists_metadata_and_logs_complete() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        mgr.begin_turn(&ws, 5).await.unwrap();
+        tokio::fs::write(ws.path.join("scratch.txt"), b"hi\n")
+            .await
+            .unwrap();
+
+        mgr.commit_turn(&ws).await.unwrap();
+        assert!(ws.active_turn().await.is_none());
+
+        // last_turn must be persisted to the Store, not just in memory.
+        let stored = mgr.store().read_metadata(&ws.id).await.unwrap().unwrap();
+        assert_eq!(stored.last_turn.unwrap().turn_index, 5);
+
+        let actions = mgr.store().read_actions(&ws.id).await.unwrap();
+        let complete = actions
+            .iter()
+            .filter_map(|a| match a {
+                StoreAction::TurnComplete {
+                    turn_index,
+                    dirty_files,
+                    ..
+                } => Some((*turn_index, dirty_files.clone())),
+                _ => None,
+            })
+            .last()
+            .expect("TurnComplete in log");
+        assert_eq!(complete.0, 5);
+        let names: Vec<String> = complete
+            .1
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert!(names.iter().any(|n| n == "scratch.txt"));
+    }
+
+    #[tokio::test]
+    async fn commit_turn_without_begin_errors() {
+        let (_src, _ws_root, mgr, url) = fixture().await;
+        let ws = mgr.acquire("alice", &url).await.unwrap();
+        let result = mgr.commit_turn(&ws).await;
+        assert!(matches!(result, Err(Error::Other(_))));
     }
 }

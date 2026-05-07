@@ -5,18 +5,32 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
-/// Append-only action log entry. Phase 2 keeps this minimal — later phases
-/// extend it with tool-call payloads, turn boundaries, etc.
+/// Append-only action log entry. Phase 2 kept this minimal; Phase 3 (CIR-31)
+/// adds turn-boundary markers (`TurnBegin` / `TurnRollback`) so crash recovery
+/// can undo a turn that never reached `TurnComplete`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StoreAction {
     Acquire {
         head_commit: String,
         branch: Option<String>,
     },
+    /// Start of a turn. `base_head` is the HEAD commit captured at begin —
+    /// recovery uses it as the rollback target if no matching `TurnComplete`
+    /// follows.
+    TurnBegin {
+        turn_index: u64,
+        base_head: String,
+    },
     TurnComplete {
         turn_index: u64,
         head_commit: String,
         dirty_files: Vec<PathBuf>,
+    },
+    /// Recorded when `recover` rolled a workspace back because a `TurnBegin`
+    /// had no matching `TurnComplete`.
+    TurnRollback {
+        turn_index: u64,
+        rolled_back_to: String,
     },
     Stash {
         stash_sha: String,
