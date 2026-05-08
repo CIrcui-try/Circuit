@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const APP_ERROR_EVENT = "circuit:error";
+const APP_ERROR_AUTO_DISMISS_MS = 5000;
 
 type AppErrorPayload = {
   title?: string;
@@ -82,6 +83,14 @@ export function AppErrorAlert() {
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
   }, []);
+
+  useEffect(() => {
+    if (!alert) return;
+    const timeoutId = window.setTimeout(() => {
+      setAlert(null);
+    }, APP_ERROR_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [alert]);
 
   if (!alert) return null;
 
