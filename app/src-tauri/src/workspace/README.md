@@ -1,12 +1,13 @@
-# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계 + Phase 4 Reconcile
+# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계 + Phase 4 Reconcile + Phase 5 Warm Pool
 
-Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. Phase 4 (CIR-32) 는 Store ↔ Workspace 가 어긋날 때의 처리 정책을 단일 진입점 `reconcile` 로 모아 **Store = source of truth** 명제를 강제한다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
+Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. Phase 4 (CIR-32) 는 Store ↔ Workspace 가 어긋날 때의 처리 정책을 단일 진입점 `reconcile` 로 모아 **Store = source of truth** 명제를 강제한다. Phase 5 (CIR-33) 는 cold-start 의 (c) workspace 준비 비용을 절감하기 위해 per-user/per-repo **`WarmPool`** 을 추가, `acquire` 가 풀 hit 시 clone 을 건너뛰고 attach 만 하도록 만든다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
 
 ## 책임 경계
 
 | 컴포넌트 | 책임 |
 | -- | -- |
-| `WorkspaceManager` | acquire / release / begin_turn / commit_turn / cleanup / abort / recover / cold_resume — 모든 lifecycle entry-point |
+| `WorkspaceManager` | acquire / release / begin_turn / commit_turn / cleanup / abort / recover / cold_resume / **release_to_pool / prewarm** — 모든 lifecycle entry-point |
+| `WarmPool` | (Phase 5) `(user_id, repo_url)` 키의 pre-cloned 슬롯 큐. take/put/stats — LRU eviction. |
 | `Workspace` | 단일 워크스페이스의 mutex 점유 (`Idle / Attached / Aborting / Cleaning / Removed`), in-flight turn 마커, CancellationToken |
 | `WorkspaceMetadata` | HEAD commit / branch / dirty 파일 / stash ref / disk_path / last_turn 스냅샷 |
 | `WorkspaceStore` | 디스크에 metadata + JSONL action log + stash bundle 저장 |
@@ -47,6 +48,20 @@ ws.release().await?;
 let recovered = mgr.recover(&ws_id).await?;
 // disk_ok 면 in-flight turn 을 base_head 로 reset_hard 후 재등록.
 // disk 가 사라졌으면 cold_resume 으로 마지막 settled HEAD 까지 재구성.
+
+// 5. Phase 5 — warm pool. `with_pool` 로 풀을 붙이면 acquire 가 hit-first 로 동작.
+use std::sync::Arc;
+use app_lib::workspace::WarmPool;
+
+let pool = Arc::new(WarmPool::new(/* max_per_key */ 2, /* max_total */ 16));
+let mgr = mgr.with_pool(Arc::clone(&pool));
+
+mgr.prewarm("alice", "https://github.com/foo/bar.git", 2).await?;     // 미리 2 슬롯 clone
+let ws = mgr.acquire("alice", "https://github.com/foo/bar.git").await?; // pool hit → clone 미발생
+mgr.begin_turn(&ws, 1).await?;
+// ... turn ...
+mgr.commit_turn(&ws).await?;
+mgr.release_to_pool(&ws).await?;                                       // settled HEAD 만 풀로 반환
 ```
 
 ## 인수 기준 ↔ 구현 매핑
@@ -69,6 +84,11 @@ let recovered = mgr.recover(&ws_id).await?;
 | 외부 push / 사용자 직접 git → 액션 로그 기준 환원 | `try_replay` 가 `git reset --hard meta.head_commit` |
 | Workspace 디스크 손상 / 누락 → cold path | `cold_resume` (변경 없음) + `ColdResumeReason::{MissingDisk, HeadUnreadable, ReplayFailed}` |
 | 외부 divergence 통합 fuzz | `tests/external_divergence_e2e.rs` — 3 시나리오 |
+| **Phase 5 (CIR-33)** | |
+| 측정 결과 분석 (가장 비싼 단계 식별) | `docs/research/CIR-33-warm-pool-strategy.md` §1–2 — CIR-29 권고 트리에 (c) 지배 가설 적용, 후속 실측 hook 명시 |
+| Pool 전략 결정 (종류·사이즈·eviction·pre-warm) | 같은 문서 §3, `WarmPool::new(max_per_key, max_total)` |
+| Per-user / per-workspace isolation | `PoolKey { user_id, repo_url }` — `take` 는 정확히 일치하는 키만 반환 |
+| p95 cold-start 절감 (관측) | pool hit 시 `git_ops::clone` 미발생 — `tests/warm_pool_e2e.rs` 가 `pool.stats()` 로 검증 |
 
 ## Phase 3: Turn 경계 모델
 
@@ -115,6 +135,36 @@ let recovered = mgr.recover(&ws_id).await?;
 
 `recover(id)` 는 `reconcile(id).map(|(ws, _)| ws)` 의 별칭으로 좁혀졌다. outcome 분기 정보가 필요 없는 호출자 (예: 단순 재기동 hook) 는 `recover` 를, 텔레메트리 / UX 분기에 outcome 이 필요한 호출자는 `reconcile` 을 직접 쓴다.
 
+## Phase 5: Warm Pool 정책
+
+자세한 결정 근거는 [`docs/research/CIR-33-warm-pool-strategy.md`](../../../../../docs/research/CIR-33-warm-pool-strategy.md). 본 절은 모듈 안에서 알아야 할 운영 규칙만 정리한다.
+
+### 키와 격리
+
+- 풀 슬롯의 키는 `(user_id, repo_url)`. 다른 user 가 같은 repo 로 acquire 해도 다른 user 의 슬롯은 절대 받지 못한다.
+- `take` 는 키 큐의 가장 오래된 슬롯을 FIFO 로 반환. evict 도 동일한 정책.
+
+### Hit-first acquire
+
+- `WorkspaceManager::with_pool(...)` 로 풀이 붙은 매니저는 `acquire(user, repo)` 진입 시 먼저 풀에서 슬롯을 꺼내본다.
+- 슬롯의 디스크 HEAD 가 메타와 일치하면 그대로 attach + `StoreAction::Acquire` append. clone 은 발생하지 않는다.
+- HEAD 가 메타와 다르거나 디스크가 사라졌으면 슬롯을 폐기하고 cold path 로 넘어간다 (외부 git 조작 / 사용자가 디스크를 직접 건드린 경우).
+
+### 풀 반환은 settled HEAD 만
+
+- `release_to_pool(ws)` 는 `active_turn` 이 있으면 즉시 `Error::TurnInFlight` 로 거부 — 풀 슬롯의 "settled HEAD" 불변식을 유지하기 위함이다.
+- Phase 3 의 turn 경계 모델과 정합 — turn 이 끝났다는 보장은 곧 git commit 이 settle 됐다는 보장.
+
+### Eviction = LRU + cleanup 위임
+
+- `WarmPool::put` 가 `max_per_key` 또는 `max_total` 초과 시 가장 오래된 슬롯을 evict 후보로 반환.
+- `WorkspaceManager::release_to_pool` 는 evict 된 슬롯을 곧장 `cleanup` 경로로 라우팅 — 디스크 제거 + `StoreAction::Cleanup` append 가 일어나므로 풀과 Store/디스크가 어긋나지 않는다.
+
+### Pre-warm
+
+- `prewarm(user, repo, count)` 는 `count` 개의 워크스페이스를 *모두 acquire 한 뒤* 일괄 release 한다. 인터리빙하면 같은 슬롯이 풀에 들어왔다 다시 hit 되어 결과적으로 슬롯 수가 늘지 않기 때문.
+- 백그라운드 자동 prefetch 는 본 phase 범위 밖.
+
 ## 테스트
 
 - 단위 테스트 (`cargo test --lib workspace::`): metadata snapshot / git_ops shell-out (reset_hard, commit_all 포함) / store round-trip / mutex / cleanup 가드 / abort / recover rollback / cold_resume / TTL skip in-flight.
@@ -122,6 +172,7 @@ let recovered = mgr.recover(&ws_id).await?;
   - `cargo test --test workspace_lifecycle_e2e` — golden flow / 동시성 / 크래시 복구 (디스크 보존) / 크래시 복구 (디스크 유실) / abort cancel.
   - `cargo test --test turn_resume_e2e` — 5 시드 fuzz, mid-turn 강제 종료 → recover → baseline fingerprint 일치.
   - `cargo test --test external_divergence_e2e` — 외부 push HEAD 이동 / 워크스페이스 디스크 누락 / 사용자 직접 git 조작 3 시나리오.
+  - `cargo test --test warm_pool_e2e` — pool hit / per-user isolation / LRU eviction + 디스크 cleanup / mid-turn release 거부 / prewarm.
 
 ## 디스크 레이아웃
 
