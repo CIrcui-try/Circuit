@@ -26,7 +26,29 @@ export type LayoutPrefsDTO = {
   logHeight: number;
 };
 
-export interface HostBridge {
+export type WorkspaceDTO = {
+  id: string;
+  path: string;
+  branch: string | null;
+  headCommit: string;
+  userId: string;
+  repoUrl: string;
+};
+
+/// Phase 7 (CIR-35): typed wrapper around the Tauri workspace commands. Methods
+/// are optional on `HostBridge` so test fakes / non-Tauri preview environments
+/// can omit them and the runner falls back to the legacy "spawn straight in the
+/// repo path" flow.
+export interface WorkspaceBridge {
+  acquireWorkspace(userId: string, repoUrl: string): Promise<WorkspaceDTO>;
+  releaseToPool(workspaceId: string): Promise<void>;
+  cleanupWorkspace(workspaceId: string): Promise<void>;
+  beginTurn(workspaceId: string, turnIndex: number): Promise<void>;
+  commitTurn(workspaceId: string): Promise<void>;
+  prewarm(userId: string, repoUrl: string, count: number): Promise<void>;
+}
+
+export interface HostBridge extends Partial<WorkspaceBridge> {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;
