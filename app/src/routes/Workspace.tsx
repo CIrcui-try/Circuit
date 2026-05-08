@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
 import { ResizeHandle } from "../components/layout/ResizeHandle";
 import { Sidebar } from "../components/layout/Sidebar";
-import {
-  RunPreviewModal,
-  type RunPreviewNode,
-} from "../components/run/RunPreviewModal";
-import { detectSensitiveAction } from "../runtime/safety/sensitiveAction";
-import {
-  DEFAULT_PROVIDER_ALLOWLIST,
-  createDefaultRegistry,
-} from "../runtime/adapters/createDefaultRegistry";
-import { DEFAULT_TIMEOUT_MS } from "../runtime/context/buildSkillExecutionContext";
+import { createDefaultRegistry } from "../runtime/adapters/createDefaultRegistry";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
@@ -24,9 +16,10 @@ import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService"
 import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { runWorkflow } from "../runner/runWorkflow";
+import { runWorkflow, type RunWorkflowOutcome } from "../runner/runWorkflow";
 import type { RunnableEdge, RunnableNode } from "../runner/runner";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import type { WorkflowSkillNode } from "../workflow/schema";
 
 const NEW_WORKFLOW_VALUE = "__new__";
@@ -50,8 +43,6 @@ export function Workspace() {
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewNodes, setPreviewNodes] = useState<RunPreviewNode[]>([]);
   const [cancelling, setCancelling] = useState(false);
 
   const runner = useMemo(() => {
@@ -149,47 +140,7 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleStart = useCallback(() => {
-    if (!runner || !repo) return;
-    const { nodes } = useWorkflowStore.getState();
-    const skillsForRepo = useSkillStore.getState().byRepo[repo.id] ?? [];
-    const skillByFile = new Map(skillsForRepo.map((s) => [s.skillFile, s]));
-
-    const previewItems: RunPreviewNode[] = nodes.map((n) => {
-      const skill = skillByFile.get(n.data.skillRef.skillFile) ?? null;
-      const promptValue =
-        typeof n.data.input === "object" && n.data.input !== null
-          ? (n.data.input as Record<string, unknown>).prompt
-          : undefined;
-      const timeoutValue =
-        typeof n.data.input === "object" && n.data.input !== null
-          ? (n.data.input as Record<string, unknown>).timeoutMs
-          : undefined;
-      const sensitive = detectSensitiveAction({
-        skillName: skill?.name ?? n.data.label,
-        prompt: typeof promptValue === "string" ? promptValue : undefined,
-      });
-      const provider = n.data.skillRef.provider;
-      return {
-        id: n.id,
-        label: n.data.label,
-        provider,
-        skillFile: n.data.skillRef.skillFile,
-        commandSummary: `${provider}: ${n.data.skillRef.skillFile}`,
-        timeoutMs:
-          typeof timeoutValue === "number" && Number.isFinite(timeoutValue)
-            ? timeoutValue
-            : DEFAULT_TIMEOUT_MS,
-        sensitiveKeywords: sensitive.keywords,
-      };
-    });
-
-    setPreviewNodes(previewItems);
-    setPreviewOpen(true);
-  }, [runner, repo]);
-
-  const handleConfirmStart = useCallback(async () => {
-    setPreviewOpen(false);
+  const handleStart = useCallback(async () => {
     if (!runner) return;
     runner.reset();
     const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
@@ -206,18 +157,28 @@ export function Workspace() {
       source: e.source,
       target: e.target,
     }));
-    await runWorkflow({
-      nodes: runnable,
-      edges: runnableEdges,
-      workflowId: currentWorkflowId,
-      runner,
-      store: useRunStore,
-    });
+    try {
+      const outcome = await runWorkflow({
+        nodes: runnable,
+        edges: runnableEdges,
+        workflowId: currentWorkflowId,
+        runner,
+        store: useRunStore,
+      });
+      if (outcome.kind === "rejected") {
+        notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
+        return;
+      }
+      if (outcome.status === "failed") {
+        notifyAppError(
+          describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
+          "Start Circuit failed",
+        );
+      }
+    } catch (err) {
+      notifyAppError(err, "Start Circuit failed");
+    }
   }, [runner]);
-
-  const handlePreviewCancel = useCallback(() => {
-    setPreviewOpen(false);
-  }, []);
 
   const handleCancel = useCallback(() => {
     if (!runner) return;
@@ -306,7 +267,7 @@ export function Workspace() {
           type="button"
           data-testid="workflow-start"
           className="workspace__toolbar-start"
-          onClick={handleStart}
+          onClick={() => void handleStart()}
           disabled={!repo || isRunning || nodeCount === 0}
         >
           {isRunning ? (
@@ -343,15 +304,53 @@ export function Workspace() {
       <ResizeHandle direction="sidebar" />
       <ResizeHandle direction="props" />
       <ResizeHandle direction="log" />
-      <RunPreviewModal
-        open={previewOpen}
-        workflowName={workflowName}
-        repoPath={repo?.path ?? ""}
-        nodes={previewNodes}
-        allowedProviders={DEFAULT_PROVIDER_ALLOWLIST}
-        onConfirm={() => void handleConfirmStart()}
-        onCancel={handlePreviewCancel}
-      />
     </div>
   );
+}
+
+function formatRunRejection(
+  reason: Extract<RunWorkflowOutcome, { kind: "rejected" }>["reason"],
+): string {
+  switch (reason) {
+    case "already-running":
+      return "A workflow is already running.";
+    case "empty":
+      return "Add at least one skill before starting Circuit.";
+    case "cycle":
+      return "The workflow has a cycle. Remove the loop and try again.";
+    default:
+      return reason;
+  }
+}
+
+function describeLastRunFailure(): string | null {
+  const { nodeResults, events } = useRunLogStore.getState();
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    if (result.status === "success") continue;
+    return describeNodeFailure(nodeId, result);
+  }
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i].event;
+    if (event.type === "error" && event.message.trim()) {
+      return event.message;
+    }
+  }
+  return null;
+}
+
+function describeNodeFailure(
+  nodeId: string,
+  result: SkillExecutionResult,
+): string {
+  for (let i = result.logs.length - 1; i >= 0; i -= 1) {
+    const event = result.logs[i];
+    if (event.type === "error" && event.message.trim()) {
+      return `${nodeId}: ${event.message}`;
+    }
+  }
+  if (result.summary) return `${nodeId}: ${result.summary}`;
+  if (result.exitCode != null) {
+    return `${nodeId}: ${result.status} (exit ${result.exitCode})`;
+  }
+  return `${nodeId}: ${result.status}`;
 }

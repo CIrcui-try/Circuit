@@ -23,6 +23,7 @@
       ]
     },
     "dialog:allow-open",
+    "dialog:allow-confirm",
     "store:default"
   ]
 }

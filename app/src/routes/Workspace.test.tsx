@@ -22,6 +22,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
 import { useRunLogStore } from "../runner/runLogStore";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
+import { AppErrorAlert } from "../components/AppErrorAlert";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -35,6 +36,7 @@ const SAMPLE: Repository = {
 function renderAt(route: string) {
   return render(
     <MemoryRouter initialEntries={[route]}>
+      <AppErrorAlert />
       <Routes>
         <Route path="/" element={<div>repo-list-stub</div>} />
         <Route path="/workspace/:repoId?" element={<Workspace />} />
@@ -200,7 +202,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W9: clicking Start opens the preview modal; confirming drives the run store to success", async () => {
+  it("W9: clicking Start drives the run store to success without a confirmation modal", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -222,12 +224,7 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    // Modal should appear with the node row, run is not yet started.
-    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
-    expect(screen.getAllByTestId("run-preview-node-row")).toHaveLength(1);
-    expect(useRunStore.getState().status).toBe("idle");
-
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
+    expect(screen.queryByTestId("run-preview-modal")).not.toBeInTheDocument();
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
@@ -236,8 +233,19 @@ describe("Workspace", () => {
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
   });
 
-  it("W10: cancel button on preview modal closes it without running", async () => {
+  it("W10: clicking Start surfaces runtime failure as an alert", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/alpha/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: () => [
+          { event: { type: "started" } },
+          { event: { type: "error", message: "Command not found" } },
+        ],
+      });
 
     renderAt("/workspace/id-alpha");
     useWorkflowStore.getState().addSkillNode(
@@ -257,80 +265,11 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("run-preview-cancel"));
-    expect(screen.queryByTestId("run-preview-modal")).not.toBeInTheDocument();
-    expect(useRunStore.getState().status).toBe("idle");
-  });
-
-  it("W11: preview confirm is disabled when a node uses a non-allowlisted provider", async () => {
-    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
-
-    renderAt("/workspace/id-alpha");
-    useWorkflowStore.getState().addSkillNode(
-      {
-        id: "shell:.shell/skills/danger",
-        provider: "shell" as never,
-        name: "Danger",
-        description: "",
-        rootDir: ".shell/skills/danger",
-        skillFile: ".shell/skills/danger/SKILL.md",
-      },
-      { x: 0, y: 0 },
-    );
-
-    const { fireEvent } = await import("@testing-library/react");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByTestId("workflow-start"));
-
-    expect(screen.getByTestId("run-preview-blocked")).toBeInTheDocument();
-    expect(screen.getByTestId("run-preview-confirm")).toBeDisabled();
-  });
-
-  it("W12: preview shows sensitive warning when node prompt mentions destructive keywords; ack enables confirm", async () => {
-    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
-
-    renderAt("/workspace/id-alpha");
-    useWorkflowStore.getState().addSkillNode(
-      {
-        id: "claude:.claude/skills/foo",
-        provider: "claude",
-        name: "Foo",
-        description: "",
-        rootDir: ".claude/skills/foo",
-        skillFile: ".claude/skills/foo/SKILL.md",
-      },
-      { x: 0, y: 0 },
-    );
-    const fooId = useWorkflowStore.getState().nodes[0].id;
-    useWorkflowStore.setState((s) => ({
-      nodes: s.nodes.map((n) =>
-        n.id === fooId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                input: { prompt: "please rm the build dir" },
-              },
-            }
-          : n,
-      ),
-    }));
-
-    const { fireEvent } = await import("@testing-library/react");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByTestId("workflow-start"));
-
-    expect(screen.getByTestId("run-preview-sensitive")).toBeInTheDocument();
-    const confirm = screen.getByTestId("run-preview-confirm");
-    expect(confirm).toBeDisabled();
-    fireEvent.click(screen.getByTestId("run-preview-ack"));
-    expect(confirm).not.toBeDisabled();
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Start Circuit failed");
+    expect(alert).toHaveTextContent("Command not found");
+    expect(useRunStore.getState().status).toBe("failed");
   });
 
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {

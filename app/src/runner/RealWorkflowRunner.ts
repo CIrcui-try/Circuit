@@ -13,17 +13,20 @@ import type { RunnableNode, RunResult, WorkflowRunner } from "./runner";
 export interface PersistRunLogArgs {
   runId: string;
   workflowId: string | null;
-  repository: { id: string; name: string; path: string };
+  repository: RunnerRepository;
   events: ReturnType<typeof useRunLogStore.getState>["events"];
   nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
 }
+
+type RunnerRepository = { id: string; name: string; path: string };
+type FailedRunResult = Extract<RunResult, { ok: false }>;
 
 export interface RealWorkflowRunnerOptions {
   registry: AdapterRegistry;
   bridge: RuntimeBridge;
   logStore: typeof useRunLogStore;
   getNode: (id: string) => WorkflowSkillNode | null;
-  getRepository: () => { id: string; name: string; path: string } | null;
+  getRepository: () => RunnerRepository | null;
   getRunMeta: () => { runId: string; workflowId: string | null };
   persistRunLog?: (args: PersistRunLogArgs) => Promise<void> | void;
   /// Phase 7 (CIR-35): when present and the bridge implements the workspace
@@ -63,40 +66,46 @@ export class RealWorkflowRunner implements WorkflowRunner {
   async runNode(node: RunnableNode): Promise<RunResult> {
     const { runId, workflowId } = this.opts.getRunMeta();
 
-    const repo = this.opts.getRepository();
-    if (!repo) {
-      return { ok: false, reason: "no repository selected" };
-    }
-
-    // First node of a new run: clear accumulated state, prime the log store,
-    // and (when the host bridge supports it) acquire a workspace + begin a turn.
     if (this.lastSeenRunId !== runId) {
       this.previousOutputs = {};
       this.opts.logStore.getState().beginRun({ runId, workflowId });
       this.lastSeenRunId = runId;
       this.workspaceId = null;
       this.workspacePath = null;
+    }
 
+    const repo = this.opts.getRepository();
+    if (!repo) {
+      return await this.recordNodeFailure(node.id, "no repository selected");
+    }
+
+    if (this.workspaceId === null && this.workspacePath === null) {
       // Skip the async hop entirely when no workspace bridge is wired up so
       // tests / web-preview that exercise this code path see the same number
       // of microtask boundaries as before Phase 7.
       const host = this.opts.host;
       if (host?.acquireWorkspace && host.beginTurn) {
         const acquireErr = await this.acquireWorkspaceAndBeginTurn(host, repo.path);
-        if (acquireErr) return acquireErr;
+        if (acquireErr) {
+          return await this.recordNodeFailure(node.id, acquireErr.reason, repo);
+        }
       }
     }
 
     const fullNode = this.opts.getNode(node.id);
     if (!fullNode) {
-      return { ok: false, reason: `node ${node.id} not found in workflow` };
+      return await this.recordNodeFailure(
+        node.id,
+        `node ${node.id} not found in workflow`,
+        repo,
+      );
     }
 
     let adapter;
     try {
       adapter = this.opts.registry.get(fullNode.skillRef.provider);
     } catch (err) {
-      return { ok: false, reason: errorMessage(err) };
+      return await this.recordNodeFailure(node.id, errorMessage(err), repo);
     }
 
     const nodeTimeout = readNodeTimeoutMs(fullNode.input);
@@ -124,7 +133,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
         },
       );
     } catch (err) {
-      return { ok: false, reason: errorMessage(err) };
+      return await this.recordNodeFailure(node.id, errorMessage(err), repo);
     }
 
     const sink = (event: AgentRunEvent): void => {
@@ -141,27 +150,14 @@ export class RealWorkflowRunner implements WorkflowRunner {
       result = await adapter.run(ctx, sink);
     } catch (err) {
       this.currentAdapterRunId = null;
-      return { ok: false, reason: errorMessage(err) };
+      return await this.recordNodeFailure(node.id, errorMessage(err), repo);
     }
     this.currentAdapterRunId = null;
 
     this.opts.logStore.getState().setNodeResult(node.id, result);
     this.previousOutputs[node.id] = result;
 
-    if (this.opts.persistRunLog) {
-      const log = this.opts.logStore.getState();
-      try {
-        await this.opts.persistRunLog({
-          runId,
-          workflowId,
-          repository: repo,
-          events: log.events,
-          nodeResults: log.nodeResults,
-        });
-      } catch {
-        // best-effort persistence
-      }
-    }
+    await this.persistCurrentLog(repo);
 
     if (result.status === "success") return { ok: true };
     const exitSuffix =
@@ -207,7 +203,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
   private async acquireWorkspaceAndBeginTurn(
     host: HostBridge,
     repoPath: string,
-  ): Promise<RunResult | null> {
+  ): Promise<FailedRunResult | null> {
     const acquire = host.acquireWorkspace;
     const beginTurn = host.beginTurn;
     if (!acquire || !beginTurn) return null;
@@ -240,6 +236,42 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.workspaceId = ws.id;
     this.workspacePath = ws.path;
     return null;
+  }
+
+  private async recordNodeFailure(
+    nodeId: string,
+    reason: string,
+    repo?: RunnerRepository,
+  ): Promise<RunResult> {
+    const timestamp = new Date().toISOString();
+    const event: AgentRunEvent = { type: "error", timestamp, message: reason };
+    const existing = this.opts.logStore.getState().nodeEvents[nodeId] ?? [];
+    this.opts.logStore.getState().appendEvent(nodeId, event);
+    this.opts.logStore.getState().setNodeResult(nodeId, {
+      status: "failed",
+      logs: [...existing, event],
+      startedAt: timestamp,
+      finishedAt: timestamp,
+    });
+    if (repo) await this.persistCurrentLog(repo);
+    return { ok: false, reason };
+  }
+
+  private async persistCurrentLog(repo: RunnerRepository): Promise<void> {
+    if (!this.opts.persistRunLog) return;
+    const { runId, workflowId } = this.opts.getRunMeta();
+    const log = this.opts.logStore.getState();
+    try {
+      await this.opts.persistRunLog({
+        runId,
+        workflowId,
+        repository: repo,
+        events: log.events,
+        nodeResults: log.nodeResults,
+      });
+    } catch {
+      // best-effort persistence
+    }
   }
 }
 

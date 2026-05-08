@@ -274,7 +274,7 @@ describe("CodexAdapter", () => {
         },
       });
       await adapter.run(ctx, () => {});
-      const prompt = spawnCalls[0].args[3];
+      const prompt = spawnCalls[0].args[1];
       expect(prompt).toContain("# Upstream Outputs");
       expect(prompt).toContain("## a  (status: success, exit: 0)");
       expect(prompt).toContain("plus_one: 1");
@@ -286,7 +286,7 @@ describe("CodexAdapter", () => {
       ]);
       const adapter = new CodexAdapter({ bridge });
       await adapter.run(makeContext(), () => {});
-      const prompt = spawnCalls[0].args[3];
+      const prompt = spawnCalls[0].args[1];
       expect(prompt).not.toContain("# Upstream Outputs");
     });
   });
