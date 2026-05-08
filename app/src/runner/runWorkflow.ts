@@ -102,6 +102,14 @@ export async function runWorkflow(
   const finalStatus: Exclude<RunStatus, "idle" | "running"> = failureSeen
     ? "failed"
     : "success";
+  if (runner.endRun) {
+    try {
+      await runner.endRun(finalStatus);
+    } catch {
+      // endRun is best-effort: a failure to commit/release the workspace turn
+      // must not flip a successful run to failed.
+    }
+  }
   store.getState().finishRun(finalStatus);
   return { kind: "started", status: finalStatus };
 }

@@ -7,6 +7,7 @@ import type {
   RawSkill,
   RunLogEntryDTO,
   WorkflowSummaryDTO,
+  WorkspaceDTO,
 } from "./bridge";
 import type { Repository } from "../stores/repositoryStore";
 
@@ -85,5 +86,29 @@ export const tauriHostBridge: HostBridge = {
   async saveLayout(prefs: LayoutPrefsDTO) {
     await store.set(LAYOUT_KEY, prefs);
     await store.save();
+  },
+
+  async acquireWorkspace(userId: string, repoUrl: string) {
+    return await invoke<WorkspaceDTO>("acquire_workspace", { userId, repoUrl });
+  },
+
+  async releaseToPool(workspaceId: string) {
+    await invoke<void>("release_to_pool", { workspaceId });
+  },
+
+  async cleanupWorkspace(workspaceId: string) {
+    await invoke<void>("cleanup_workspace", { workspaceId });
+  },
+
+  async beginTurn(workspaceId: string, turnIndex: number) {
+    await invoke<void>("begin_turn", { workspaceId, turnIndex });
+  },
+
+  async commitTurn(workspaceId: string) {
+    await invoke<void>("commit_turn", { workspaceId });
+  },
+
+  async prewarm(userId: string, repoUrl: string, count: number) {
+    await invoke<void>("prewarm", { userId, repoUrl, count });
   },
 };
