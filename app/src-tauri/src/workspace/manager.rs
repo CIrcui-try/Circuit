@@ -1,12 +1,13 @@
 use crate::workspace::errors::{Error, Result};
 use crate::workspace::git_ops;
 use crate::workspace::metadata::{WorkspaceId, WorkspaceMetadata};
+use crate::workspace::pool::{PoolKey, PooledSlot, WarmPool};
 use crate::workspace::store::{ReconcileStrategy, StoreAction, WorkspaceStore};
 use crate::workspace::workspace::{Workspace, WorkspaceState};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 /// Phase 4 (CIR-32): typed result of `WorkspaceManager::reconcile`.
@@ -42,6 +43,7 @@ pub enum ColdResumeReason {
 #[derive(Debug, Clone)]
 pub struct WorkspaceManager {
     inner: Arc<Inner>,
+    pool: Option<Arc<WarmPool>>,
 }
 
 #[derive(Debug)]
@@ -67,7 +69,20 @@ impl WorkspaceManager {
                 idle_ttl,
                 registry: Mutex::new(HashMap::new()),
             }),
+            pool: None,
         })
+    }
+
+    /// Phase 5 (CIR-33): attach a `WarmPool` so `acquire` can hit pre-cloned
+    /// slots and `release_to_pool` / `prewarm` become available. Without a
+    /// pool the manager behaves identically to the Phase 2–4 cold path.
+    pub fn with_pool(mut self, pool: Arc<WarmPool>) -> Self {
+        self.pool = Some(pool);
+        self
+    }
+
+    pub fn pool(&self) -> Option<&Arc<WarmPool>> {
+        self.pool.as_ref()
     }
 
     pub fn workspace_root(&self) -> &Path {
@@ -89,6 +104,45 @@ impl WorkspaceManager {
     /// `<root>/<user_id>/<repo_slug>-<n>` so concurrent same-user-same-repo tasks
     /// stay isolated (per CIR-30 acceptance criteria).
     pub async fn acquire(&self, user_id: &str, repo_url: &str) -> Result<Arc<Workspace>> {
+        // Phase 5 (CIR-33): warm pool hit-first. The pool only ever contains
+        // slots that passed `release_to_pool` (settled HEAD, no in-flight
+        // turn), so the only thing we re-verify here is that disk HEAD still
+        // matches the slot's metadata — guards against external git ops
+        // touching the working tree while it sat idle in the pool. On any
+        // mismatch we drop the slot and fall through to the cold path; the
+        // stale disk is left to a future reconcile pass.
+        if let Some(pool) = &self.pool {
+            let key = PoolKey::new(user_id, repo_url);
+            if let Some(slot) = pool.take(&key).await {
+                let snapshot = slot.workspace.metadata_snapshot().await;
+                if let Ok(live_head) = git_ops::head_commit(&slot.workspace.path).await {
+                    if live_head == snapshot.head_commit {
+                        slot.workspace.attach().await?;
+                        self.inner
+                            .store
+                            .append_action(
+                                &slot.workspace.id,
+                                &StoreAction::Acquire {
+                                    head_commit: snapshot.head_commit,
+                                    branch: snapshot.branch,
+                                },
+                            )
+                            .await?;
+                        self.inner
+                            .registry
+                            .lock()
+                            .await
+                            .insert(slot.workspace.id.clone(), Arc::clone(&slot.workspace));
+                        return Ok(slot.workspace);
+                    }
+                }
+                // Mismatch or unreadable → drop the slot. Pool stats already
+                // counted the take as a hit; that's a known accounting wart
+                // we accept until §6 of the strategy doc revisits it.
+                drop(slot);
+            }
+        }
+
         let slug = repo_slug(repo_url);
 
         // Find an existing idle workspace for this user+repo, or pick the next free index.
@@ -612,6 +666,71 @@ impl WorkspaceManager {
 
     pub async fn unregister(&self, id: &WorkspaceId) -> Option<Arc<Workspace>> {
         self.inner.registry.lock().await.remove(id)
+    }
+
+    /// Phase 5 (CIR-33): warm-pool detach. Hand a settled workspace back to
+    /// the pool instead of running the destructive `cleanup` path. Refuses
+    /// mid-turn workspaces so the pool's invariant "every slot has settled
+    /// HEAD" holds. Any slot the pool evicts to make room is wiped through
+    /// the standard `cleanup` so disk + Store stay consistent.
+    pub async fn release_to_pool(&self, ws: &Arc<Workspace>) -> Result<()> {
+        let pool = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| Error::Other("warm pool not configured".into()))?;
+        if ws.active_turn().await.is_some() {
+            return Err(Error::TurnInFlight(ws.id.0.clone()));
+        }
+        {
+            let mut g = ws.state_mut().await;
+            match *g {
+                WorkspaceState::Attached | WorkspaceState::Aborting => {
+                    *g = WorkspaceState::Idle;
+                }
+                WorkspaceState::Idle => {}
+                other => {
+                    return Err(Error::InvalidState {
+                        expected: "Attached|Idle".into(),
+                        actual: format!("{other:?}"),
+                    });
+                }
+            }
+        }
+        let snapshot = ws.metadata_snapshot().await;
+        let key = PoolKey::new(snapshot.user_id, snapshot.repo_url);
+        self.inner.registry.lock().await.remove(&ws.id);
+        let evicted = pool
+            .put(
+                key,
+                PooledSlot {
+                    workspace: Arc::clone(ws),
+                    last_used: Instant::now(),
+                },
+            )
+            .await;
+        if let Some(slot) = evicted {
+            self.cleanup(&slot.workspace).await?;
+        }
+        Ok(())
+    }
+
+    /// Phase 5 (CIR-33): pre-warm `count` slots for `(user_id, repo_url)`.
+    /// Acquires `count` workspaces *first* (each a cold clone, since the pool
+    /// stays empty while they're attached), then routes them all to the pool
+    /// in a second pass. Acquiring iteratively with release in between would
+    /// just bounce the same slot in and out of the pool.
+    pub async fn prewarm(&self, user_id: &str, repo_url: &str, count: usize) -> Result<()> {
+        if self.pool.is_none() {
+            return Err(Error::Other("warm pool not configured".into()));
+        }
+        let mut acquired = Vec::with_capacity(count);
+        for _ in 0..count {
+            acquired.push(self.acquire(user_id, repo_url).await?);
+        }
+        for ws in acquired {
+            self.release_to_pool(&ws).await?;
+        }
+        Ok(())
     }
 }
 
