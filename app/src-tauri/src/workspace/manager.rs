@@ -715,14 +715,19 @@ impl WorkspaceManager {
     }
 
     /// Phase 5 (CIR-33): pre-warm `count` slots for `(user_id, repo_url)`.
-    /// Each iteration runs the cold-clone path once and immediately routes
-    /// the result to the pool. Existing pool slots are not double-counted.
+    /// Acquires `count` workspaces *first* (each a cold clone, since the pool
+    /// stays empty while they're attached), then routes them all to the pool
+    /// in a second pass. Acquiring iteratively with release in between would
+    /// just bounce the same slot in and out of the pool.
     pub async fn prewarm(&self, user_id: &str, repo_url: &str, count: usize) -> Result<()> {
         if self.pool.is_none() {
             return Err(Error::Other("warm pool not configured".into()));
         }
+        let mut acquired = Vec::with_capacity(count);
         for _ in 0..count {
-            let ws = self.acquire(user_id, repo_url).await?;
+            acquired.push(self.acquire(user_id, repo_url).await?);
+        }
+        for ws in acquired {
             self.release_to_pool(&ws).await?;
         }
         Ok(())
