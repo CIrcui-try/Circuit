@@ -41,6 +41,22 @@ pub enum StoreAction {
         head_commit: String,
         stash_applied: Option<String>,
     },
+    /// Phase 4 (CIR-32): Store ↔ Workspace divergence was detected and
+    /// resolved. `strategy` records which branch of the reconcile decision
+    /// tree ran (head-match no-op, in-place replay, or full cold-resume) so
+    /// the action log self-describes the recovery, just like `TurnRollback`.
+    Reconcile {
+        strategy: ReconcileStrategy,
+        before_head: Option<String>,
+        after_head: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReconcileStrategy {
+    HeadMatch,
+    Replay,
+    ColdResume,
 }
 
 #[derive(Debug, Clone)]

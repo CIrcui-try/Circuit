@@ -1,6 +1,6 @@
-# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계
+# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계 + Phase 4 Reconcile
 
-Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
+Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. Phase 4 (CIR-32) 는 Store ↔ Workspace 가 어긋날 때의 처리 정책을 단일 진입점 `reconcile` 로 모아 **Store = source of truth** 명제를 강제한다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
 
 ## 책임 경계
 
@@ -64,6 +64,11 @@ let recovered = mgr.recover(&ws_id).await?;
 | Mid-turn evict 거부 | `WorkspaceManager::cleanup` 진입 가드 — in-flight 면 `Error::TurnInFlight` |
 | 크래시 후 마지막 settled turn 으로 롤백 | `WorkspaceManager::recover` 가 액션 로그 스캔, 미완 `TurnBegin` 발견 시 `git_ops::reset_hard(base_head)` + `git clean -fd` |
 | 통합 fuzz (무작위 종료 → resume → baseline 동일) | `tests/turn_resume_e2e.rs` — 5 시드 fingerprint 비교 |
+| **Phase 4 (CIR-32)** | |
+| Store=truth 단일 규칙 | `WorkspaceManager::reconcile` 의 3 갈래 결정 트리 + `ReconcileOutcome` |
+| 외부 push / 사용자 직접 git → 액션 로그 기준 환원 | `try_replay` 가 `git reset --hard meta.head_commit` |
+| Workspace 디스크 손상 / 누락 → cold path | `cold_resume` (변경 없음) + `ColdResumeReason::{MissingDisk, HeadUnreadable, ReplayFailed}` |
+| 외부 divergence 통합 fuzz | `tests/external_divergence_e2e.rs` — 3 시나리오 |
 
 ## Phase 3: Turn 경계 모델
 
@@ -85,9 +90,30 @@ let recovered = mgr.recover(&ws_id).await?;
 
 ### 다음 phase 와의 연결
 
-- **Phase 4 (Store ↔ Workspace 일관성)**: 현재 `WorkspaceStore` 는 파일시스템 기반 단일 구현. trait 추출 + 다중 백엔드 일관성 정책 도입.
+- **Phase 4 (Store ↔ Workspace 일관성)**: 본 phase 에서 `WorkspaceManager::reconcile` 로 정책을 단일화. `WorkspaceStore` trait 추출 / 다중 백엔드는 후속 phase.
 - **Phase 5 (Warm pool)**: cold_resume 비용 측정 후 pre-cloned 워크스페이스 풀 구성. begin_turn 직전에 워밍된 클론을 attach 하는 hook.
 - **Phase 6 (Sub-agent / nested turn)**: 본 phase 는 single in-flight turn / workspace 만 지원. RAII `TurnGuard`, sub-agent boundary 정책, nested rollback 은 phase 6 에서.
+
+## Phase 4: Reconcile 정책
+
+### 결정 트리
+
+| 디스크 상태 | Store metadata 와의 관계 | Outcome | 액션 |
+| -- | -- | -- | -- |
+| `path.exists() == false` | (해당 없음) | `ColdResume { MissingDisk }` | `cold_resume` 으로 재 clone |
+| `path.exists() && rev-parse HEAD` 실패 | `.git` 손상 | `ColdResume { HeadUnreadable }` | `cold_resume` |
+| HEAD == `meta.head_commit` | 일치 | `HeadMatch` | 디스크 변경 없음, 그대로 등록 |
+| HEAD != `meta.head_commit` | 외부 push / 사용자 commit / branch 이동 | `Replay { from, to }` | `git reset --hard meta.head_commit` + stash 재적용. 실패 시 `ColdResume { ReplayFailed }` 로 강등 |
+
+세 갈래 모두 진입 시 액션 로그에서 미완 turn 을 먼저 스캔하여 (`TurnBegin` 이 `TurnComplete`/`TurnRollback` 없이 남아있는 경우) `base_head` 로 추가 reset 한 뒤 `TurnRollback` 을 append. 그 후 `StoreAction::Reconcile { strategy, before_head, after_head }` 가 항상 마지막에 append 되어 액션 로그가 자기 기술적이다.
+
+### Store = source of truth
+
+워크스페이스가 git 차원에서 어떤 상태든 (외부 push, 직접 commit, branch 전환, 손상, 통째 삭제) Reconcile 후의 disk HEAD 는 항상 `meta.head_commit` 과 같다. 워크스페이스에서 일어난 git 조작은 turn 경계 (`begin_turn` / `commit_turn`) 를 거치지 않는 한 보존되지 않는다. 사용자에게 분기 선택을 노출하는 인터랙티브 정책은 본 phase 에서 채택하지 않았다 — 항상 Store 우선 reset_hard.
+
+### `recover` 와의 관계
+
+`recover(id)` 는 `reconcile(id).map(|(ws, _)| ws)` 의 별칭으로 좁혀졌다. outcome 분기 정보가 필요 없는 호출자 (예: 단순 재기동 hook) 는 `recover` 를, 텔레메트리 / UX 분기에 outcome 이 필요한 호출자는 `reconcile` 을 직접 쓴다.
 
 ## 테스트
 
@@ -95,6 +121,7 @@ let recovered = mgr.recover(&ws_id).await?;
 - 통합 e2e:
   - `cargo test --test workspace_lifecycle_e2e` — golden flow / 동시성 / 크래시 복구 (디스크 보존) / 크래시 복구 (디스크 유실) / abort cancel.
   - `cargo test --test turn_resume_e2e` — 5 시드 fuzz, mid-turn 강제 종료 → recover → baseline fingerprint 일치.
+  - `cargo test --test external_divergence_e2e` — 외부 push HEAD 이동 / 워크스페이스 디스크 누락 / 사용자 직접 git 조작 3 시나리오.
 
 ## 디스크 레이아웃
 

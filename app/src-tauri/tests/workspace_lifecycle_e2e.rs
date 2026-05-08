@@ -155,6 +155,7 @@ async fn crash_recovery_replays_from_action_log_when_disk_lost() {
             StoreAction::Stash { .. } => "Stash",
             StoreAction::Cleanup => "Cleanup",
             StoreAction::ColdResume { .. } => "ColdResume",
+            StoreAction::Reconcile { .. } => "Reconcile",
         })
         .collect();
     assert!(kinds.contains(&"Acquire"));

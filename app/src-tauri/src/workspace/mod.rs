@@ -13,5 +13,6 @@ pub mod workspace;
 pub use errors::{Error, Result};
 pub use manager::WorkspaceManager;
 pub use metadata::{TurnBoundary, WorkspaceId, WorkspaceMetadata};
-pub use store::{StoreAction, WorkspaceStore};
+pub use manager::{ColdResumeReason, ReconcileOutcome};
+pub use store::{ReconcileStrategy, StoreAction, WorkspaceStore};
 pub use workspace::{InFlightTurn, Workspace, WorkspaceState};
