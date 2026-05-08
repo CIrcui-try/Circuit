@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
@@ -15,9 +16,10 @@ import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService"
 import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { runWorkflow } from "../runner/runWorkflow";
+import { runWorkflow, type RunWorkflowOutcome } from "../runner/runWorkflow";
 import type { RunnableEdge, RunnableNode } from "../runner/runner";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import type { WorkflowSkillNode } from "../workflow/schema";
 
 const NEW_WORKFLOW_VALUE = "__new__";
@@ -155,13 +157,27 @@ export function Workspace() {
       source: e.source,
       target: e.target,
     }));
-    await runWorkflow({
-      nodes: runnable,
-      edges: runnableEdges,
-      workflowId: currentWorkflowId,
-      runner,
-      store: useRunStore,
-    });
+    try {
+      const outcome = await runWorkflow({
+        nodes: runnable,
+        edges: runnableEdges,
+        workflowId: currentWorkflowId,
+        runner,
+        store: useRunStore,
+      });
+      if (outcome.kind === "rejected") {
+        notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
+        return;
+      }
+      if (outcome.status === "failed") {
+        notifyAppError(
+          describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
+          "Start Circuit failed",
+        );
+      }
+    } catch (err) {
+      notifyAppError(err, "Start Circuit failed");
+    }
   }, [runner]);
 
   const handleCancel = useCallback(() => {
@@ -290,4 +306,51 @@ export function Workspace() {
       <ResizeHandle direction="log" />
     </div>
   );
+}
+
+function formatRunRejection(
+  reason: Extract<RunWorkflowOutcome, { kind: "rejected" }>["reason"],
+): string {
+  switch (reason) {
+    case "already-running":
+      return "A workflow is already running.";
+    case "empty":
+      return "Add at least one skill before starting Circuit.";
+    case "cycle":
+      return "The workflow has a cycle. Remove the loop and try again.";
+    default:
+      return reason;
+  }
+}
+
+function describeLastRunFailure(): string | null {
+  const { nodeResults, events } = useRunLogStore.getState();
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    if (result.status === "success") continue;
+    return describeNodeFailure(nodeId, result);
+  }
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i].event;
+    if (event.type === "error" && event.message.trim()) {
+      return event.message;
+    }
+  }
+  return null;
+}
+
+function describeNodeFailure(
+  nodeId: string,
+  result: SkillExecutionResult,
+): string {
+  for (let i = result.logs.length - 1; i >= 0; i -= 1) {
+    const event = result.logs[i];
+    if (event.type === "error" && event.message.trim()) {
+      return `${nodeId}: ${event.message}`;
+    }
+  }
+  if (result.summary) return `${nodeId}: ${result.summary}`;
+  if (result.exitCode != null) {
+    return `${nodeId}: ${result.status} (exit ${result.exitCode})`;
+  }
+  return `${nodeId}: ${result.status}`;
 }

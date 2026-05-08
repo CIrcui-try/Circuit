@@ -22,6 +22,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
 import { useRunLogStore } from "../runner/runLogStore";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
+import { AppErrorAlert } from "../components/AppErrorAlert";
 import { Workspace } from "./Workspace";
 
 const SAMPLE: Repository = {
@@ -35,6 +36,7 @@ const SAMPLE: Repository = {
 function renderAt(route: string) {
   return render(
     <MemoryRouter initialEntries={[route]}>
+      <AppErrorAlert />
       <Routes>
         <Route path="/" element={<div>repo-list-stub</div>} />
         <Route path="/workspace/:repoId?" element={<Workspace />} />
@@ -229,6 +231,45 @@ describe("Workspace", () => {
     });
     const fooNodeId = useWorkflowStore.getState().nodes[0].id;
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
+  });
+
+  it("W10: clicking Start surfaces runtime failure as an alert", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/alpha/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: () => [
+          { event: { type: "started" } },
+          { event: { type: "error", message: "Command not found" } },
+        ],
+      });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Start Circuit failed");
+    expect(alert).toHaveTextContent("Command not found");
+    expect(useRunStore.getState().status).toBe("failed");
   });
 
   it("W7: mounting Workspace clears any preexisting workflow nodes", () => {

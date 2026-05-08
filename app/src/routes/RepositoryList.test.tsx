@@ -227,7 +227,7 @@ describe("RepositoryList", () => {
     );
   });
 
-  it("R10: Remove button removes the row after confirm; cancel keeps it", async () => {
+  it("R10: Remove button removes the row after in-app confirm; cancel keeps it", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -253,18 +253,22 @@ describe("RepositoryList", () => {
 
     renderWithRouter(<RepositoryList />);
 
-    confirmSpy.mockReturnValueOnce(false);
     await user.click(screen.getByRole("button", { name: "Remove drop" }));
+    expect(
+      screen.getByRole("dialog", { name: "Remove repository?" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("remove-repository-cancel"));
     expect(useRepositoryStore.getState().repositories).toHaveLength(2);
 
-    confirmSpy.mockReturnValueOnce(true);
     await user.click(screen.getByRole("button", { name: "Remove drop" }));
+    await user.click(screen.getByTestId("remove-repository-confirm"));
 
     await waitFor(() =>
       expect(useRepositoryStore.getState().repositories.map((r) => r.id)).toEqual(["id-keep"]),
     );
     expect(screen.queryByText("drop")).not.toBeInTheDocument();
     expect(bridgeMock.saveRepositories).toHaveBeenCalledWith(expect.any(Array));
+    expect(confirmSpy).not.toHaveBeenCalled();
 
     confirmSpy.mockRestore();
   });

@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
 import { getHostBridge } from "../host/bridge";
 import { useRepositoryStore } from "../stores/repositoryStore";
@@ -13,6 +14,10 @@ export function RepositoryList() {
   const byRepo = useSkillStore((s) => s.byRepo);
   const loading = useSkillStore((s) => s.loading);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -37,12 +42,19 @@ export function RepositoryList() {
     }
   }
 
-  async function handleRemove(id: string, name: string) {
-    const ok = window.confirm(
-      `Remove "${name}" from the list? The folder on disk is not deleted.`,
-    );
-    if (!ok) return;
-    await removeRepository(id);
+  function handleRemove(id: string, name: string) {
+    setPendingRemoval({ id, name });
+  }
+
+  async function confirmRemoval() {
+    if (!pendingRemoval) return;
+    const { id } = pendingRemoval;
+    setPendingRemoval(null);
+    try {
+      await removeRepository(id);
+    } catch (err) {
+      notifyAppError(err, "Remove repository failed");
+    }
   }
 
   return (
@@ -103,6 +115,40 @@ export function RepositoryList() {
           })}
         </ul>
       )}
+
+      {pendingRemoval ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-repository-title"
+          >
+            <h2 id="remove-repository-title" className="modal__title">
+              Remove repository?
+            </h2>
+            <p className="modal__message">
+              Remove "{pendingRemoval.name}" from the list? The folder on disk is not deleted.
+            </p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingRemoval(null)}
+                data-testid="remove-repository-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmRemoval()}
+                data-testid="remove-repository-confirm"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
