@@ -34,9 +34,4 @@ export type RunResult = { ok: true } | { ok: false; reason: string };
 
 export type WorkflowRunner = {
   runNode: (node: RunnableNode) => Promise<RunResult>;
-  /// Phase 7 (CIR-35): called once after the last node finishes, with the
-  /// run's terminal status. RealWorkflowRunner uses it to commit + release the
-  /// workspace turn it acquired on the first node. Optional so older runners
-  /// (mockRunner) and tests don't need to implement lifecycle hooks.
-  endRun?: (status: "success" | "failed") => Promise<void>;
 };
