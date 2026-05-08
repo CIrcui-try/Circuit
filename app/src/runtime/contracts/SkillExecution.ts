@@ -3,7 +3,14 @@ import type { WorkflowSkillProvider } from "../../workflow/schema";
 export type ApprovalKind = "trust" | "command" | "freeform";
 
 export type AgentRunEvent =
-  | { type: "start"; timestamp: string; message: string }
+  | {
+      type: "start";
+      timestamp: string;
+      message: string;
+      command?: string;
+      args?: string[];
+      spawnType?: "process";
+    }
   | { type: "stdout"; timestamp: string; text: string }
   | { type: "stderr"; timestamp: string; text: string }
   | { type: "status"; timestamp: string; status: string }

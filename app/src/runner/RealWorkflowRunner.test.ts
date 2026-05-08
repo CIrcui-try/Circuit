@@ -16,6 +16,7 @@ import type {
 import type { WorkflowSkillNode } from "../workflow/schema";
 import { RealWorkflowRunner } from "./RealWorkflowRunner";
 import { useRunLogStore } from "./runLogStore";
+import { useRunStore } from "./runStore";
 import type { RunnableNode } from "./runner";
 
 const REPO = {
@@ -88,6 +89,7 @@ function makeHarness(
     registry,
     bridge,
     logStore: useRunLogStore,
+    runStore: useRunStore,
     getNode: (id) => nodes.get(id) ?? null,
     getRepository: () => repository,
     getRunMeta: () => runMeta,
@@ -104,6 +106,7 @@ const finishEvent = (exitCode = 0): AgentRunEvent => ({
 
 beforeEach(() => {
   useRunLogStore.getState().reset();
+  useRunStore.getState().reset();
 });
 
 describe("RealWorkflowRunner", () => {
@@ -236,7 +239,11 @@ describe("RealWorkflowRunner", () => {
 
     const result = await harness.runner.runNode(runnable(node));
 
-    expect(result).toEqual({ ok: false, reason: "failed (exit 2)" });
+    expect(result).toEqual({
+      ok: false,
+      status: "failed",
+      reason: "failed (exit 2)",
+    });
   });
 
   it("R7: cancel() calls bridge.cancel with `${runId}::${nodeId}` and surfaces cancelled status", async () => {
@@ -276,6 +283,7 @@ describe("RealWorkflowRunner", () => {
       registry: harness.registry,
       bridge: spiedBridge,
       logStore: useRunLogStore,
+      runStore: useRunStore,
       getNode: (id) => harness.nodes.get(id) ?? null,
       getRepository: () => REPO,
       getRunMeta: () => harness.runMeta,
@@ -289,7 +297,11 @@ describe("RealWorkflowRunner", () => {
     const result = await pending;
 
     expect(cancelSpy).toHaveBeenCalledWith("run_1::a");
-    expect(result).toEqual({ ok: false, reason: "cancelled" });
+    expect(result).toEqual({
+      ok: false,
+      status: "cancelled",
+      reason: "cancelled",
+    });
   });
 
   it("R8: clears previousOutputs when getRunMeta runId changes between calls", async () => {
@@ -364,6 +376,145 @@ describe("RealWorkflowRunner", () => {
     expect(adapter.seenContexts[1].execution.timeoutMs).toBe(300_000);
   });
 
+  it("records process metadata from start events", async () => {
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node] });
+    const startEvent: AgentRunEvent = {
+      type: "start",
+      timestamp: "2026-05-09T00:00:00.000Z",
+      message: "spawn claude",
+      command: "claude",
+      args: ["-p", "prompt"],
+      spawnType: "process",
+    };
+    const adapter: AgentAdapter = {
+      provider: "claude",
+      async canRun(): Promise<AdapterAvailability> {
+        return { ok: true };
+      },
+      async run(_ctx: SkillExecutionContext, sink: AgentRunEventSink) {
+        sink(startEvent);
+        return {
+          status: "success",
+          exitCode: 0,
+          logs: [startEvent],
+          startedAt: "2026-05-09T00:00:00.000Z",
+          finishedAt: "2026-05-09T00:00:01.250Z",
+        };
+      },
+    };
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(useRunStore.getState().nodeDebug.a).toMatchObject({
+      adapter: "claude",
+      adapterRunId: "run_1::a",
+      command: "claude",
+      args: ["-p", "prompt"],
+      spawnType: "process",
+      startedAt: "2026-05-09T00:00:00.000Z",
+      durationMs: 1_250,
+      exitCode: 0,
+      lastLogAt: "2026-05-09T00:00:00.000Z",
+      idleTimeoutMs: 30_000,
+    });
+  });
+
+  it("marks a node waiting_input when stderr says stdin is being read", async () => {
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      events: [
+        {
+          type: "stderr",
+          timestamp: "t-stdin",
+          text: "Reading additional input from stdin...",
+        },
+      ],
+      result: { status: "success" },
+    });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(useRunStore.getState().nodeStates.a).toBe("waiting_input");
+  });
+
+  it("marks a node waiting_input when approval is required", async () => {
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      events: [
+        {
+          type: "approval_required",
+          timestamp: "t-approval",
+          requestId: "rq-1",
+          prompt: "Allow?",
+          approvalKind: "command",
+        },
+      ],
+      result: { status: "success" },
+    });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(useRunStore.getState().nodeStates.a).toBe("waiting_input");
+  });
+
+  it("records idle status when a running node produces no output", async () => {
+    vi.useFakeTimers();
+    try {
+      const node = workflowNode("a", "claude", { idleTimeoutMs: 25 });
+      const harness = makeHarness({ nodes: [node] });
+      let resolveAdapter: (v: SkillExecutionResult) => void = () => {};
+      const adapter: AgentAdapter = {
+        provider: "claude",
+        async canRun(): Promise<AdapterAvailability> {
+          return { ok: true };
+        },
+        run(_ctx: SkillExecutionContext, sink: AgentRunEventSink) {
+          sink({
+            type: "start",
+            timestamp: "2026-05-09T00:00:00.000Z",
+            message: "spawn claude",
+          });
+          return new Promise<SkillExecutionResult>((resolve) => {
+            resolveAdapter = resolve;
+          });
+        },
+      };
+      harness.registry.register(adapter);
+
+      const pending = harness.runner.runNode(runnable(node));
+      await Promise.resolve();
+      await Promise.resolve();
+      vi.advanceTimersByTime(25);
+
+      expect(useRunStore.getState().nodeDebug.a.idleSince).toBeDefined();
+      expect(useRunLogStore.getState().events).toContainEqual({
+        nodeId: "a",
+        event: expect.objectContaining({
+          type: "status",
+          status: "idle for 25ms",
+        }),
+      });
+
+      resolveAdapter({
+        status: "success",
+        logs: [],
+        startedAt: "2026-05-09T00:00:00.000Z",
+        finishedAt: "2026-05-09T00:00:00.030Z",
+      });
+      await pending;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("missing node id is reported as RunResult.ok=false", async () => {
     const harness = makeHarness({ nodes: [] });
     const ghost: RunnableNode = {
@@ -376,6 +527,7 @@ describe("RealWorkflowRunner", () => {
 
     expect(result).toEqual({
       ok: false,
+      status: "failed",
       reason: "node ghost not found in workflow",
     });
     const log = useRunLogStore.getState();
@@ -399,6 +551,7 @@ describe("RealWorkflowRunner", () => {
 
     expect(result).toEqual({
       ok: false,
+      status: "failed",
       reason: "no repository selected",
     });
     const log = useRunLogStore.getState();

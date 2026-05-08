@@ -47,6 +47,7 @@ export async function installMockBridge(page: Page) {
 
     const REPO_LS_KEY = "__circuit_mock_repositories__";
     const WORKFLOW_LS_KEY = "__circuit_mock_workflows__";
+    let runtimeScenario: "success" | "stdin-waiting" = "success";
 
     function readRepositories(): Repository[] {
       try {
@@ -130,6 +131,68 @@ export async function installMockBridge(page: Page) {
         bucket[workflowId] = json;
         all[repoPathArg] = bucket;
         writeWorkflows(all);
+      },
+    };
+
+    const listeners = new Map<string, Set<(event: unknown) => void>>();
+
+    function emit(runId: string, raw: Record<string, unknown>) {
+      const ev = {
+        ...raw,
+        runId,
+        timestamp: new Date().toISOString(),
+      };
+      for (const listener of listeners.get(runId) ?? []) listener(ev);
+    }
+
+    (
+      window as unknown as {
+        __CIRCUIT_SET_RUNTIME_SCENARIO__?: (scenario: typeof runtimeScenario) => void;
+      }
+    ).__CIRCUIT_SET_RUNTIME_SCENARIO__ = (scenario) => {
+      runtimeScenario = scenario;
+    };
+
+    (window as unknown as { __CIRCUIT_RUNTIME__: unknown }).__CIRCUIT_RUNTIME__ = {
+      async readFile(absPath: string) {
+        const skill = fixtureSkills.find((s) => absPath.endsWith(s.skillFile));
+        if (!skill) throw new Error(`mock file not found: ${absPath}`);
+        return skill.content;
+      },
+      async spawn(options: { runId: string }) {
+        queueMicrotask(() => {
+          emit(options.runId, { type: "started" });
+          if (runtimeScenario === "stdin-waiting") {
+            emit(options.runId, {
+              type: "stderr",
+              text: "Reading additional input from stdin...",
+            });
+            return;
+          }
+          emit(options.runId, { type: "exited", exitCode: 0 });
+        });
+        return { runId: options.runId };
+      },
+      async cancel(runId: string) {
+        emit(runId, { type: "cancelled" });
+      },
+      async sendInput(runId: string, text: string) {
+        emit(runId, { type: "stdout", text });
+      },
+      subscribe(runId: string, listener: (event: unknown) => void) {
+        let set = listeners.get(runId);
+        if (!set) {
+          set = new Set();
+          listeners.set(runId, set);
+        }
+        set.add(listener);
+        const unsub = () => {
+          const current = listeners.get(runId);
+          if (!current) return;
+          current.delete(listener);
+          if (current.size === 0) listeners.delete(runId);
+        };
+        return Object.assign(unsub, { ready: Promise.resolve() });
       },
     };
   }, FIXTURE_REPO_PATH);

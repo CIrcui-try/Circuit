@@ -53,6 +53,7 @@ export function Workspace() {
       registry,
       bridge,
       logStore: useRunLogStore,
+      runStore: useRunStore,
       getNode: (id) => {
         const n = useWorkflowStore.getState().nodes.find((x) => x.id === id);
         if (!n) return null;
@@ -167,7 +168,7 @@ export function Workspace() {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
         return;
       }
-      if (outcome.status === "failed") {
+      if (outcome.status === "failed" || outcome.status === "timeout") {
         notifyAppError(
           describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
           "Start Circuit failed",

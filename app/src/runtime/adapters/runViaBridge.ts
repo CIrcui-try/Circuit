@@ -142,6 +142,9 @@ export function runViaBridge(
             type: "start",
             timestamp: ev.timestamp,
             message: `spawn ${cmd}`,
+            command: cmd,
+            args,
+            spawnType: "process",
           });
           return;
         case "stdout":

@@ -168,4 +168,49 @@ describe("runWorkflow", () => {
       c: "skipped",
     });
   });
+
+  it("RW7: cancelled runner result marks node and app status cancelled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: false, status: "cancelled", reason: "cancelled" };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    const s = useRunStore.getState();
+    expect(s.status).toBe("cancelled");
+    expect(s.nodeStates).toEqual({ a: "cancelled", b: "skipped" });
+  });
+
+  it("RW8: timeout runner result marks node and app status timeout", async () => {
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: false, status: "timeout", reason: "timeout" };
+      },
+    };
+
+    await runWorkflow({
+      nodes: [node("a")],
+      edges: [],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    const s = useRunStore.getState();
+    expect(s.status).toBe("timeout");
+    expect(s.nodeStates).toEqual({ a: "timeout" });
+  });
 });

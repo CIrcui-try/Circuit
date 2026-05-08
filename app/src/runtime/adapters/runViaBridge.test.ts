@@ -25,6 +25,31 @@ function ctx(overrides: Partial<SkillExecutionContext> = {}): SkillExecutionCont
 }
 
 describe("runViaBridge approval forwarding", () => {
+  it("adds process metadata to start events", async () => {
+    const sink: AgentRunEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-meta",
+      command: { command: "codex", args: ["exec", "prompt"] },
+      sink: (ev) => sink.push(ev),
+    });
+
+    expect(sink[0]).toMatchObject({
+      type: "start",
+      command: "codex",
+      args: ["exec", "prompt"],
+      spawnType: "process",
+    });
+  });
+
   it("forwards approvalRequest as a non-terminal approval_required event", async () => {
     const sink: AgentRunEvent[] = [];
     const bridge = createMockRuntimeBridge({
