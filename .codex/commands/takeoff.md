@@ -1,10 +1,10 @@
 ---
-description: 항공기 이륙 4단계 — develop 리베이스 → push → PR 생성 (원격 영향)
+description: 4단계 — develop 리베이스 → push → PR 생성 (원격 영향)
 allowed-tools: Bash, Read, AskUserQuestion, TodoWrite, mcp__linear-server__get_issue
 argument-hint: <Linear 이슈 ID> [--force]
 ---
 
-이륙 시퀀스의 **4단계 (Takeoff)**. develop 위에 리베이스하고 리모트에 push 한 뒤 PR 을 생성한다. **이 단계만 원격에 영향을 준다.** 성공하면 임시 상태 파일(`.claude/state/<ISSUE>.*`) 을 모두 삭제한다.
+PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 PR 을 생성한다. **이 단계만 원격에 영향을 준다.** 성공하면 임시 상태 파일(`.codex/state/<ISSUE>.*`) 을 모두 삭제한다.
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/takeoff CIR-15`.
 
@@ -16,9 +16,9 @@ argument-hint: <Linear 이슈 ID> [--force]
 ## 상태 파일 경로
 
 - `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)`
-- `STATE_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.json`
-- `ISSUE_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.issue.md`
-- `PLAN_FILE  = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.plan.md`
+- `STATE_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.json`
+- `ISSUE_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.issue.md`
+- `PLAN_FILE  = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.plan.md`
 
 ## 자동 체이닝
 

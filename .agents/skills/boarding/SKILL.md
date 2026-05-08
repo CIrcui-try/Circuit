@@ -1,10 +1,15 @@
 ---
-description: 항공기 이륙 1단계 — Linear 이슈를 읽어 요구사항·코드 영향 범위 정리
-allowed-tools: Bash, Read, Grep, Glob, AskUserQuestion, Agent, TodoWrite, mcp__linear-server__get_issue, mcp__linear-server__list_comments
-argument-hint: <Linear 이슈 ID> [--force]
+name: "boarding"
+description: "1단계 — Linear 이슈 요구사항과 코드 영향 범위 정리"
 ---
 
-이륙 시퀀스의 **1단계 (Boarding)**. Linear 이슈를 읽어 요구사항을 정리하고 코드 영향 범위를 메모해 디스크에 캐싱한다. 원격 부수효과 없음.
+# boarding
+
+Use this skill when the user asks to run the `boarding` workflow.
+
+## Command Template
+
+작업 준비 1단계. Linear 이슈를 읽어 요구사항을 정리하고 코드 영향 범위를 메모해 디스크에 캐싱한다. 원격 부수효과 없음.
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/boarding CIR-15`, `/boarding CIR-15 --force`.
 
@@ -16,7 +21,7 @@ argument-hint: <Linear 이슈 ID> [--force]
 ## 상태 파일 경로
 
 - `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)`
-- `STATE_DIR = $MAIN_REPO_ROOT/.claude/state`
+- `STATE_DIR = $MAIN_REPO_ROOT/.codex/state`
 - `STATE_FILE = $STATE_DIR/<ISSUE>.json`
 - `ISSUE_FILE = $STATE_DIR/<ISSUE>.issue.md`
 - `STATE_DIR` 이 없으면 생성한다.
@@ -80,3 +85,7 @@ argument-hint: <Linear 이슈 ID> [--force]
 - `--force` 시 `ISSUE_FILE` 과 `issue_cache` 를 덮어쓴다.
 - Linear MCP 가 연결되어 있지 않으면 `claude mcp add --transport http linear-server https://mcp.linear.app/mcp` 안내 후 중단.
 - 이슈 상태(In Progress 등)는 자동으로 변경하지 않는다 — Linear 자동화에 위임.
+
+## Codex Invocation
+
+Use this as a Codex project skill. Invoke `boarding` with the issue id and flags as described above; treat the user text after the skill name as ``.

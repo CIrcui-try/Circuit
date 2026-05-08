@@ -1,10 +1,15 @@
 ---
-description: 항공기 이륙 3단계 — plan.md 따라 워크트리에서 구현·중간 커밋 (push/PR 없음)
-allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Agent, AskUserQuestion, TodoWrite, mcp__linear-server__get_issue
-argument-hint: <Linear 이슈 ID> [--force]
+name: "taxiing"
+description: "3단계 — plan.md 따라 워크트리에서 구현 및 중간 커밋"
 ---
 
-이륙 시퀀스의 **3단계 (Taxiing)**. door-closing 에서 작성한 `plan.md` 를 따라 워크트리 안에서 코드를 구현하고 중간 커밋한다. **`git push`, `gh pr create` 같은 원격 부수효과는 절대 수행하지 않는다.**
+# taxiing
+
+Use this skill when the user asks to run the `taxiing` workflow.
+
+## Command Template
+
+구현 3단계. door-closing 에서 작성한 `plan.md` 를 따라 워크트리 안에서 코드를 구현하고 중간 커밋한다. **`git push`, `gh pr create` 같은 원격 부수효과는 절대 수행하지 않는다.**
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/taxiing CIR-15`.
 
@@ -16,8 +21,8 @@ argument-hint: <Linear 이슈 ID> [--force]
 ## 상태 파일 경로
 
 - `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)`
-- `STATE_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.json`
-- `PLAN_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.plan.md`
+- `STATE_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.json`
+- `PLAN_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.plan.md`
 
 ## 자동 체이닝
 
@@ -53,3 +58,7 @@ argument-hint: <Linear 이슈 ID> [--force]
 - 구현 중 불명확한 점은 임의 판단하지 말고 사용자에게 질문.
 - Linear 이슈 상태는 자동으로 변경하지 않는다.
 - `--force` 사용 시 — taxiing 만 다시 돌리는 의미는 거의 없으므로(이미 커밋된 코드를 되돌릴 수 없음) 사용자에게 “기존 커밋을 그대로 두고 plan 잔여분만 이어서 진행할까, 아니면 사용자가 직접 reset 후 재호출할까” 한 번 확인 받는다.
+
+## Codex Invocation
+
+Use this as a Codex project skill. Invoke `taxiing` with the issue id and flags as described above; treat the user text after the skill name as ``.

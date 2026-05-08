@@ -1,10 +1,10 @@
 ---
-description: 항공기 사후 단계 (Landing) — PR 머지 확인 후 워크트리 제거·develop 동기화
+description: 사후 정리 — PR 머지 확인 후 워크트리 제거·develop 동기화
 allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue
 argument-hint: <Linear 이슈 ID 또는 브랜치명>
 ---
 
-이륙 시퀀스의 **사후 단계 (Landing)**. PR 이 머지된 뒤 워크트리를 제거하고 로컬 develop 을 최신화한다. takeoff 의 자동 체이닝 대상이 아니며 항상 수동 호출한다 (PR 머지 시점은 사용자만 알기 때문).
+사후 정리 단계. PR 이 머지된 뒤 워크트리를 제거하고 로컬 develop 을 최신화한다. takeoff 의 자동 체이닝 대상이 아니며 항상 수동 호출한다 (PR 머지 시점은 사용자만 알기 때문).
 
 `$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/landing CIR-15`, `/landing kai/cir-15-fix-...`.
 
@@ -24,10 +24,10 @@ argument-hint: <Linear 이슈 ID 또는 브랜치명>
    - 워크트리가 이미 없는 경우 (직전에 `/rejoin` 으로 정리된 케이스) → `worktree not present, skipping` 한 줄만 출력하고 다음 단계로.
    - 워크트리 안에 미커밋 변경이 남아있으면 사용자에게 알리고 중단.
    - 현재 위치가 그 워크트리면 메인 레포로 cd 한 뒤 제거.
-   - `git worktree remove .claude/worktrees/<branch>`. 파일 잠김 등으로 실패하면 사용자 확인 후 `--force`.
+   - `git worktree remove .codex/worktrees/<branch>`. 파일 잠김 등으로 실패하면 사용자 확인 후 `--force`.
 6. **로컬 develop 동기화**: 메인 레포에서 `git checkout develop && git pull origin develop`.
 7. **로컬 브랜치 정리**: `git branch -d <branch>` 시도. 실패하면(아직 머지 인식 못 함) 사용자 확인 후 `git branch -D <branch>`.
-8. **상태 파일 정리(잔재 시)**: takeoff 가 정상 종료했으면 `.claude/state/<ISSUE>.*` 는 이미 사라져 있다. 잔재가 있다면 함께 삭제. (이슈 키를 인자로 받지 않은 경우는 이 단계 생략.)
+8. **상태 파일 정리(잔재 시)**: takeoff 가 정상 종료했으면 `.codex/state/<ISSUE>.*` 는 이미 사라져 있다. 잔재가 있다면 함께 삭제. (이슈 키를 인자로 받지 않은 경우는 이 단계 생략.)
 9. **요약 출력**: 머지된 PR URL(있으면)·삭제된 워크트리 경로·develop 의 최신 커밋 해시를 한두 문장으로 안내.
 
 ## 주의사항

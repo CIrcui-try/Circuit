@@ -1,10 +1,15 @@
 ---
-description: 항공기 이륙 2단계 — develop fetch + 워크트리 생성 + 구현 계획(plan.md) 작성
-allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Agent, AskUserQuestion, TodoWrite, mcp__linear-server__get_issue
-argument-hint: <Linear 이슈 ID> [--force]
+name: "door-closing"
+description: "2단계 — develop fetch, 워크트리 생성, 구현 계획 작성"
 ---
 
-이륙 시퀀스의 **2단계 (Door-closing)**. develop을 fetch하고 워크트리를 만든 뒤 구현 계획(`plan.md`)을 디스크에 작성한다. **코드 변경·푸시는 하지 않는다.**
+# door-closing
+
+Use this skill when the user asks to run the `door-closing` workflow.
+
+## Command Template
+
+작업 준비 2단계. develop을 fetch하고 워크트리를 만든 뒤 구현 계획(`plan.md`)을 디스크에 작성한다. **코드 변경·푸시는 하지 않는다.**
 
 `$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/door-closing CIR-15`.
 
@@ -16,8 +21,8 @@ argument-hint: <Linear 이슈 ID> [--force]
 ## 상태 파일 경로
 
 - `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)`
-- `STATE_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.json`
-- `PLAN_FILE = $MAIN_REPO_ROOT/.claude/state/<ISSUE>.plan.md`
+- `STATE_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.json`
+- `PLAN_FILE = $MAIN_REPO_ROOT/.codex/state/<ISSUE>.plan.md`
 
 ## 자동 체이닝
 
@@ -34,11 +39,11 @@ argument-hint: <Linear 이슈 ID> [--force]
 4. **develop 최신화**: `git checkout develop && git pull origin develop`. 충돌 시 사용자 위임 후 중단.
 5. **브랜치명 결정**: 상태 파일의 `branch` 필드(boarding 단계가 채움) 사용. 비어있으면 Linear MCP `get_issue` 의 `gitBranchName` 으로 다시 채움.
 6. **워크트리 생성**:
-   - 워크트리 경로: `.claude/worktrees/<branch>` (메인 레포 기준 상대경로).
-   - `git worktree add .claude/worktrees/<branch> -b <branch> develop`.
+   - 워크트리 경로: `.codex/worktrees/<branch>` (메인 레포 기준 상대경로).
+   - `git worktree add .codex/worktrees/<branch> -b <branch> develop`.
    - 동일 브랜치/경로가 이미 있으면:
-     - `--force` 면 사용자에게 “기존 워크트리 삭제 후 재생성?” 확인 받고 `git worktree remove --force .claude/worktrees/<branch>` 후 재생성.
-     - `--force` 가 없으면 기존 워크트리 재사용 (`git worktree add .claude/worktrees/<branch> <branch>`).
+     - `--force` 면 사용자에게 “기존 워크트리 삭제 후 재생성?” 확인 받고 `git worktree remove --force .codex/worktrees/<branch>` 후 재생성.
+     - `--force` 가 없으면 기존 워크트리 재사용 (`git worktree add .codex/worktrees/<branch> <branch>`).
 7. **구현 계획 작성**: 워크트리 안에서 코드 탐색 후 `PLAN_FILE` 작성:
 
    ```markdown
@@ -76,3 +81,7 @@ argument-hint: <Linear 이슈 ID> [--force]
 - `develop` / `main` 브랜치에 직접 커밋·푸시 금지.
 - Linear 이슈 상태는 자동으로 변경하지 않는다.
 - `--force` 시 `PLAN_FILE` 을 덮어쓴다.
+
+## Codex Invocation
+
+Use this as a Codex project skill. Invoke `door-closing` with the issue id and flags as described above; treat the user text after the skill name as ``.
