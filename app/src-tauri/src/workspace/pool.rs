@@ -12,6 +12,10 @@
 //! Eviction = LRU across the whole pool. We don't keep a separate LRU
 //! deque; with the small `max_total` decided in §3.2 of the strategy doc
 //! a single linear scan over the slots is cheaper than the bookkeeping.
+//!
+//! Phase 6 (CIR-34) §2 — 동시 task per repo 임계 결정에서 `max_per_key=2`,
+//! `max_total=16` 가설을 그대로 유지. 재평가 트리거는
+//! `docs/research/CIR-34-hardening-decisions.md` §3 표.
 
 use crate::workspace::workspace::Workspace;
 use std::collections::{HashMap, VecDeque};
