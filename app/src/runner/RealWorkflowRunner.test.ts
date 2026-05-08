@@ -325,6 +325,11 @@ describe("RealWorkflowRunner", () => {
     if (!result.ok) {
       expect(result.reason).toContain("codex");
     }
+    const log = useRunLogStore.getState();
+    expect(log.events).toHaveLength(1);
+    expect(log.events[0].nodeId).toBe("a");
+    expect(log.events[0].event.type).toBe("error");
+    expect(log.nodeResults.a.status).toBe("failed");
   });
 
   it("R10: forwards numeric node.input.timeoutMs to ctx.execution.timeoutMs", async () => {
@@ -373,5 +378,39 @@ describe("RealWorkflowRunner", () => {
       ok: false,
       reason: "node ghost not found in workflow",
     });
+    const log = useRunLogStore.getState();
+    expect(log.events).toEqual([
+      {
+        nodeId: "ghost",
+        event: expect.objectContaining({
+          type: "error",
+          message: "node ghost not found in workflow",
+        }),
+      },
+    ]);
+    expect(log.nodeResults.ghost.status).toBe("failed");
+  });
+
+  it("records no-repository failures in the run log", async () => {
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node], repository: null });
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "no repository selected",
+    });
+    const log = useRunLogStore.getState();
+    expect(log.events).toEqual([
+      {
+        nodeId: "a",
+        event: expect.objectContaining({
+          type: "error",
+          message: "no repository selected",
+        }),
+      },
+    ]);
+    expect(log.nodeResults.a.status).toBe("failed");
   });
 });

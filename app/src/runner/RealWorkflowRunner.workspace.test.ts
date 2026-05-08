@@ -274,6 +274,17 @@ describe("RealWorkflowRunner workspace integration (CIR-35)", () => {
       ok: false,
       reason: "workspace already attached",
     });
+    const log = useRunLogStore.getState();
+    expect(log.events).toEqual([
+      {
+        nodeId: "a",
+        event: expect.objectContaining({
+          type: "error",
+          message: "workspace already attached",
+        }),
+      },
+    ]);
+    expect(log.nodeResults.a.status).toBe("failed");
   });
 
   it("runWorkflow integration: end-to-end one run threads acquire→begin→commit→release", async () => {
