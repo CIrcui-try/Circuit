@@ -1,6 +1,6 @@
-# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계 + Phase 4 Reconcile + Phase 5 Warm Pool
+# `workspace/` — Phase 2 Lifecycle + Phase 3 Turn 경계 + Phase 4 Reconcile + Phase 5 Warm Pool + Phase 6 Hardening
 
-Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. Phase 4 (CIR-32) 는 Store ↔ Workspace 가 어긋날 때의 처리 정책을 단일 진입점 `reconcile` 로 모아 **Store = source of truth** 명제를 강제한다. Phase 5 (CIR-33) 는 cold-start 의 (c) workspace 준비 비용을 절감하기 위해 per-user/per-repo **`WarmPool`** 을 추가, `acquire` 가 풀 hit 시 clone 을 건너뛰고 attach 만 하도록 만든다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
+Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / recover / cold_resume 를 마련했고, Phase 3 (CIR-31) 가 그 위에 **turn 경계 = resume 입자 = 체크포인트** 모델을 못박았다. Phase 4 (CIR-32) 는 Store ↔ Workspace 가 어긋날 때의 처리 정책을 단일 진입점 `reconcile` 로 모아 **Store = source of truth** 명제를 강제한다. Phase 5 (CIR-33) 는 cold-start 의 (c) workspace 준비 비용을 절감하기 위해 per-user/per-repo **`WarmPool`** 을 추가, `acquire` 가 풀 hit 시 clone 을 건너뛰고 attach 만 하도록 만든다. Phase 6 (CIR-34) 는 v2 design §6 의 미해결 항목 — long-running tool call evict 정책, 동시 task per repo 임계, sub-agent context cache — 에 대한 결정을 못 박아 위 phase 들의 invariant 가 운영 시점에 무엇을 보장하는지 명시한다. 본 모듈은 코딩 에이전트가 git 워킹트리 단위로 attach·detach·cleanup·resume 하면서 turn 단위로만 evict / rollback 되도록 보장한다.
 
 ## 책임 경계
 
@@ -8,6 +8,7 @@ Phase 2 (CIR-30) 가 워크스페이스 lifecycle 의 mutex / cleanup / abort / 
 | -- | -- |
 | `WorkspaceManager` | acquire / release / begin_turn / commit_turn / cleanup / abort / recover / cold_resume / **release_to_pool / prewarm** — 모든 lifecycle entry-point |
 | `WarmPool` | (Phase 5) `(user_id, repo_url)` 키의 pre-cloned 슬롯 큐. take/put/stats — LRU eviction. |
+| Phase 6 정책 | (CIR-34) long-running tool / 동시 task / sub-agent cache 의 결정 — 코드 하나에 응축돼 있지 않고 `cleanup` / `release_to_pool` 의 `TurnInFlight` 가드, `acquire` 의 `<slug>-<n>` 분기, `WarmPool::new` 호출 사이트가 단일 출처. |
 | `Workspace` | 단일 워크스페이스의 mutex 점유 (`Idle / Attached / Aborting / Cleaning / Removed`), in-flight turn 마커, CancellationToken |
 | `WorkspaceMetadata` | HEAD commit / branch / dirty 파일 / stash ref / disk_path / last_turn 스냅샷 |
 | `WorkspaceStore` | 디스크에 metadata + JSONL action log + stash bundle 저장 |
@@ -89,6 +90,11 @@ mgr.release_to_pool(&ws).await?;                                       // settle
 | Pool 전략 결정 (종류·사이즈·eviction·pre-warm) | 같은 문서 §3, `WarmPool::new(max_per_key, max_total)` |
 | Per-user / per-workspace isolation | `PoolKey { user_id, repo_url }` — `take` 는 정확히 일치하는 키만 반환 |
 | p95 cold-start 절감 (관측) | pool hit 시 `git_ops::clone` 미발생 — `tests/warm_pool_e2e.rs` 가 `pool.stats()` 로 검증 |
+| **Phase 6 (CIR-34)** | |
+| Long-running tool call 정책 (turn 외부 evict 시 직전 settled turn 으로 롤백) | `WorkspaceManager::cleanup` / `release_to_pool` 의 `Error::TurnInFlight` 가드 — 결정 (1B) 의 코드 baseline |
+| 동시 task per repo (별도 clone 유지) | `WorkspaceManager::acquire` 의 `<slug>-<n>` 분기 + `WarmPool::new(max_per_key=2, max_total=16)` 가설 |
+| Sub-agent context cache (보존 안 함, 재실행 유지) | 코드 변경 없음 — `docs/research/CIR-34-hardening-decisions.md` §2.3 결정만 |
+| 결정 근거 / 후속 측정 hook | `docs/research/CIR-34-hardening-decisions.md` |
 
 ## Phase 3: Turn 경계 모델
 
@@ -164,6 +170,31 @@ mgr.release_to_pool(&ws).await?;                                       // settle
 
 - `prewarm(user, repo, count)` 는 `count` 개의 워크스페이스를 *모두 acquire 한 뒤* 일괄 release 한다. 인터리빙하면 같은 슬롯이 풀에 들어왔다 다시 hit 되어 결과적으로 슬롯 수가 늘지 않기 때문.
 - 백그라운드 자동 prefetch 는 본 phase 범위 밖.
+
+## Phase 6: Hardening 결정 (CIR-34)
+
+자세한 결정 근거 / 재평가 트리거는 [`docs/research/CIR-34-hardening-decisions.md`](../../../../../docs/research/CIR-34-hardening-decisions.md). 본 절은 모듈 안에서 알아야 할 운영 규칙만 정리한다.
+
+### §1 Long-running tool call: turn 외부 evict 는 거부, 명시 abort 만 허용
+
+- 분 단위 build / test 같은 도구 호출이 turn 안에서 길어지더라도 turn 외부에서 들어오는 evict (`cleanup`, `release_to_pool`, TTL tick, `WarmPool::put`) 는 즉시 `Error::TurnInFlight` 로 거부한다.
+- evict 를 강제하려는 호출자는 (a) `commit_turn` / 자연 종료를 기다리거나 (b) 명시적으로 `abort` 후 evict 를 재시도해야 한다. `abort` 는 in-flight turn 의 working tree 를 last settled HEAD 로 reset 한다 (Phase 3 의 기존 동작).
+- "부분 결과 보존" (in-flight 산출물을 별도 stash 로 남기고 다음 resume 에 잇기) 은 본 phase 가 명시적으로 *채택하지 않은* 옵션 — Phase 4 Store action log 가 표현하는 transition 집합 (`Acquire` / `TurnBegin` / `TurnComplete` / `TurnRollback` / `Stash` / `Cleanup` / `Reconcile`) 으로는 부분 결과를 표현할 수 없기 때문.
+
+### §2 동시 task per repo: 별도 clone 유지, 임계 = Phase 5 hyperparameter
+
+- 같은 `(user_id, repo_url)` 의 두 task 가 동시에 `acquire` 하면 첫 task 는 idle 슬롯을 재사용 / 풀 hit, 두 번째 task 는 `<root>/<user_id>/<slug>-<n>` 으로 새 clone (Phase 2 `acquire` 의 기존 동작) 또는 풀의 다른 슬롯 hit 으로 처리된다.
+- 큐잉 fallback (두 번째 task 가 첫 번째 task 의 release 까지 wait) 은 lifecycle entry-point 차단 → turn 경계 dead-lock 위험 + clone 비용 실측 부재로 **본 phase 에서 채택하지 않았다.**
+- `WarmPool::new(max_per_key=2, max_total=16)` 은 Phase 5 가설치를 그대로 유지 — 본 시점엔 production `WarmPool::new` 호출 사이트가 아직 없으므로 부트스트랩 도입 시 결정 문서를 단일 출처로 삼는다.
+
+### §3 Sub-agent context cache: 보존 안 함, 매번 재실행
+
+- 본 레포에 sub-agent cache 는 구현되어 있지 않다. 본 phase 의 결정은 그 가정을 *유지* 하는 것이며, 코드는 변경하지 않는다.
+- 재평가는 sub-agent wall time 과 동일 입력 재실행 hit ratio 를 측정한 뒤에 별도 phase 에서 — 결정 문서의 §3 후속 hook 표 참조.
+
+### 후속 측정 hook 단일 진입점
+
+- 위 결정 (§1)–(§3) 의 재평가 트리거 메트릭 / 임계 / 다음 행동은 모두 [`docs/research/CIR-34-hardening-decisions.md`](../../../../../docs/research/CIR-34-hardening-decisions.md) §3 의 표가 단일 출처. CIR-29 측정 보고서가 도착하면 그 표를 한 번만 갱신하고 본 README 는 링크만 유지한다.
 
 ## 테스트
 

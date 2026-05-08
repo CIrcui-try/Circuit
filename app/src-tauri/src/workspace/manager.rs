@@ -584,6 +584,11 @@ impl WorkspaceManager {
     /// Phase 3 (CIR-31): if the workspace has an in-flight turn, cleanup is
     /// rejected immediately with `Error::TurnInFlight`. Mid-turn evicts are
     /// forbidden — the caller must wait for the turn to commit or abort.
+    ///
+    /// Phase 6 (CIR-34) §1 — long-running tool call evict 정책: 본 가드가
+    /// 결정 (1B) "직전 settled turn 으로 롤백" 의 운영 baseline. 대안 (1A)
+    /// "부분 결과 보존" 은 채택하지 않았다. 자세한 근거는
+    /// `docs/research/CIR-34-hardening-decisions.md` §2.1.
     pub async fn cleanup(&self, ws: &Arc<Workspace>) -> Result<()> {
         if ws.active_turn().await.is_some() {
             return Err(Error::TurnInFlight(ws.id.0.clone()));
@@ -673,6 +678,10 @@ impl WorkspaceManager {
     /// mid-turn workspaces so the pool's invariant "every slot has settled
     /// HEAD" holds. Any slot the pool evicts to make room is wiped through
     /// the standard `cleanup` so disk + Store stay consistent.
+    ///
+    /// Phase 6 (CIR-34) §1 — long-running tool call evict 정책의 같은
+    /// baseline. 풀 반환은 항상 settled HEAD 만 — 부분 결과는 절대 풀에
+    /// 들어가지 않는다.
     pub async fn release_to_pool(&self, ws: &Arc<Workspace>) -> Result<()> {
         let pool = self
             .pool
