@@ -24,6 +24,7 @@ import { useRunLogStore } from "../runner/runLogStore";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
 import { AppErrorAlert } from "../components/AppErrorAlert";
 import { Workspace } from "./Workspace";
+import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 
 const SAMPLE: Repository = {
   id: "id-alpha",
@@ -79,6 +80,7 @@ beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
   useRunLogStore.getState().reset();
+  window.localStorage.clear();
 });
 
 describe("Workspace", () => {
@@ -290,5 +292,57 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+  });
+
+  it("W11: restores the last local workflow draft on workspace entry", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    saveWorkflowDraft(SAMPLE.id, {
+      workflowId: null,
+      workflowName: "Unsaved draft",
+      nodes: [
+        {
+          id: "draft-node",
+          type: "skill",
+          position: { x: 10, y: 20 },
+          data: {
+            label: "Foo",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [],
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+    expect(useWorkflowStore.getState().nodes[0].id).toBe("draft-node");
+    expect(screen.getByTestId("workflow-name-input")).toHaveValue("Unsaved draft");
+  });
+
+  it("W12: persists workflow edits into the local draft", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().setWorkflowName("Local autosave");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const draft = loadWorkflowDraft(SAMPLE.id);
+    expect(draft?.workflowName).toBe("Local autosave");
+    expect(draft?.nodes).toHaveLength(1);
+    expect(draft?.nodes[0].data.label).toBe("Foo");
   });
 });

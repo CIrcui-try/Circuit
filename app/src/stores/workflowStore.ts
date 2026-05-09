@@ -28,7 +28,7 @@ export type SkillNode = Node<SkillNodeData, "skill">;
 export type ReplaceCanvasArgs = {
   nodes: SkillNode[];
   edges: Edge[];
-  workflowId: string;
+  workflowId: string | null;
   workflowName: string;
 };
 
