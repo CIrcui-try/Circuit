@@ -64,6 +64,7 @@ PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 P
      ```
 
 7. **PR URL 출력**: 사용자에게 한 줄로 PR URL 안내.
+   - CI 통과 후 merge commit 방식으로 자동 머지하고 로컬 정리까지 이어가려면 `/autoland <ISSUE 또는 branch 또는 PR URL>` 를 사용한다.
 8. **상태 파일 갱신 후 정리**:
    - 먼저 `takeoff.done_at = <UTC ISO8601>` 로 저장 (혹시 정리 단계에서 실패해도 다음 호출이 takeoff 를 다시 돌리지 않도록).
    - 이어서 임시 파일 삭제: `rm -f $STATE_FILE $ISSUE_FILE $PLAN_FILE`.
