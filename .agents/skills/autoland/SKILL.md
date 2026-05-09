@@ -1,6 +1,6 @@
 ---
 name: "autoland"
-description: "CI 통과 후 PR 자동 머지·landing 정리"
+description: "필요 시 takeoff 후 CI 통과 PR 자동 머지·landing 정리"
 ---
 
 # autoland
@@ -9,7 +9,7 @@ Use this skill when the user asks to run the `autoland` workflow.
 
 ## Command Template
 
-takeoff 이후 사후 자동화 단계. PR 의 CI checks 를 기다렸다가 모두 통과하면 merge commit 방식으로 머지하고, 이어서 landing 과 동일하게 로컬 워크트리를 제거하고 develop 을 최신화한다.
+takeoff 이후 사후 자동화 단계. PR 이 아직 없고 이슈 키를 확정할 수 있으면 먼저 takeoff 를 실행해 PR 을 만든다. 이후 PR 의 CI checks 를 기다렸다가 모두 통과하면 merge commit 방식으로 머지하고, 이어서 landing 과 동일하게 로컬 워크트리를 제거하고 develop 을 최신화한다.
 
 `$ARGUMENTS` 형식: `[ISSUE-ID | branch | PR URL] [--interval <seconds>] [--timeout <minutes>]`.
 타깃을 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다.
@@ -25,14 +25,17 @@ takeoff 이후 사후 자동화 단계. PR 의 CI checks 를 기다렸다가 모
 
 1. **메인 레포로 이동**: 인자 파싱 중 캡처한 `CURRENT_BRANCH` 를 보존한 채 `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)` → `cd $MAIN_REPO_ROOT`.
 2. **GitHub 계정 확인**: `gh auth status` 를 실행한다.
+   - Codex 샌드박스에서 keyring 접근 실패로 토큰 invalid 처럼 보일 수 있으므로, 실패 시 로컬 권한으로 `gh auth status` 를 한 번 재확인한 뒤 판단한다.
    - `kai-leeee` 가 active account 가 아니면 중단.
    - 토큰 invalid, 만료, 권한 부족이면 `gh auth login -h github.com` 이 필요하다고 안내하고 중단.
 3. **대상 결정**:
-   - `<TARGET>` 이 `CIR-`/`PROJ-` 같은 이슈 키 패턴이면 Linear MCP `get_issue` 로 `gitBranchName` 을 조회해 branch 로 사용한다.
+   - `<TARGET>` 이 `CIR-`/`PROJ-` 같은 이슈 키 패턴이면 `ISSUE_KEY` 로 보존하고, Linear MCP `get_issue` 로 `gitBranchName` 을 조회해 branch 로 사용한다.
    - `<TARGET>` 이 `https://github.com/.../pull/...` 형태면 PR URL 로 사용한다.
-   - 그 외에는 branch 로 사용한다.
+   - 그 외에는 branch 로 사용한다. branch 안에 `CIR-39` 또는 `cir-39` 같은 이슈 키가 포함되어 있으면 대문자 이슈 키로 정규화해 `ISSUE_KEY` 로 보존한다.
 4. **PR 상태 확인**: `gh pr view <PR URL 또는 branch> --json number,url,state,isDraft,baseRefName,headRefName,headRefOid,mergeable` 실행.
-   - PR 을 찾지 못하면 중단.
+   - PR 을 찾지 못했고 `ISSUE_KEY` 가 있으면 `/takeoff <ISSUE_KEY>` 절차를 먼저 실행한다. takeoff 가 push, rebase, PR 생성, 상태 파일 정리를 처리한다. takeoff 가 사용자 승인 필요 상황(force push, 충돌, 미커밋 변경, 워크트리 없음 등)으로 멈추면 autoland 도 중단한다.
+   - takeoff 성공 후 같은 branch 로 `gh pr view ...` 를 다시 실행해 PR URL, PR number, head branch, head SHA 를 고정한다. 그래도 PR 을 찾지 못하면 중단.
+   - PR 을 찾지 못했고 `ISSUE_KEY` 도 없으면 takeoff 대상을 확정할 수 없으므로 중단한다.
    - `state` 가 `MERGED` 면 머지는 스킵하고 landing 정리만 진행.
    - `state` 가 `OPEN` 이 아니면 중단.
    - `isDraft == true` 면 중단.
