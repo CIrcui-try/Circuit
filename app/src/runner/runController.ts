@@ -71,6 +71,10 @@ export async function startWorkflowRun(
       nodes: runnableNodes,
       edges: runnableEdges,
       workflowId: snapshot.workflowId,
+      repository: {
+        id: snapshot.repository.id,
+        name: snapshot.repository.name,
+      },
       runner,
       store: useRunStore,
       now: opts.now,

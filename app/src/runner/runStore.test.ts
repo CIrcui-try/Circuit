@@ -10,6 +10,7 @@ describe("runStore", () => {
     useRunStore.getState().beginRun({
       runId: "run_1",
       workflowId: "wf_1",
+      repository: { id: "repo_1", name: "alpha" },
       nodeIds: ["n1", "n2"],
       startedAt: "2026-04-30T00:00:00Z",
     });
@@ -17,6 +18,8 @@ describe("runStore", () => {
     expect(s.status).toBe("running");
     expect(s.runId).toBe("run_1");
     expect(s.workflowId).toBe("wf_1");
+    expect(s.repositoryId).toBe("repo_1");
+    expect(s.repositoryName).toBe("alpha");
     expect(s.startedAt).toBe("2026-04-30T00:00:00Z");
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({ n1: "queued", n2: "queued" });
@@ -106,6 +109,8 @@ describe("runStore", () => {
     expect(s.status).toBe("idle");
     expect(s.runId).toBeNull();
     expect(s.workflowId).toBeNull();
+    expect(s.repositoryId).toBeNull();
+    expect(s.repositoryName).toBeNull();
     expect(s.startedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({});
