@@ -184,6 +184,26 @@ button:hover {
   opacity: 0.65;
 }
 
+.run-floating-toast__dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: #a7a7b0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.run-floating-toast__dismiss:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .run-floating-toast__progress {
   position: absolute;
   left: 0;

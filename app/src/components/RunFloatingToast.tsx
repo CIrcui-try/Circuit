@@ -46,14 +46,17 @@ const VIEWS: Record<Exclude<RunStatus, "idle"> | "waiting_input", ToastView> = {
 export function RunFloatingToast() {
   const location = useLocation();
   const status = useRunStore((s) => s.status);
+  const runId = useRunStore((s) => s.runId);
   const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
   const hasWaitingNode = useRunStore((s) =>
     Object.values(s.nodeStates).some((state) => state === "waiting_input"),
   );
   const [cancelling, setCancelling] = useState(false);
+  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
 
   if (status === "idle") return null;
+  if (status !== "running" && runId && dismissedRunId === runId) return null;
   if (isViewingRunWorkflow(location.pathname, repositoryId)) {
     return null;
   }
@@ -62,6 +65,7 @@ export function RunFloatingToast() {
   const canGoToWorkflow = Boolean(repositoryId) && (status === "running" || status === "success");
   const canCancel = status === "running";
   const isActive = status === "running";
+  const canDismiss = !isActive && Boolean(runId);
 
   async function handleCancel() {
     setCancelling(true);
@@ -115,6 +119,16 @@ export function RunFloatingToast() {
           data-testid="run-floating-toast-progress"
           aria-hidden="true"
         />
+      ) : null}
+      {canDismiss ? (
+        <button
+          type="button"
+          className="run-floating-toast__dismiss"
+          aria-label="Dismiss run notification"
+          onClick={() => setDismissedRunId(runId)}
+        >
+          x
+        </button>
       ) : null}
     </aside>
   );

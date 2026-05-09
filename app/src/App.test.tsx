@@ -118,6 +118,9 @@ describe("App routing", () => {
       "href",
       "/workspace/id-alpha",
     );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss run notification" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -154,7 +157,7 @@ describe("App routing", () => {
     expect(screen.queryByTestId("run-floating-toast")).not.toBeInTheDocument();
   });
 
-  it("A4c: keeps Go to workflow on the success toast without showing Cancel", () => {
+  it("A4c: keeps Go to workflow on the success toast without showing Cancel", async () => {
     useRunStore.setState({
       status: "success",
       runId: "run-1",
@@ -182,6 +185,10 @@ describe("App routing", () => {
     );
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("run-floating-toast-progress")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss run notification" }));
+
+    expect(screen.queryByTestId("run-floating-toast")).not.toBeInTheDocument();
   });
 
   it("A5: labels waiting input runs without taking over the LogPanel response flow", () => {
