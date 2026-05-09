@@ -154,6 +154,36 @@ describe("App routing", () => {
     expect(screen.queryByTestId("run-floating-toast")).not.toBeInTheDocument();
   });
 
+  it("A4c: keeps Go to workflow on the success toast without showing Cancel", () => {
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: null,
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("Success");
+    expect(screen.getByRole("link", { name: "Go to workflow" })).toHaveAttribute(
+      "href",
+      "/workspace/id-alpha",
+    );
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-floating-toast-progress")).not.toBeInTheDocument();
+  });
+
   it("A5: labels waiting input runs without taking over the LogPanel response flow", () => {
     useRunStore.getState().beginRun({
       runId: "run-1",

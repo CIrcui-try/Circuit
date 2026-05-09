@@ -59,7 +59,8 @@ export function RunFloatingToast() {
   }
 
   const view = VIEWS[status === "running" && hasWaitingNode ? "waiting_input" : status];
-  const canAct = status === "running";
+  const canGoToWorkflow = Boolean(repositoryId) && (status === "running" || status === "success");
+  const canCancel = status === "running";
   const isActive = status === "running";
 
   async function handleCancel() {
@@ -86,9 +87,9 @@ export function RunFloatingToast() {
           </span>
         </div>
       </div>
-      {canAct ? (
+      {canGoToWorkflow || canCancel ? (
         <div className="run-floating-toast__actions">
-          {repositoryId ? (
+          {canGoToWorkflow && repositoryId ? (
             <Link
               className="run-floating-toast__link"
               to={`/workspace/${repositoryId}`}
@@ -96,14 +97,16 @@ export function RunFloatingToast() {
               Go to workflow
             </Link>
           ) : null}
-          <button
-            type="button"
-            className="run-floating-toast__cancel"
-            onClick={() => void handleCancel()}
-            disabled={cancelling}
-          >
-            {cancelling ? "Cancelling..." : "Cancel"}
-          </button>
+          {canCancel ? (
+            <button
+              type="button"
+              className="run-floating-toast__cancel"
+              onClick={() => void handleCancel()}
+              disabled={cancelling}
+            >
+              {cancelling ? "Cancelling..." : "Cancel"}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {isActive ? (
