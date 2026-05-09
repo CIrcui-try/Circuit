@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { cancelWorkflowRun } from "../runner/runController";
 import { useRunStore } from "../runner/runStore";
 import type { RunStatus } from "../runner/runner";
@@ -44,18 +44,28 @@ const VIEWS: Record<Exclude<RunStatus, "idle"> | "waiting_input", ToastView> = {
 };
 
 export function RunFloatingToast() {
+  const location = useLocation();
   const status = useRunStore((s) => s.status);
+  const runId = useRunStore((s) => s.runId);
   const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
   const hasWaitingNode = useRunStore((s) =>
     Object.values(s.nodeStates).some((state) => state === "waiting_input"),
   );
   const [cancelling, setCancelling] = useState(false);
+  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
 
   if (status === "idle") return null;
+  if (status !== "running" && runId && dismissedRunId === runId) return null;
+  if (isViewingRunWorkflow(location.pathname, repositoryId)) {
+    return null;
+  }
 
   const view = VIEWS[status === "running" && hasWaitingNode ? "waiting_input" : status];
-  const canAct = status === "running";
+  const canGoToWorkflow = Boolean(repositoryId) && (status === "running" || status === "success");
+  const canCancel = status === "running";
+  const isActive = status === "running";
+  const canDismiss = !isActive && Boolean(runId);
 
   async function handleCancel() {
     setCancelling(true);
@@ -81,9 +91,9 @@ export function RunFloatingToast() {
           </span>
         </div>
       </div>
-      {canAct ? (
+      {canGoToWorkflow || canCancel ? (
         <div className="run-floating-toast__actions">
-          {repositoryId ? (
+          {canGoToWorkflow && repositoryId ? (
             <Link
               className="run-floating-toast__link"
               to={`/workspace/${repositoryId}`}
@@ -91,16 +101,42 @@ export function RunFloatingToast() {
               Go to workflow
             </Link>
           ) : null}
-          <button
-            type="button"
-            className="run-floating-toast__cancel"
-            onClick={() => void handleCancel()}
-            disabled={cancelling}
-          >
-            {cancelling ? "Cancelling..." : "Cancel"}
-          </button>
+          {canCancel ? (
+            <button
+              type="button"
+              className="run-floating-toast__cancel"
+              onClick={() => void handleCancel()}
+              disabled={cancelling}
+            >
+              {cancelling ? "Cancelling..." : "Cancel"}
+            </button>
+          ) : null}
         </div>
+      ) : null}
+      {isActive ? (
+        <span
+          className="run-floating-toast__progress"
+          data-testid="run-floating-toast-progress"
+          aria-hidden="true"
+        />
+      ) : null}
+      {canDismiss ? (
+        <button
+          type="button"
+          className="run-floating-toast__dismiss"
+          aria-label="Dismiss run notification"
+          onClick={() => setDismissedRunId(runId)}
+        >
+          x
+        </button>
       ) : null}
     </aside>
   );
+}
+
+function isViewingRunWorkflow(pathname: string, repositoryId: string | null): boolean {
+  if (!repositoryId) return false;
+  const basePath = `/workspace/${repositoryId}`;
+  const normalized = pathname.replace(/\/+$/, "");
+  return normalized === basePath || normalized.startsWith(`${basePath}/`);
 }
