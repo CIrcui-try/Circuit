@@ -345,4 +345,50 @@ describe("Workspace", () => {
     expect(draft?.nodes).toHaveLength(1);
     expect(draft?.nodes[0].data.label).toBe("Foo");
   });
+
+  it("W13: route changes do not reset an in-flight run", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/alpha/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: () => [
+          { event: { type: "started" } },
+          { delayMs: 30, event: { type: "exited", exitCode: 0 } },
+        ],
+      });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("running");
+    });
+    fireEvent.click(screen.getByLabelText("Back to repository list"));
+
+    expect(screen.getByText("repo-list-stub")).toBeInTheDocument();
+    expect(useRunStore.getState().status).toBe("running");
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+    });
+  });
 });

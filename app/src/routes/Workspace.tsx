@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
@@ -6,22 +6,21 @@ import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
 import { ResizeHandle } from "../components/layout/ResizeHandle";
 import { Sidebar } from "../components/layout/Sidebar";
-import { createDefaultRegistry } from "../runtime/adapters/createDefaultRegistry";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useWorkflowStore } from "../stores/workflowStore";
-import { getHostBridge, type WorkflowSummaryDTO } from "../host/bridge";
-import { serializeRunLogJsonl } from "../runner/runLogPersistence";
+import type { WorkflowSummaryDTO } from "../host/bridge";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
-import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { runWorkflow, type RunWorkflowOutcome } from "../runner/runWorkflow";
-import type { RunnableEdge, RunnableNode } from "../runner/runner";
-import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
+import {
+  cancelWorkflowRun,
+  startWorkflowRun,
+  type WorkflowRunSnapshot,
+} from "../runner/runController";
+import type { RunWorkflowOutcome } from "../runner/runWorkflow";
 import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
-import type { WorkflowSkillNode } from "../workflow/schema";
 
 const NEW_WORKFLOW_VALUE = "__new__";
 
@@ -39,60 +38,10 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const isRunning = useRunStore((s) => s.status === "running");
-  const resetRun = useRunStore((s) => s.reset);
-  const resetRunLog = useRunLogStore((s) => s.reset);
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-
-  const runner = useMemo(() => {
-    if (!repo) return null;
-    const bridge = getRuntimeBridge();
-    const registry = createDefaultRegistry({ bridge });
-    return new RealWorkflowRunner({
-      registry,
-      bridge,
-      logStore: useRunLogStore,
-      runStore: useRunStore,
-      getNode: (id) => {
-        const n = useWorkflowStore.getState().nodes.find((x) => x.id === id);
-        if (!n) return null;
-        const fullNode: WorkflowSkillNode = {
-          id: n.id,
-          type: "skill",
-          skillRef: n.data.skillRef,
-          label: n.data.label,
-          position: { x: n.position.x, y: n.position.y },
-          input: (n.data.input as Record<string, unknown> | undefined) ?? {},
-        };
-        return fullNode;
-      },
-      getRepository: () => {
-        const r = useRepositoryStore
-          .getState()
-          .repositories.find((x) => x.id === repo.id);
-        return r ? { id: r.id, name: r.name, path: r.path } : null;
-      },
-      getRunMeta: () => {
-        const s = useRunStore.getState();
-        return { runId: s.runId ?? "(idle)", workflowId: s.workflowId };
-      },
-      persistRunLog: async ({
-        runId,
-        workflowId,
-        repository,
-        events,
-        nodeResults,
-      }) => {
-        if (!workflowId) return;
-        const host = getHostBridge();
-        if (!host.saveRunLog) return;
-        const jsonl = serializeRunLogJsonl(events, nodeResults);
-        await host.saveRunLog(repository.path, workflowId, runId, jsonl);
-      },
-    });
-  }, [repo]);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -100,8 +49,6 @@ export function Workspace() {
 
   useEffect(() => {
     resetWorkflow();
-    resetRun();
-    resetRunLog();
     setWorkflows([]);
     setSaveStatus(null);
     if (!repo) return;
@@ -113,7 +60,7 @@ export function Workspace() {
       workflowId: draft.workflowId,
       workflowName: draft.workflowName,
     });
-  }, [repoId, repo, resetWorkflow, resetRun, resetRunLog]);
+  }, [repoId, repo, resetWorkflow]);
 
   useEffect(() => {
     if (!repo) return;
@@ -162,30 +109,9 @@ export function Workspace() {
   }, [repo, refreshWorkflows]);
 
   const handleStart = useCallback(async () => {
-    if (!runner) return;
-    runner.reset();
-    const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
-    const runnable: RunnableNode[] = nodes.map((n) => ({
-      id: n.id,
-      label: n.data.label,
-      skillRef: {
-        provider: n.data.skillRef.provider,
-        skillFile: n.data.skillRef.skillFile,
-      },
-    }));
-    const runnableEdges: RunnableEdge[] = edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-    }));
+    if (!repo) return;
     try {
-      const outcome = await runWorkflow({
-        nodes: runnable,
-        edges: runnableEdges,
-        workflowId: currentWorkflowId,
-        runner,
-        store: useRunStore,
-      });
+      const outcome = await startWorkflowRun({ snapshot: buildRunSnapshot(repo) });
       if (outcome.kind === "rejected") {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
         return;
@@ -199,13 +125,12 @@ export function Workspace() {
     } catch (err) {
       notifyAppError(err, "Start Circuit failed");
     }
-  }, [runner]);
+  }, [repo]);
 
   const handleCancel = useCallback(() => {
-    if (!runner) return;
     setCancelling(true);
-    void runner.cancel();
-  }, [runner]);
+    void cancelWorkflowRun();
+  }, []);
 
   useEffect(() => {
     if (!isRunning) setCancelling(false);
@@ -342,6 +267,35 @@ function formatRunRejection(
     default:
       return reason;
   }
+}
+
+function buildRunSnapshot(repo: {
+  id: string;
+  name: string;
+  path: string;
+}): WorkflowRunSnapshot {
+  const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
+  return {
+    repository: { id: repo.id, name: repo.name, path: repo.path },
+    workflowId: currentWorkflowId,
+    nodes: nodes.map((n) => ({
+      id: n.id,
+      type: "skill",
+      skillRef: {
+        provider: n.data.skillRef.provider,
+        skillFile: n.data.skillRef.skillFile,
+      },
+      label: n.data.label,
+      position: { x: n.position.x, y: n.position.y },
+      input: (n.data.input as Record<string, unknown> | undefined) ?? {},
+    })),
+    edges: edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      kind: "dependency",
+    })),
+  };
 }
 
 function describeLastRunFailure(): string | null {
