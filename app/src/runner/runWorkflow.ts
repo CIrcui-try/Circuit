@@ -11,6 +11,10 @@ export type RunWorkflowOptions = {
   nodes: readonly RunnableNode[];
   edges: readonly RunnableEdge[];
   workflowId: string | null;
+  repository?: {
+    id: string;
+    name: string;
+  };
   runner: WorkflowRunner;
   store: typeof RunStore;
   now?: () => string;
@@ -34,6 +38,7 @@ export async function runWorkflow(
     nodes,
     edges,
     workflowId,
+    repository,
     runner,
     store,
     now = defaultNow,
@@ -56,6 +61,7 @@ export async function runWorkflow(
   store.getState().beginRun({
     runId: newRunId(),
     workflowId,
+    repository,
     nodeIds,
     startedAt: now(),
   });

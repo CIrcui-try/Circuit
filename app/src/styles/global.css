@@ -93,6 +93,95 @@ button:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.run-floating-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid #3a3a42;
+  border-radius: 8px;
+  background: #26262b;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+}
+
+.run-floating-toast__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.run-floating-toast__dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #8a8a92;
+}
+
+.run-floating-toast--active .run-floating-toast__dot {
+  background: #6aa9ff;
+  box-shadow: 0 0 0 4px rgba(106, 169, 255, 0.16);
+}
+
+.run-floating-toast--success .run-floating-toast__dot {
+  background: #50c878;
+}
+
+.run-floating-toast--danger .run-floating-toast__dot {
+  background: #ff6b7a;
+}
+
+.run-floating-toast__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.run-floating-toast__copy strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.run-floating-toast__copy span {
+  color: #a7a7b0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.run-floating-toast__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.run-floating-toast__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #2d2d33;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+}
+
+.run-floating-toast__link:hover {
+  background: #36363d;
+  text-decoration: none;
+}
+
+.run-floating-toast__cancel:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
 a {
   color: #6aa9ff;
   text-decoration: none;

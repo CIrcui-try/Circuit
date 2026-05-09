@@ -19,6 +19,8 @@ export type RunStoreState = {
   status: RunStatus;
   runId: string | null;
   workflowId: string | null;
+  repositoryId: string | null;
+  repositoryName: string | null;
   startedAt: string | null;
   activeNodeId: string | null;
   nodeStates: Record<string, NodeRunState>;
@@ -27,6 +29,10 @@ export type RunStoreState = {
   beginRun: (args: {
     runId: string;
     workflowId: string | null;
+    repository?: {
+      id: string;
+      name: string;
+    };
     nodeIds: readonly string[];
     startedAt: string;
   }) => void;
@@ -42,6 +48,8 @@ const INITIAL: Pick<
   | "status"
   | "runId"
   | "workflowId"
+  | "repositoryId"
+  | "repositoryName"
   | "startedAt"
   | "activeNodeId"
   | "nodeStates"
@@ -50,6 +58,8 @@ const INITIAL: Pick<
   status: "idle",
   runId: null,
   workflowId: null,
+  repositoryId: null,
+  repositoryName: null,
   startedAt: null,
   activeNodeId: null,
   nodeStates: {},
@@ -59,13 +69,15 @@ const INITIAL: Pick<
 export const useRunStore = create<RunStoreState>((set) => ({
   ...INITIAL,
 
-  beginRun: ({ runId, workflowId, nodeIds, startedAt }) => {
+  beginRun: ({ runId, workflowId, repository, nodeIds, startedAt }) => {
     const nodeStates: Record<string, NodeRunState> = {};
     for (const id of nodeIds) nodeStates[id] = "queued";
     set({
       status: "running",
       runId,
       workflowId,
+      repositoryId: repository?.id ?? null,
+      repositoryName: repository?.name ?? null,
       startedAt,
       activeNodeId: null,
       nodeStates,
