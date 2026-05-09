@@ -195,6 +195,7 @@ pub async fn runtime_spawn(
     cwd: String,
     env: Option<HashMap<String, String>>,
     timeout_ms: Option<u64>,
+    stdin_mode: Option<String>,
     on_event: Channel<RuntimeProcessEvent>,
 ) -> Result<(), String> {
     let cwd_path = PathBuf::from(&cwd);
@@ -203,11 +204,18 @@ pub async fn runtime_spawn(
         .map_err(|e| format!("failed to canonicalize cwd {}: {e}", cwd_path.display()))?;
 
     let mut cmd = Command::new(&command);
+    let stdin_mode = stdin_mode.unwrap_or_else(|| "piped".to_string());
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Stdio::piped(),
+        "null" => Stdio::null(),
+        other => return Err(format!("unsupported stdin mode: {other}")),
+    };
+
     cmd.args(&args)
         .current_dir(&cwd_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::piped());
+        .stdin(stdin);
     if let Some(envs) = env {
         for (k, v) in envs {
             cmd.env(k, v);
@@ -226,13 +234,19 @@ pub async fn runtime_spawn(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
-    let stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "failed to capture stdin".to_string())?;
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Some(
+            child
+                .stdin
+                .take()
+                .ok_or_else(|| "failed to capture stdin".to_string())?,
+        ),
+        "null" => None,
+        _ => unreachable!("stdin mode was validated before spawn"),
+    };
 
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    let stdin_slot = Arc::new(AsyncMutex::new(Some(stdin)));
+    let stdin_slot = Arc::new(AsyncMutex::new(stdin));
     state.register(run_id.clone(), cancel_tx, Arc::clone(&stdin_slot));
 
     // Channel<T> is cheap to clone and is safe to share across the spawn task

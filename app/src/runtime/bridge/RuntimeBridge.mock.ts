@@ -120,7 +120,7 @@ export function createMockRuntimeBridge(
         options,
         cancelled: false,
         finished: false,
-        inputClosed: false,
+        inputClosed: options.stdinMode === "null",
       };
       runs.set(options.runId, run);
       queueMicrotask(() => {

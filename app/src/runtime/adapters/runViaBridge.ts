@@ -13,6 +13,7 @@ const STDIN_WAITING_RE = /Reading additional input from stdin/i;
 export interface BridgeCommand {
   command: string;
   args: string[];
+  stdinMode?: "piped" | "null";
 }
 
 export interface ProbeViaBridgeOptions {
@@ -86,6 +87,7 @@ export function probeViaBridge(
           cwd: ctx.execution.cwd,
           env: ctx.execution.env,
           timeoutMs,
+          stdinMode: command.stdinMode,
         }),
       )
       .catch((err: unknown) => {
@@ -229,6 +231,7 @@ export function runViaBridge(
           cwd: ctx.execution.cwd,
           env: ctx.execution.env,
           timeoutMs: ctx.execution.timeoutMs,
+          stdinMode: command.stdinMode,
         }),
       )
       .catch((err: unknown) => {

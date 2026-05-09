@@ -168,6 +168,25 @@ describe("createMockRuntimeBridge / spawn streaming", () => {
     ]);
   });
 
+  it("rejects sendInput when a run is spawned with null stdin", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [{ event: { type: "started" } }],
+    });
+    bridge.subscribe("r-null-stdin", () => {});
+    await bridge.spawn({
+      runId: "r-null-stdin",
+      command: "codex",
+      args: ["exec", "p"],
+      cwd: "/repo",
+      stdinMode: "null",
+    });
+    await nextTick();
+
+    await expect(bridge.sendInput("r-null-stdin", "y\n")).rejects.toThrow(
+      /stdin already closed/,
+    );
+  });
+
   it("rejects sendInput for an unknown or finished run", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [{ event: { type: "exited", exitCode: 0 } }],

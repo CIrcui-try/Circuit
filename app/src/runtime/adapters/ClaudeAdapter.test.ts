@@ -136,6 +136,7 @@ describe("ClaudeAdapter", () => {
     ]);
     const adapter = new ClaudeAdapter({ bridge });
     await adapter.run(makeContext(), () => {});
+    expect(spawnCalls[0].stdinMode).toBe("null");
     const args = spawnCalls[0].args;
     expect(args[0]).toBe("-p");
     const prompt = args[1];

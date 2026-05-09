@@ -39,6 +39,7 @@ function wrapSinkDroppingPromptEcho(sink: AgentRunEventSink): AgentRunEventSink 
 export interface CodexCommand {
   command: string;
   args: string[];
+  stdinMode?: "piped" | "null";
 }
 
 export interface CodexAdapterOptions {
@@ -61,10 +62,6 @@ const DEFAULT_PROBE: CodexCommand = {
 
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
-// codex 의 trust / approve-command 프롬프트는 Phase 16 부터 stdin pipe +
-// approvalProtocol 휴리스틱으로 LogPanel inline 으로 forwarding 되므로
-// sandbox bypass 플래그를 default 에 박지 않고 codex 기본 정책을 따른다.
-// 더 적극적인 정책이 필요하면 호출자가 `buildCommand` 옵션으로 override.
 function defaultBuildCommand(
   _ctx: SkillExecutionContext,
   prompt: string,
@@ -72,6 +69,7 @@ function defaultBuildCommand(
   return {
     command: "codex",
     args: ["exec", prompt],
+    stdinMode: "null",
   };
 }
 

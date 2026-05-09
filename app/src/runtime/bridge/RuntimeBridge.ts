@@ -37,6 +37,7 @@ export interface SpawnOptions {
   cwd: string;
   env?: Record<string, string>;
   timeoutMs?: number;
+  stdinMode?: "piped" | "null";
 }
 
 export interface RuntimeBridge {

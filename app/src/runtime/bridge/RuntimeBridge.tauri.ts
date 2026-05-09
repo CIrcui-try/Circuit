@@ -83,6 +83,7 @@ export const tauriRuntimeBridge: RuntimeBridge = {
       cwd: options.cwd,
       env: options.env ?? null,
       timeoutMs: options.timeoutMs ?? null,
+      stdinMode: options.stdinMode ?? null,
       onEvent: binding.channel,
     });
     return { runId: options.runId };
