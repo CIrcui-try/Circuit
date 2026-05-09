@@ -48,12 +48,10 @@ export function Workspace() {
   const runner = useMemo(() => {
     if (!repo) return null;
     const bridge = getRuntimeBridge();
-    const host = getHostBridge();
     const registry = createDefaultRegistry({ bridge });
     return new RealWorkflowRunner({
       registry,
       bridge,
-      host,
       logStore: useRunLogStore,
       getNode: (id) => {
         const n = useWorkflowStore.getState().nodes.find((x) => x.id === id);
