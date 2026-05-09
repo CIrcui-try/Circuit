@@ -11,13 +11,14 @@ Use this skill when the user asks to run the `rejoin` workflow.
 
 PR 머지 여부와 무관하게, 워크트리에서 빠져나와 진행 중인 브랜치를 **메인 레포에 develop 위로 리베이스된 로컬 브랜치로 보존**한다. 워크트리는 별도 디렉토리라 의존성 설치·빌드 캐시·IDE 인덱싱을 다시 해야 하므로, 메인 레포(이미 갖춰진 환경)로 항로를 다시 잡고 그쪽에서 작업을 이어가거나 다른 브랜치로 컨텍스트 스위칭하기 위함이다.
 
-`$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/rejoin CIR-15`, `/rejoin kai/cir-15-fix-...`.
+`$ARGUMENTS` 형식: `[ISSUE-ID 또는 branch]`. 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다. 예: `/rejoin`, `/rejoin CIR-15`, `/rejoin kai/cir-15-fix-...`.
 
 ## 자기 단계 실행 절차
 
-1. **인자 확인**: `$ARGUMENTS` 비어있으면 사용법 안내 후 중단.
+1. **현재 브랜치 캡처**: 메인 레포로 이동하기 전에 `CURRENT_BRANCH = $(git branch --show-current)` 로 호출 위치의 브랜치를 저장한다. `$ARGUMENTS` 가 비어있고 `CURRENT_BRANCH` 도 비어있으면 사용자에게 직접 입력받는다.
 2. **메인 레포로 이동**: `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)` → `cd $MAIN_REPO_ROOT`.
 3. **브랜치명 결정**:
+   - `$ARGUMENTS` 가 비어있으면 `CURRENT_BRANCH` 를 브랜치명으로 사용한다.
    - 인자가 `CIR-`/`PROJ-` 같은 이슈 키 패턴이면 Linear MCP `get_issue` 로 `gitBranchName` 을 조회.
    - 인자에 `/` 가 포함되어 있으면 그대로 브랜치명으로 사용.
    - 둘 다 실패하면 사용자에게 직접 입력받는다.
@@ -48,4 +49,4 @@ PR 머지 여부와 무관하게, 워크트리에서 빠져나와 진행 중인 
 
 ## Codex Invocation
 
-Use this as a Codex project skill. Invoke `rejoin` with the issue id and flags as described above; treat the user text after the skill name as ``.
+Use this as a Codex project skill. Invoke `rejoin` with the optional issue id or branch as described above; when no target is provided, use the current branch captured before moving to the main repo.

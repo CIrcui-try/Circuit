@@ -1,23 +1,24 @@
 ---
 description: CI 통과 후 PR 자동 머지·landing 정리
 allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue
-argument-hint: <Linear 이슈 ID | 브랜치명 | PR URL> [--interval <seconds>] [--timeout <minutes>]
+argument-hint: [Linear 이슈 ID | 브랜치명 | PR URL] [--interval <seconds>] [--timeout <minutes>]
 ---
 
 takeoff 이후 사후 자동화 단계. PR 의 CI checks 를 기다렸다가 모두 통과하면 merge commit 방식으로 머지하고, 이어서 landing 과 동일하게 로컬 워크트리를 제거하고 develop 을 최신화한다.
 
-`$ARGUMENTS` 형식: `<ISSUE-ID | branch | PR URL> [--interval <seconds>] [--timeout <minutes>]`.
-예: `/autoland CIR-15`, `/autoland kai/cir-15-fix-...`, `/autoland https://github.com/OWNER/REPO/pull/123`.
+`$ARGUMENTS` 형식: `[ISSUE-ID | branch | PR URL] [--interval <seconds>] [--timeout <minutes>]`.
+타깃을 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다.
+예: `/autoland`, `/autoland CIR-15`, `/autoland kai/cir-15-fix-...`, `/autoland https://github.com/OWNER/REPO/pull/123`.
 
 ## 인자 파싱
 
-1. 첫 토큰을 `<TARGET>` 으로 둔다. 없으면 사용법 안내 후 중단.
+1. 첫 토큰이 플래그가 아니면 `<TARGET>` 으로 둔다. 없으면 메인 레포로 이동하기 전에 `CURRENT_BRANCH = $(git branch --show-current)` 로 호출 위치의 브랜치를 저장해 `<TARGET>` 기본값으로 사용한다. `<TARGET>` 도 `CURRENT_BRANCH` 도 없으면 사용자에게 직접 입력받는다.
 2. `--interval <seconds>` 를 파싱한다. 기본값은 `30`, 1 미만이거나 숫자가 아니면 중단.
 3. `--timeout <minutes>` 를 파싱한다. 기본값은 `60`, 1 미만이거나 숫자가 아니면 중단.
 
 ## 자기 단계 실행 절차
 
-1. **메인 레포로 이동**: `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)` → `cd $MAIN_REPO_ROOT`.
+1. **메인 레포로 이동**: 인자 파싱 중 캡처한 `CURRENT_BRANCH` 를 보존한 채 `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)` → `cd $MAIN_REPO_ROOT`.
 2. **GitHub 계정 확인**: `gh auth status` 를 실행한다.
    - `kai-leeee` 가 active account 가 아니면 중단.
    - 토큰 invalid, 만료, 권한 부족이면 `gh auth login -h github.com` 이 필요하다고 안내하고 중단.

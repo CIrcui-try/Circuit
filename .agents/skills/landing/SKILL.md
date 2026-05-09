@@ -11,13 +11,14 @@ Use this skill when the user asks to run the `landing` workflow.
 
 사후 정리 단계. PR 이 머지된 뒤 워크트리를 제거하고 로컬 develop 을 최신화한다. takeoff 의 자동 체이닝 대상이 아니며 항상 수동 호출한다 (PR 머지 시점은 사용자만 알기 때문).
 
-`$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/landing CIR-15`, `/landing kai/cir-15-fix-...`.
+`$ARGUMENTS` 형식: `[ISSUE-ID 또는 branch]`. 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다. 예: `/landing`, `/landing CIR-15`, `/landing kai/cir-15-fix-...`.
 
 ## 자기 단계 실행 절차
 
-1. **인자 확인**: `$ARGUMENTS` 비어있으면 사용법 안내 후 중단.
+1. **현재 브랜치 캡처**: 메인 레포로 이동하기 전에 `CURRENT_BRANCH = $(git branch --show-current)` 로 호출 위치의 브랜치를 저장한다. `$ARGUMENTS` 가 비어있고 `CURRENT_BRANCH` 도 비어있으면 사용자에게 직접 입력받는다.
 2. **메인 레포로 이동**: `MAIN_REPO_ROOT = $(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)` → `cd $MAIN_REPO_ROOT`.
 3. **브랜치명 결정**:
+   - `$ARGUMENTS` 가 비어있으면 `CURRENT_BRANCH` 를 브랜치명으로 사용한다.
    - 인자가 `CIR-`/`PROJ-` 같은 이슈 키 패턴이면 Linear MCP `get_issue` 로 `gitBranchName` 을 조회.
    - 인자에 `/` 가 포함되어 있으면 그대로 브랜치명으로 사용.
    - 둘 다 실패하면 사용자에게 직접 입력받는다.
@@ -46,4 +47,4 @@ Use this skill when the user asks to run the `landing` workflow.
 
 ## Codex Invocation
 
-Use this as a Codex project skill. Invoke `landing` with the issue id and flags as described above; treat the user text after the skill name as ``.
+Use this as a Codex project skill. Invoke `landing` with the optional issue id or branch as described above; when no target is provided, use the current branch captured before moving to the main repo.
