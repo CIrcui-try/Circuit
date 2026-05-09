@@ -8,16 +8,11 @@ import { serializeRunLogJsonl } from "./runLogPersistence";
 import { useRunLogStore } from "./runLogStore";
 import { runWorkflow, type RunWorkflowOutcome } from "./runWorkflow";
 import type { RunnableEdge, RunnableNode, WorkflowRunner } from "./runner";
-import { useRunStore } from "./runStore";
+import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
+
+export type { WorkflowRunSnapshot } from "./runStore";
 
 type RunnerRepository = { id: string; name: string; path: string };
-
-export type WorkflowRunSnapshot = {
-  repository: RunnerRepository;
-  workflowId: string | null;
-  nodes: WorkflowSkillNode[];
-  edges: WorkflowEdge[];
-};
 
 type CancellableWorkflowRunner = WorkflowRunner & {
   cancel?: () => Promise<void>;
@@ -71,10 +66,12 @@ export async function startWorkflowRun(
       nodes: runnableNodes,
       edges: runnableEdges,
       workflowId: snapshot.workflowId,
+      workflowName: snapshot.workflowName,
       repository: {
         id: snapshot.repository.id,
         name: snapshot.repository.name,
       },
+      snapshot,
       runner,
       store: useRunStore,
       now: opts.now,
@@ -145,6 +142,7 @@ function cloneSnapshot(snapshot: WorkflowRunSnapshot): WorkflowRunSnapshot {
   return {
     repository: { ...snapshot.repository },
     workflowId: snapshot.workflowId,
+    workflowName: snapshot.workflowName,
     nodes: snapshot.nodes.map((node) => ({
       id: node.id,
       type: "skill",

@@ -9,6 +9,7 @@ function snapshot(): WorkflowRunSnapshot {
   return {
     repository: { id: "repo-1", name: "repo", path: "/Users/me/repo" },
     workflowId: "wf-1",
+    workflowName: "Release flow",
     nodes: [
       {
         id: "a",

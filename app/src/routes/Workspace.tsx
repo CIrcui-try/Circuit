@@ -8,7 +8,7 @@ import { ResizeHandle } from "../components/layout/ResizeHandle";
 import { Sidebar } from "../components/layout/Sidebar";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
-import { useWorkflowStore } from "../stores/workflowStore";
+import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
@@ -17,8 +17,8 @@ import { useRunStore } from "../runner/runStore";
 import {
   cancelWorkflowRun,
   startWorkflowRun,
-  type WorkflowRunSnapshot,
 } from "../runner/runController";
+import type { WorkflowRunSnapshot } from "../runner/runStore";
 import type { RunWorkflowOutcome } from "../runner/runWorkflow";
 import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 
@@ -38,6 +38,15 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const isRunning = useRunStore((s) => s.status === "running");
+  const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const runRepositoryName = useRunStore((s) => s.repositoryName);
+  const runWorkflowName = useRunStore((s) => s.workflowName);
+  const activeRunSnapshot = useRunStore((s) =>
+    s.status === "running" ? s.snapshot : null,
+  );
+  const isRunningHere = Boolean(
+    isRunning && repo?.id && runRepositoryId === repo.id,
+  );
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -52,6 +61,15 @@ export function Workspace() {
     setWorkflows([]);
     setSaveStatus(null);
     if (!repo) return;
+    if (isRunningHere && activeRunSnapshot) {
+      useWorkflowStore.getState().replaceCanvas({
+        nodes: activeRunSnapshot.nodes.map(toCanvasNode),
+        edges: activeRunSnapshot.edges.map((edge) => ({ ...edge })),
+        workflowId: activeRunSnapshot.workflowId,
+        workflowName: activeRunSnapshot.workflowName,
+      });
+      return;
+    }
     const draft = loadWorkflowDraft(repo.id);
     if (!draft) return;
     useWorkflowStore.getState().replaceCanvas({
@@ -155,6 +173,14 @@ export function Workspace() {
     [repo, resetWorkflow],
   );
 
+  const toolbarStatus =
+    runStatusText({
+      isRunning,
+      isRunningHere,
+      repositoryName: runRepositoryName,
+      workflowName: runWorkflowName,
+    }) ?? saveStatus;
+
   if (repoId && hydrated && !repo) {
     return (
       <div className="repository-list">
@@ -237,9 +263,9 @@ export function Workspace() {
         >
           {cancelling ? "Cancelling…" : "Cancel"}
         </button>
-        {saveStatus ? (
+        {toolbarStatus ? (
           <span className="workspace__toolbar-status" data-testid="workflow-save-status">
-            {saveStatus}
+            {toolbarStatus}
           </span>
         ) : null}
       </header>
@@ -278,6 +304,7 @@ function buildRunSnapshot(repo: {
   return {
     repository: { id: repo.id, name: repo.name, path: repo.path },
     workflowId: currentWorkflowId,
+    workflowName: useWorkflowStore.getState().workflowName,
     nodes: nodes.map((n) => ({
       id: n.id,
       type: "skill",
@@ -296,6 +323,39 @@ function buildRunSnapshot(repo: {
       kind: "dependency",
     })),
   };
+}
+
+function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
+  return {
+    id: node.id,
+    type: "skill" as const,
+    position: { ...node.position },
+    data: {
+      label: node.label,
+      skillRef: {
+        provider: node.skillRef.provider as SkillNode["data"]["skillRef"]["provider"],
+        skillFile: node.skillRef.skillFile,
+      },
+      ...(node.input !== undefined ? { input: node.input } : {}),
+    },
+  };
+}
+
+function runStatusText({
+  isRunning,
+  isRunningHere,
+  repositoryName,
+  workflowName,
+}: {
+  isRunning: boolean;
+  isRunningHere: boolean;
+  repositoryName: string | null;
+  workflowName: string | null;
+}): string | null {
+  if (!isRunning) return null;
+  const name = workflowName ?? "workflow";
+  if (isRunningHere) return `Running: ${name}`;
+  return `Running in ${repositoryName ?? "another repository"}: ${name}`;
 }
 
 function describeLastRunFailure(): string | null {

@@ -15,6 +15,7 @@ vi.mock("../host/bridge", () => ({
 
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
+import { useRunStore } from "../runner/runStore";
 import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
 
@@ -35,6 +36,7 @@ beforeEach(() => {
     hydrated: true,
   });
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useRunStore.getState().reset();
 });
 
 describe("RepositoryList", () => {
@@ -101,6 +103,42 @@ describe("RepositoryList", () => {
     const betaLink = screen.getByRole("link", { name: /beta/ });
     expect(alphaLink).toHaveAttribute("href", "/workspace/id-alpha");
     expect(betaLink).toHaveAttribute("href", "/workspace/id-beta");
+  });
+
+  it("R4b: marks the repository that owns the active run", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy",
+      repository: { id: "id-alpha", name: "alpha" },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getByTestId("repository-run-summary")).toHaveTextContent(
+      "alpha · Deploy",
+    );
+    expect(screen.getByTestId("repository-run-summary")).toHaveAttribute(
+      "href",
+      "/workspace/id-alpha",
+    );
+    expect(screen.getByTestId("badge-running")).toHaveTextContent(
+      "Running · Deploy",
+    );
   });
 
   it("R6: shows Claude/Codex count badges once scan resolves", async () => {

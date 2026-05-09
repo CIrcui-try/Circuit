@@ -391,4 +391,65 @@ describe("Workspace", () => {
       expect(useRunStore.getState().status).toBe("success");
     });
   });
+
+  it("W14: re-entering the running repo shows the active run snapshot instead of the saved draft", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    saveWorkflowDraft(SAMPLE.id, {
+      workflowId: "draft-wf",
+      workflowName: "Edited draft",
+      nodes: [
+        {
+          id: "draft-node",
+          type: "skill",
+          position: { x: 10, y: 20 },
+          data: {
+            label: "Draft",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [],
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-1",
+      workflowId: "run-wf",
+      workflowName: "Active run",
+      repository: { id: SAMPLE.id, name: SAMPLE.name },
+      nodeIds: ["run-node"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+      snapshot: {
+        repository: SAMPLE,
+        workflowId: "run-wf",
+        workflowName: "Active run",
+        nodes: [
+          {
+            id: "run-node",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "Running node",
+            position: { x: 30, y: 40 },
+          },
+        ],
+        edges: [],
+      },
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(useWorkflowStore.getState().currentWorkflowId).toBe("run-wf");
+    expect(useWorkflowStore.getState().workflowName).toBe("Active run");
+    expect(useWorkflowStore.getState().nodes.map((n) => n.id)).toEqual([
+      "run-node",
+    ]);
+    expect(screen.getByTestId("workflow-save-status")).toHaveTextContent(
+      "Running: Active run",
+    );
+    expect(screen.getByTestId("workflow-start")).toBeDisabled();
+  });
 });
