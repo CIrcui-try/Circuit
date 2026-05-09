@@ -12,6 +12,7 @@ import { probeViaBridge, runViaBridge } from "./runViaBridge";
 export interface ClaudeCommand {
   command: string;
   args: string[];
+  stdinMode?: "piped" | "null";
 }
 
 export interface ClaudeAdapterOptions {
@@ -38,7 +39,7 @@ function defaultBuildCommand(
   _ctx: SkillExecutionContext,
   prompt: string,
 ): ClaudeCommand {
-  return { command: "claude", args: ["-p", prompt] };
+  return { command: "claude", args: ["-p", prompt], stdinMode: "null" };
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {

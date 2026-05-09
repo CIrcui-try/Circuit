@@ -20,7 +20,7 @@ export function createMockRunner(options: MockRunnerOptions = {}): WorkflowRunne
         await Promise.resolve();
       }
       if (shouldFail(node)) {
-        return { ok: false, reason: `mock fail: ${node.label}` };
+        return { ok: false, status: "failed", reason: `mock fail: ${node.label}` };
       }
       return { ok: true };
     },

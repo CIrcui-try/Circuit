@@ -45,7 +45,7 @@ async function connectFirstTwoNodes(page: Page) {
   });
 }
 
-test("F6: save workflow, reload page, restore graph from disk", async ({ page }) => {
+test("F6: save workflow, reload page, restore the last edited graph", async ({ page }) => {
   await openWorkspace(page);
 
   await addSkillByButton(page, "Implement Feature");
@@ -80,22 +80,17 @@ test("F6: save workflow, reload page, restore graph from disk", async ({ page })
 
   await expect(page.getByTestId("workflow-save-status")).toContainText(/Saved/i);
 
-  // Reload — canvas resets, but the JSON survives in the mock bridge's localStorage.
+  // Reload — the local draft should restore the last edited workflow immediately.
   await page.reload();
 
   await expect(page.getByTestId("workspace-root")).toBeVisible();
-  // Drop into the workspace fresh — no nodes yet.
-  await expect(page.getByTestId("workflow-node")).toHaveCount(0);
+  await expect(page.getByTestId("workflow-node")).toHaveCount(2);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await expect(nameInput).toHaveValue("Persisted flow");
 
   // The saved entry should now appear in the workflow menu.
   const menu = page.getByTestId("workflow-menu");
   await expect(menu.locator("option", { hasText: "Persisted flow" })).toHaveCount(1);
-
-  await menu.selectOption({ label: "Persisted flow" });
-
-  await expect(page.getByTestId("workflow-node")).toHaveCount(2);
-  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await expect(nameInput).toHaveValue("Persisted flow");
 
   const after = await page.evaluate(() => {
     const w = window as unknown as {

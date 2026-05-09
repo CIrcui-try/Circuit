@@ -137,4 +137,28 @@ describe("workflow/serialize", () => {
     expect(wf2.createdAt).toBe(wf1.createdAt);
     expect(wf2.updatedAt).toBe("2026-05-01T00:00:00.000Z");
   });
+
+  it("SR6: preserves node input for runtime debug settings", () => {
+    const nodes: SkillNode[] = [
+      {
+        ...sampleNodes[0],
+        data: {
+          ...sampleNodes[0].data,
+          input: { timeoutMs: 5_000, idleTimeoutMs: 1_000 },
+        },
+      },
+    ];
+
+    const wf = toWorkflow({ nodes, edges: [] }, meta, () => "2026-05-02T00:00:00Z");
+    expect(wf.nodes[0].input).toEqual({
+      timeoutMs: 5_000,
+      idleTimeoutMs: 1_000,
+    });
+
+    const restored = fromWorkflow(wf);
+    expect(restored.nodes[0].data.input).toEqual({
+      timeoutMs: 5_000,
+      idleTimeoutMs: 1_000,
+    });
+  });
 });

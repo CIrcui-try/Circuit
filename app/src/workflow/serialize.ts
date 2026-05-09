@@ -43,6 +43,9 @@ export function toWorkflow(
       x: Math.round(n.position.x),
       y: Math.round(n.position.y),
     },
+    ...("input" in n.data && isRecord(n.data.input)
+      ? { input: n.data.input }
+      : {}),
   }));
 
   const edges: WorkflowEdge[] = state.edges.map((e) => ({
@@ -96,6 +99,7 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
           provider: n.skillRef.provider,
           skillFile: n.skillRef.skillFile,
         },
+        ...(n.input ? { input: n.input } : {}),
       },
     };
   });
@@ -117,4 +121,8 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
       updatedAt: wf.updatedAt,
     },
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }

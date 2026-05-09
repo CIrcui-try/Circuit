@@ -62,6 +62,7 @@ function spy(scenario?: SpawnScenario): SpyBridge {
     },
     cancel: (id) => mock.cancel(id),
     sendInput: (id, text) => mock.sendInput(id, text),
+    closeInput: (id) => mock.closeInput(id),
     subscribe: (id, listener) => mock.subscribe(id, listener),
   };
   return { bridge, mock, spawnCalls };
@@ -144,6 +145,7 @@ describe("CodexAdapter", () => {
     // any sandbox-disabling flag) into the default command.
     expect(args).not.toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(args).not.toContain("--skip-git-repo-check");
+    expect(spawnCalls[0].stdinMode).toBe("null");
     const prompt = args[1];
     expect(prompt).toContain("review-pr");
     expect(prompt).toContain("Review the diff.");

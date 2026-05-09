@@ -25,6 +25,31 @@ function ctx(overrides: Partial<SkillExecutionContext> = {}): SkillExecutionCont
 }
 
 describe("runViaBridge approval forwarding", () => {
+  it("adds process metadata to start events", async () => {
+    const sink: AgentRunEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-meta",
+      command: { command: "codex", args: ["exec", "prompt"] },
+      sink: (ev) => sink.push(ev),
+    });
+
+    expect(sink[0]).toMatchObject({
+      type: "start",
+      command: "codex",
+      args: ["exec", "prompt"],
+      spawnType: "process",
+    });
+  });
+
   it("forwards approvalRequest as a non-terminal approval_required event", async () => {
     const sink: AgentRunEvent[] = [];
     const bridge = createMockRuntimeBridge({
@@ -98,5 +123,40 @@ describe("runViaBridge approval forwarding", () => {
     await bridge.cancel("r-2");
     const result = await pending;
     expect(result.status).toBe("cancelled");
+  });
+
+  it("closes stdin when codex reports it is reading additional input", async () => {
+    const sink: AgentRunEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stderr",
+            text: "Reading additional input from stdin...",
+          },
+        },
+      ],
+    });
+    bridge.onCloseInput("r-stdin", () => ({
+      event: { type: "exited", exitCode: 0 },
+    }));
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-stdin",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: (ev) => sink.push(ev),
+    });
+
+    expect(result.status).toBe("success");
+    expect(bridge.closedInputs()).toEqual(["r-stdin"]);
+    expect(sink).toContainEqual(
+      expect.objectContaining({
+        type: "stderr",
+        text: "Reading additional input from stdin...",
+      }),
+    );
   });
 });

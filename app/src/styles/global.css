@@ -790,6 +790,12 @@ a:hover {
   }
 }
 
+.skill-node--waiting_input {
+  background: #2a2618;
+  border-color: #d8b86a;
+  box-shadow: 0 0 0 1px rgba(216, 184, 106, 0.25) inset;
+}
+
 .skill-node--success {
   background: #1f2a22;
   border-color: #4f8a5d;
@@ -798,6 +804,12 @@ a:hover {
 .skill-node--failed {
   background: #2d1f23;
   border-color: #8a4f5d;
+}
+
+.skill-node--cancelled,
+.skill-node--timeout {
+  background: #2d1f23;
+  border-color: #c06068;
 }
 
 .skill-node--skipped {

@@ -168,6 +168,25 @@ describe("createMockRuntimeBridge / spawn streaming", () => {
     ]);
   });
 
+  it("rejects sendInput when a run is spawned with null stdin", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [{ event: { type: "started" } }],
+    });
+    bridge.subscribe("r-null-stdin", () => {});
+    await bridge.spawn({
+      runId: "r-null-stdin",
+      command: "codex",
+      args: ["exec", "p"],
+      cwd: "/repo",
+      stdinMode: "null",
+    });
+    await nextTick();
+
+    await expect(bridge.sendInput("r-null-stdin", "y\n")).rejects.toThrow(
+      /stdin already closed/,
+    );
+  });
+
   it("rejects sendInput for an unknown or finished run", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [{ event: { type: "exited", exitCode: 0 } }],
@@ -184,6 +203,42 @@ describe("createMockRuntimeBridge / spawn streaming", () => {
     });
     await nextTick();
     await expect(bridge.sendInput("r-done", "y\n")).rejects.toThrow(
+      /no active run/,
+    );
+  });
+
+  it("records closeInput calls and lets onCloseInput handler emit follow-up events", async () => {
+    const events: RuntimeProcessEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "Reading additional input from stdin..." } },
+      ],
+    });
+    bridge.subscribe("r-close", (ev) => events.push(ev));
+    bridge.onCloseInput("r-close", () => [
+      { event: { type: "stdout", text: "after eof" } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+
+    await bridge.spawn({
+      runId: "r-close",
+      command: "codex",
+      args: ["exec", "p"],
+      cwd: "/repo",
+    });
+    await nextTick();
+    await bridge.closeInput("r-close");
+    await nextTick();
+
+    expect(bridge.closedInputs()).toEqual(["r-close"]);
+    expect(events.map((e) => e.type)).toEqual([
+      "started",
+      "stderr",
+      "stdout",
+      "exited",
+    ]);
+    await expect(bridge.sendInput("r-close", "late\n")).rejects.toThrow(
       /no active run/,
     );
   });

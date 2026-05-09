@@ -83,6 +83,7 @@ export const tauriRuntimeBridge: RuntimeBridge = {
       cwd: options.cwd,
       env: options.env ?? null,
       timeoutMs: options.timeoutMs ?? null,
+      stdinMode: options.stdinMode ?? null,
       onEvent: binding.channel,
     });
     return { runId: options.runId };
@@ -92,6 +93,9 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   },
   async sendInput(runId, text) {
     await invoke<void>("runtime_send_input", { runId, text });
+  },
+  async closeInput(runId) {
+    await invoke<void>("runtime_close_input", { runId });
   },
   subscribe(runId, listener: RuntimeProcessListener): Unsubscribe {
     const binding = getOrCreateBinding(runId);

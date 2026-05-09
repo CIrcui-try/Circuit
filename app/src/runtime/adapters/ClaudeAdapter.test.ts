@@ -62,6 +62,7 @@ function spy(scenario?: SpawnScenario): SpyBridge {
     },
     cancel: (id) => mock.cancel(id),
     sendInput: (id, text) => mock.sendInput(id, text),
+    closeInput: (id) => mock.closeInput(id),
     subscribe: (id, listener) => mock.subscribe(id, listener),
   };
   return { bridge, mock, spawnCalls };
@@ -135,6 +136,7 @@ describe("ClaudeAdapter", () => {
     ]);
     const adapter = new ClaudeAdapter({ bridge });
     await adapter.run(makeContext(), () => {});
+    expect(spawnCalls[0].stdinMode).toBe("null");
     const args = spawnCalls[0].args;
     expect(args[0]).toBe("-p");
     const prompt = args[1];

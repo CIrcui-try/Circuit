@@ -24,6 +24,7 @@ interface ActiveRun {
   options: SpawnOptions;
   cancelled: boolean;
   finished: boolean;
+  inputClosed: boolean;
 }
 
 export interface MockRuntimeBridge extends RuntimeBridge {
@@ -33,6 +34,8 @@ export interface MockRuntimeBridge extends RuntimeBridge {
   pendingRunIds(): string[];
   /** Inputs received via `sendInput`, in order. Each entry is `{ runId, text }`. */
   sentInputs(): ReadonlyArray<{ runId: string; text: string }>;
+  /** Run ids received via `closeInput`, in order. */
+  closedInputs(): readonly string[];
   /**
    * Register a callback invoked whenever `sendInput` is called for `runId`.
    * Returning a {@link ScenarioStep} (or array of steps) emits those steps
@@ -42,6 +45,10 @@ export interface MockRuntimeBridge extends RuntimeBridge {
   onInput(
     runId: string,
     handler: (text: string) => void | ScenarioStep | ScenarioStep[],
+  ): void;
+  onCloseInput(
+    runId: string,
+    handler: () => void | ScenarioStep | ScenarioStep[],
   ): void;
 }
 
@@ -58,9 +65,14 @@ export function createMockRuntimeBridge(
   const runs = new Map<string, ActiveRun>();
   const listeners = new Map<string, Set<RuntimeProcessListener>>();
   const inputs: { runId: string; text: string }[] = [];
+  const closedInputs: string[] = [];
   const inputHandlers = new Map<
     string,
     (text: string) => void | ScenarioStep | ScenarioStep[]
+  >();
+  const closeInputHandlers = new Map<
+    string,
+    () => void | ScenarioStep | ScenarioStep[]
   >();
   let scenario: SpawnScenario | null = initial.scenario ?? null;
   const now = initial.now ?? (() => new Date().toISOString());
@@ -108,6 +120,7 @@ export function createMockRuntimeBridge(
         options,
         cancelled: false,
         finished: false,
+        inputClosed: options.stdinMode === "null",
       };
       runs.set(options.runId, run);
       queueMicrotask(() => {
@@ -126,10 +139,33 @@ export function createMockRuntimeBridge(
       if (!run || run.finished) {
         throw new Error(`mock: no active run for ${runId}`);
       }
+      if (run.inputClosed) {
+        throw new Error(`mock: stdin already closed for ${runId}`);
+      }
       inputs.push({ runId, text });
       const handler = inputHandlers.get(runId);
       if (!handler) return;
       const out = handler(text);
+      if (!out) return;
+      const steps = Array.isArray(out) ? out : [out];
+      for (const step of steps) {
+        if (run.finished || run.cancelled) break;
+        if (step.delayMs && step.delayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, step.delayMs));
+        }
+        if (run.finished || run.cancelled) break;
+        emit(runId, step.event);
+      }
+    },
+    async closeInput(runId) {
+      const run = runs.get(runId);
+      if (!run || run.finished) return;
+      if (run.inputClosed) return;
+      run.inputClosed = true;
+      closedInputs.push(runId);
+      const handler = closeInputHandlers.get(runId);
+      if (!handler) return;
+      const out = handler();
       if (!out) return;
       const steps = Array.isArray(out) ? out : [out];
       for (const step of steps) {
@@ -172,8 +208,14 @@ export function createMockRuntimeBridge(
     sentInputs() {
       return inputs;
     },
+    closedInputs() {
+      return closedInputs;
+    },
     onInput(runId, handler) {
       inputHandlers.set(runId, handler);
+    },
+    onCloseInput(runId, handler) {
+      closeInputHandlers.set(runId, handler);
     },
   };
 }

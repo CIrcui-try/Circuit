@@ -17,20 +17,38 @@ export interface LogPanelProps {
   runtimeBridgeOverride?: { sendInput: (runId: string, text: string) => Promise<void> };
 }
 
-function LogHeader({ isRunning }: { isRunning: boolean }) {
+function LogHeader({
+  isRunning,
+  status,
+  runId,
+  activeNodeLabel,
+  activeNodeState,
+  activeNodeIdle,
+}: {
+  isRunning: boolean;
+  status: string;
+  runId: string | null;
+  activeNodeLabel: string | null;
+  activeNodeState: string | null;
+  activeNodeIdle: boolean;
+}) {
   return (
     <div className="panel-header panel-header--with-status">
       <span>Run Log</span>
-      {isRunning ? (
-        <span className="panel-header__running" data-testid="run-log-running">
+      <span className="panel-header__running" data-testid="run-log-run-state">
+        {isRunning ? (
           <span
             className="cli-status-spinner cli-status-spinner--inline"
             aria-hidden="true"
             role="presentation"
           />
-          running…
-        </span>
-      ) : null}
+        ) : null}
+        {runId ? `run ${shortId(runId)} · ` : ""}
+        {status}
+        {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
+        {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
+        {activeNodeIdle ? " · idle" : ""}
+      </span>
     </div>
   );
 }
@@ -124,16 +142,30 @@ export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
   const resolvePendingApproval = useRunLogStore(
     (s) => s.resolvePendingApproval,
   );
-  const isRunning = useRunStore((s) => s.status === "running");
+  const runStatus = useRunStore((s) => s.status);
+  const runStoreRunId = useRunStore((s) => s.runId);
+  const activeNodeId = useRunStore((s) => s.activeNodeId);
+  const nodeStates = useRunStore((s) => s.nodeStates);
+  const nodeDebug = useRunStore((s) => s.nodeDebug);
+  const isRunning = runStatus === "running";
   const repo = useRepositoryStore((s) =>
     s.selectedId
       ? s.repositories.find((r) => r.id === s.selectedId) ?? null
       : null,
   );
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
+  const activeNodeLabel = useWorkflowStore((s) => {
+    if (!activeNodeId) return null;
+    return s.nodes.find((n) => n.id === activeNodeId)?.data.label ?? activeNodeId;
+  });
 
   const showPicker = repo && workflowId;
   const approvals = Object.values(pendingApprovals);
+  const activeNodeState = activeNodeId ? nodeStates[activeNodeId] ?? null : null;
+  const activeNodeIdle = activeNodeId
+    ? Boolean(nodeDebug[activeNodeId]?.idleSince)
+    : false;
+  const headerRunId = runStoreRunId ?? runId;
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -153,7 +185,14 @@ export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
   ) {
     return (
       <footer className="workspace__log">
-        <LogHeader isRunning={isRunning} />
+        <LogHeader
+          isRunning={isRunning}
+          status={runStatus}
+          runId={headerRunId}
+          activeNodeLabel={activeNodeLabel}
+          activeNodeState={activeNodeState}
+          activeNodeIdle={activeNodeIdle}
+        />
         {showPicker ? (
           <PastRunsPicker
             repoPath={repo.path}
@@ -168,7 +207,14 @@ export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
 
   return (
     <footer className="workspace__log">
-      <LogHeader isRunning={isRunning} />
+      <LogHeader
+        isRunning={isRunning}
+        status={runStatus}
+        runId={headerRunId}
+        activeNodeLabel={activeNodeLabel}
+        activeNodeState={activeNodeState}
+        activeNodeIdle={activeNodeIdle}
+      />
       {showPicker ? (
         <PastRunsPicker
           repoPath={repo.path}
@@ -234,4 +280,8 @@ function formatPayload(ev: AgentRunEvent): string {
     default:
       return "";
   }
+}
+
+function shortId(id: string): string {
+  return id.length > 8 ? id.slice(0, 8) : id;
 }

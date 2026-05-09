@@ -6,14 +6,19 @@ export const NODE_RUN_STATES = [
   "idle",
   "queued",
   "running",
+  "waiting_input",
   "success",
   "failed",
+  "cancelled",
+  "timeout",
   "skipped",
 ] as const;
 
 export type NodeRunState = (typeof NODE_RUN_STATES)[number];
 
-export type RunStatus = "idle" | "running" | "success" | "failed";
+export type RunTerminalStatus = "success" | "failed" | "cancelled" | "timeout";
+
+export type RunStatus = "idle" | "running" | RunTerminalStatus;
 
 export type RunnableNode = {
   id: string;
@@ -30,7 +35,9 @@ export type RunnableEdge = {
   target: string;
 };
 
-export type RunResult = { ok: true } | { ok: false; reason: string };
+export type RunResult =
+  | { ok: true }
+  | { ok: false; status: Exclude<RunTerminalStatus, "success">; reason: string };
 
 export type WorkflowRunner = {
   runNode: (node: RunnableNode) => Promise<RunResult>;

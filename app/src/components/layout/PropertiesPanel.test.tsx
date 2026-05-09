@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { useRunStore } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
+  useRunStore.getState().reset();
 });
 
 describe("PropertiesPanel", () => {
@@ -51,5 +53,45 @@ describe("PropertiesPanel", () => {
 
     render(<PropertiesPanel />);
     expect(screen.getByText(/Select a node or edge/i)).toBeInTheDocument();
+  });
+
+  it("PP4: shows selected node run debug metadata", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(id);
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf",
+      nodeIds: [id],
+      startedAt: "t",
+    });
+    useRunStore.getState().setNodeState(id, "waiting_input");
+    useRunStore.getState().patchNodeDebug(id, {
+      adapter: "codex",
+      command: "codex",
+      spawnType: "process",
+      durationMs: 42,
+      exitCode: 0,
+      lastLogAt: "t1",
+    });
+
+    render(<PropertiesPanel />);
+
+    expect(screen.getByTestId("node-run-status")).toHaveTextContent(
+      "waiting for input",
+    );
+    expect(screen.getAllByText("codex").length).toBeGreaterThan(0);
+    expect(screen.getByText("process")).toBeInTheDocument();
+    expect(screen.getByText("42ms")).toBeInTheDocument();
+    expect(screen.getByText("t1")).toBeInTheDocument();
   });
 });

@@ -20,10 +20,12 @@ import { Canvas } from "./Canvas";
 import { nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
+import { useRunStore } from "../../runner/runStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunLogStore.getState().reset();
+  useRunStore.getState().reset();
 });
 
 describe("Layout shell", () => {
@@ -43,6 +45,35 @@ describe("Layout shell", () => {
     render(<LogPanel />);
     expect(screen.getByText("Run Log")).toBeInTheDocument();
     expect(screen.getByText("No runs yet.")).toBeInTheDocument();
+  });
+
+  it("LogPanel header identifies active waiting and idle node", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useRunStore.getState().beginRun({
+      runId: "run_abcdef123",
+      workflowId: "wf",
+      nodeIds: [id],
+      startedAt: "t",
+    });
+    useRunStore.getState().setActiveNode(id);
+    useRunStore.getState().setNodeState(id, "waiting_input");
+    useRunStore.getState().patchNodeDebug(id, { idleSince: "t2" });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
+      /run run_abcd.*running.*Foo.*waiting for input.*idle/,
+    );
   });
 
   it("Canvas mounts a ReactFlow surface", () => {

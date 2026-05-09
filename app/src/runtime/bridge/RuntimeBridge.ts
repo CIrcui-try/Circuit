@@ -37,6 +37,7 @@ export interface SpawnOptions {
   cwd: string;
   env?: Record<string, string>;
   timeoutMs?: number;
+  stdinMode?: "piped" | "null";
 }
 
 export interface RuntimeBridge {
@@ -48,6 +49,8 @@ export interface RuntimeBridge {
    * child exits. The caller is responsible for line termination (e.g. `y\n`).
    */
   sendInput(runId: string, text: string): Promise<void>;
+  /** Close the child process's stdin so CLIs waiting for piped input receive EOF. */
+  closeInput(runId: string): Promise<void>;
   subscribe(runId: string, listener: RuntimeProcessListener): Unsubscribe;
 }
 
@@ -80,6 +83,7 @@ const tauriRuntimeBridgeProxy: RuntimeBridge = {
   cancel: (runId) => loadTauriBridge().then((b) => b.cancel(runId)),
   sendInput: (runId, text) =>
     loadTauriBridge().then((b) => b.sendInput(runId, text)),
+  closeInput: (runId) => loadTauriBridge().then((b) => b.closeInput(runId)),
   subscribe: (runId, listener) => {
     let inner: Unsubscribe | null = null;
     let cancelled = false;

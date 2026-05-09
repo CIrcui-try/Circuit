@@ -13,6 +13,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { getHostBridge, type WorkflowSummaryDTO } from "../host/bridge";
 import { serializeRunLogJsonl } from "../runner/runLogPersistence";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
+import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { RealWorkflowRunner } from "../runner/RealWorkflowRunner";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
@@ -53,6 +54,7 @@ export function Workspace() {
       registry,
       bridge,
       logStore: useRunLogStore,
+      runStore: useRunStore,
       getNode: (id) => {
         const n = useWorkflowStore.getState().nodes.find((x) => x.id === id);
         if (!n) return null;
@@ -102,7 +104,28 @@ export function Workspace() {
     resetRunLog();
     setWorkflows([]);
     setSaveStatus(null);
-  }, [repoId, resetWorkflow, resetRun, resetRunLog]);
+    if (!repo) return;
+    const draft = loadWorkflowDraft(repo.id);
+    if (!draft) return;
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: draft.nodes,
+      edges: draft.edges,
+      workflowId: draft.workflowId,
+      workflowName: draft.workflowName,
+    });
+  }, [repoId, repo, resetWorkflow, resetRun, resetRunLog]);
+
+  useEffect(() => {
+    if (!repo) return;
+    return useWorkflowStore.subscribe((state) => {
+      saveWorkflowDraft(repo.id, {
+        workflowId: state.currentWorkflowId,
+        workflowName: state.workflowName,
+        nodes: state.nodes,
+        edges: state.edges,
+      });
+    });
+  }, [repo]);
 
   useEffect(() => {
     if (repo) {
@@ -167,7 +190,7 @@ export function Workspace() {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
         return;
       }
-      if (outcome.status === "failed") {
+      if (outcome.status === "failed" || outcome.status === "timeout") {
         notifyAppError(
           describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
           "Start Circuit failed",

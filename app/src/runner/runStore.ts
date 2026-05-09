@@ -1,12 +1,28 @@
 import { create } from "zustand";
-import type { NodeRunState, RunStatus } from "./runner";
+import type { NodeRunState, RunStatus, RunTerminalStatus } from "./runner";
+
+export type NodeDebugInfo = {
+  adapter?: string;
+  adapterRunId?: string;
+  command?: string;
+  args?: string[];
+  spawnType?: "process";
+  startedAt?: string;
+  durationMs?: number;
+  exitCode?: number;
+  lastLogAt?: string;
+  idleSince?: string;
+  idleTimeoutMs?: number;
+};
 
 export type RunStoreState = {
   status: RunStatus;
   runId: string | null;
   workflowId: string | null;
   startedAt: string | null;
+  activeNodeId: string | null;
   nodeStates: Record<string, NodeRunState>;
+  nodeDebug: Record<string, NodeDebugInfo>;
 
   beginRun: (args: {
     runId: string;
@@ -14,20 +30,30 @@ export type RunStoreState = {
     nodeIds: readonly string[];
     startedAt: string;
   }) => void;
+  setActiveNode: (id: string | null) => void;
   setNodeState: (id: string, state: NodeRunState) => void;
-  finishRun: (status: Exclude<RunStatus, "idle" | "running">) => void;
+  patchNodeDebug: (id: string, patch: NodeDebugInfo) => void;
+  finishRun: (status: RunTerminalStatus) => void;
   reset: () => void;
 };
 
 const INITIAL: Pick<
   RunStoreState,
-  "status" | "runId" | "workflowId" | "startedAt" | "nodeStates"
+  | "status"
+  | "runId"
+  | "workflowId"
+  | "startedAt"
+  | "activeNodeId"
+  | "nodeStates"
+  | "nodeDebug"
 > = {
   status: "idle",
   runId: null,
   workflowId: null,
   startedAt: null,
+  activeNodeId: null,
   nodeStates: {},
+  nodeDebug: {},
 };
 
 export const useRunStore = create<RunStoreState>((set) => ({
@@ -41,8 +67,14 @@ export const useRunStore = create<RunStoreState>((set) => ({
       runId,
       workflowId,
       startedAt,
+      activeNodeId: null,
       nodeStates,
+      nodeDebug: {},
     });
+  },
+
+  setActiveNode: (id) => {
+    set({ activeNodeId: id });
   },
 
   setNodeState: (id, state) => {
@@ -51,8 +83,17 @@ export const useRunStore = create<RunStoreState>((set) => ({
     }));
   },
 
+  patchNodeDebug: (id, patch) => {
+    set((s) => ({
+      nodeDebug: {
+        ...s.nodeDebug,
+        [id]: { ...(s.nodeDebug[id] ?? {}), ...patch },
+      },
+    }));
+  },
+
   finishRun: (status) => {
-    set({ status });
+    set({ status, activeNodeId: null });
   },
 
   reset: () => {

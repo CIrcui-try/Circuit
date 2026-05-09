@@ -1,7 +1,7 @@
 import type {
   RunnableEdge,
   RunnableNode,
-  RunStatus,
+  RunTerminalStatus,
   WorkflowRunner,
 } from "./runner";
 import type { useRunStore as RunStore } from "./runStore";
@@ -18,7 +18,7 @@ export type RunWorkflowOptions = {
 };
 
 export type RunWorkflowOutcome =
-  | { kind: "started"; status: Exclude<RunStatus, "idle" | "running"> }
+  | { kind: "started"; status: RunTerminalStatus }
   | { kind: "rejected"; reason: "already-running" | "empty" | "cycle" };
 
 const defaultNow = () => new Date().toISOString();
@@ -68,6 +68,7 @@ export async function runWorkflow(
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
   let failureSeen = false;
+  let finalStatus: RunTerminalStatus = "success";
 
   for (let i = 0; i < sorted.order.length; i++) {
     const id = sorted.order[i];
@@ -79,8 +80,10 @@ export async function runWorkflow(
     if (!node) {
       store.getState().setNodeState(id, "skipped");
       failureSeen = true;
+      finalStatus = "failed";
       continue;
     }
+    store.getState().setActiveNode(id);
     store.getState().setNodeState(id, "running");
     let result;
     try {
@@ -88,20 +91,19 @@ export async function runWorkflow(
     } catch (err) {
       result = {
         ok: false as const,
+        status: "failed" as const,
         reason: err instanceof Error ? err.message : String(err),
       };
     }
     if (result.ok) {
       store.getState().setNodeState(id, "success");
     } else {
-      store.getState().setNodeState(id, "failed");
+      store.getState().setNodeState(id, result.status);
       failureSeen = true;
+      finalStatus = result.status;
     }
   }
 
-  const finalStatus: Exclude<RunStatus, "idle" | "running"> = failureSeen
-    ? "failed"
-    : "success";
   store.getState().finishRun(finalStatus);
   return { kind: "started", status: finalStatus };
 }

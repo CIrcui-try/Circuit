@@ -195,6 +195,7 @@ pub async fn runtime_spawn(
     cwd: String,
     env: Option<HashMap<String, String>>,
     timeout_ms: Option<u64>,
+    stdin_mode: Option<String>,
     on_event: Channel<RuntimeProcessEvent>,
 ) -> Result<(), String> {
     let cwd_path = PathBuf::from(&cwd);
@@ -203,11 +204,18 @@ pub async fn runtime_spawn(
         .map_err(|e| format!("failed to canonicalize cwd {}: {e}", cwd_path.display()))?;
 
     let mut cmd = Command::new(&command);
+    let stdin_mode = stdin_mode.unwrap_or_else(|| "piped".to_string());
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Stdio::piped(),
+        "null" => Stdio::null(),
+        other => return Err(format!("unsupported stdin mode: {other}")),
+    };
+
     cmd.args(&args)
         .current_dir(&cwd_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::piped());
+        .stdin(stdin);
     if let Some(envs) = env {
         for (k, v) in envs {
             cmd.env(k, v);
@@ -226,13 +234,19 @@ pub async fn runtime_spawn(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
-    let stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "failed to capture stdin".to_string())?;
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Some(
+            child
+                .stdin
+                .take()
+                .ok_or_else(|| "failed to capture stdin".to_string())?,
+        ),
+        "null" => None,
+        _ => unreachable!("stdin mode was validated before spawn"),
+    };
 
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    let stdin_slot = Arc::new(AsyncMutex::new(Some(stdin)));
+    let stdin_slot = Arc::new(AsyncMutex::new(stdin));
     state.register(run_id.clone(), cancel_tx, Arc::clone(&stdin_slot));
 
     // Channel<T> is cheap to clone and is safe to share across the spawn task
@@ -255,6 +269,8 @@ pub async fn runtime_spawn(
         let stdin_slot = stdin_for_task;
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut stdout_done = false;
+        let mut stderr_done = false;
 
         let timeout_fut: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
             match timeout_ms {
@@ -266,7 +282,7 @@ pub async fn runtime_spawn(
         let final_event: Option<RuntimeProcessEvent>;
         loop {
             tokio::select! {
-                line = stdout_reader.next_line() => match line {
+                line = stdout_reader.next_line(), if !stdout_done => match line {
                     Ok(Some(text)) => {
                         let _ = event.send(RuntimeProcessEvent::Stdout {
                             run_id: run_id.clone(),
@@ -274,7 +290,9 @@ pub async fn runtime_spawn(
                             text,
                         });
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        stdout_done = true;
+                    }
                     Err(e) => {
                         final_event = Some(RuntimeProcessEvent::Error {
                             run_id: run_id.clone(),
@@ -285,7 +303,7 @@ pub async fn runtime_spawn(
                         break;
                     }
                 },
-                line = stderr_reader.next_line() => match line {
+                line = stderr_reader.next_line(), if !stderr_done => match line {
                     Ok(Some(text)) => {
                         let _ = event.send(RuntimeProcessEvent::Stderr {
                             run_id: run_id.clone(),
@@ -293,7 +311,9 @@ pub async fn runtime_spawn(
                             text,
                         });
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        stderr_done = true;
+                    }
                     Err(e) => {
                         final_event = Some(RuntimeProcessEvent::Error {
                             run_id: run_id.clone(),
@@ -405,6 +425,18 @@ pub async fn runtime_send_input(
         .flush()
         .await
         .map_err(|e| format!("stdin flush failed: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_close_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+) -> Result<(), String> {
+    if let Some(stdin_slot) = state.stdin_for(&run_id) {
+        let mut guard = stdin_slot.lock().await;
+        *guard = None;
+    }
     Ok(())
 }
 

@@ -160,6 +160,7 @@ describe("RealWorkflowRunner + runWorkflow integration", () => {
       },
       cancel: (id) => mock.cancel(id),
       sendInput: (id, text) => mock.sendInput(id, text),
+      closeInput: (id) => mock.closeInput(id),
       subscribe: (id, l) => mock.subscribe(id, l),
     };
 

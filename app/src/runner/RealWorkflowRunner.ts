@@ -8,6 +8,7 @@ import type {
 import type { WorkflowSkillNode } from "../workflow/schema";
 import type { useRunLogStore } from "./runLogStore";
 import type { RunnableNode, RunResult, WorkflowRunner } from "./runner";
+import type { useRunStore } from "./runStore";
 
 export interface PersistRunLogArgs {
   runId: string;
@@ -23,16 +24,23 @@ export interface RealWorkflowRunnerOptions {
   registry: AdapterRegistry;
   bridge: RuntimeBridge;
   logStore: typeof useRunLogStore;
+  runStore?: typeof useRunStore;
   getNode: (id: string) => WorkflowSkillNode | null;
   getRepository: () => RunnerRepository | null;
   getRunMeta: () => { runId: string; workflowId: string | null };
   persistRunLog?: (args: PersistRunLogArgs) => Promise<void> | void;
+  idleMs?: number;
 }
+
+const DEFAULT_IDLE_MS = 30_000;
+const STDIN_WAITING_RE = /Reading additional input from stdin/i;
 
 export class RealWorkflowRunner implements WorkflowRunner {
   private previousOutputs: Record<string, SkillExecutionResult> = {};
   private lastSeenRunId: string | null = null;
   private currentAdapterRunId: string | null = null;
+  private currentNodeId: string | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly opts: RealWorkflowRunnerOptions) {}
 
@@ -40,11 +48,22 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.previousOutputs = {};
     this.lastSeenRunId = null;
     this.currentAdapterRunId = null;
+    this.currentNodeId = null;
+    this.clearIdleTimer();
   }
 
   async cancel(): Promise<void> {
     const id = this.currentAdapterRunId;
-    if (id) await this.opts.bridge.cancel(id);
+    const nodeId = this.currentNodeId;
+    if (!id) return;
+    if (nodeId) {
+      this.opts.logStore.getState().appendEvent(nodeId, {
+        type: "status",
+        timestamp: new Date().toISOString(),
+        status: `cancel requested for ${id}`,
+      });
+    }
+    await this.opts.bridge.cancel(id);
   }
 
   async runNode(node: RunnableNode): Promise<RunResult> {
@@ -98,25 +117,42 @@ export class RealWorkflowRunner implements WorkflowRunner {
       return await this.recordNodeFailure(node.id, errorMessage(err), repo);
     }
 
-    const sink = (event: AgentRunEvent): void => {
-      this.opts.logStore.getState().appendEvent(node.id, event);
-    };
-
     // Mirrors the default newRunId in ClaudeAdapter / CodexAdapter
     // (`${ctx.runId}::${ctx.nodeId}`); cancel() relies on this to reach
     // the bridge.
     this.currentAdapterRunId = `${runId}::${node.id}`;
+    this.currentNodeId = node.id;
+    const idleMs = readNodeIdleMs(fullNode.input, this.opts.idleMs ?? DEFAULT_IDLE_MS);
+    this.opts.runStore?.getState().patchNodeDebug(node.id, {
+      adapter: fullNode.skillRef.provider,
+      adapterRunId: this.currentAdapterRunId,
+      idleTimeoutMs: idleMs,
+    });
+
+    const sink = (event: AgentRunEvent): void => {
+      this.opts.logStore.getState().appendEvent(node.id, event);
+      this.recordDebugEvent(node.id, event, idleMs);
+    };
 
     let result: SkillExecutionResult;
     try {
       result = await adapter.run(ctx, sink);
     } catch (err) {
       this.currentAdapterRunId = null;
+      this.currentNodeId = null;
+      this.clearIdleTimer();
       return await this.recordNodeFailure(node.id, errorMessage(err), repo);
     }
     this.currentAdapterRunId = null;
+    this.currentNodeId = null;
+    this.clearIdleTimer();
 
     this.opts.logStore.getState().setNodeResult(node.id, result);
+    this.opts.runStore?.getState().patchNodeDebug(node.id, {
+      durationMs: durationMs(result.startedAt, result.finishedAt),
+      exitCode: result.exitCode,
+      lastLogAt: lastLogTimestamp(result.logs),
+    });
     this.previousOutputs[node.id] = result;
 
     await this.persistCurrentLog(repo);
@@ -124,7 +160,68 @@ export class RealWorkflowRunner implements WorkflowRunner {
     if (result.status === "success") return { ok: true };
     const exitSuffix =
       result.exitCode != null ? ` (exit ${result.exitCode})` : "";
-    return { ok: false, reason: `${result.status}${exitSuffix}` };
+    return {
+      ok: false,
+      status: result.status === "failed" ? "failed" : result.status,
+      reason: `${result.status}${exitSuffix}`,
+    };
+  }
+
+  private recordDebugEvent(
+    nodeId: string,
+    event: AgentRunEvent,
+    idleMs: number,
+  ): void {
+    this.clearIdleTimer();
+    this.opts.runStore?.getState().patchNodeDebug(nodeId, {
+      lastLogAt: event.timestamp,
+      idleSince: undefined,
+    });
+    if (event.type === "start") {
+      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
+        command: event.command,
+        args: event.args,
+        spawnType: event.spawnType,
+        startedAt: event.timestamp,
+      });
+    }
+    if (event.type === "finish") {
+      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
+        exitCode: event.exitCode,
+      });
+      return;
+    }
+    if (event.type === "approval_required" || isWaitingForStdin(event)) {
+      this.opts.runStore?.getState().setNodeState(nodeId, "waiting_input");
+      return;
+    }
+    const runStore = this.opts.runStore?.getState();
+    if (runStore?.nodeStates[nodeId] === "waiting_input") {
+      runStore.setNodeState(nodeId, "running");
+    }
+    this.scheduleIdleTimer(nodeId, idleMs);
+  }
+
+  private scheduleIdleTimer(nodeId: string, idleMs: number): void {
+    if (idleMs <= 0) return;
+    this.idleTimer = setTimeout(() => {
+      const timestamp = new Date().toISOString();
+      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
+        idleSince: timestamp,
+        idleTimeoutMs: idleMs,
+      });
+      this.opts.logStore.getState().appendEvent(nodeId, {
+        type: "status",
+        timestamp,
+        status: `idle for ${idleMs}ms`,
+      });
+    }, idleMs);
+  }
+
+  private clearIdleTimer(): void {
+    if (!this.idleTimer) return;
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
   }
 
   private async recordNodeFailure(
@@ -143,7 +240,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
       finishedAt: timestamp,
     });
     if (repo) await this.persistCurrentLog(repo);
-    return { ok: false, reason };
+    return { ok: false, status: "failed", reason };
   }
 
   private async persistCurrentLog(repo: RunnerRepository): Promise<void> {
@@ -177,4 +274,35 @@ function readNodeTimeoutMs(
   if (!Number.isFinite(value)) return undefined;
   if (value <= 0) return undefined;
   return value;
+}
+
+function readNodeIdleMs(
+  input: Record<string, unknown> | undefined,
+  fallback: number,
+): number {
+  if (!input) return fallback;
+  const value = input.idleTimeoutMs;
+  if (typeof value !== "number") return fallback;
+  if (!Number.isFinite(value)) return fallback;
+  if (value <= 0) return fallback;
+  return value;
+}
+
+function isWaitingForStdin(event: AgentRunEvent): boolean {
+  return event.type === "stderr" && STDIN_WAITING_RE.test(event.text);
+}
+
+function durationMs(startedAt: string, finishedAt: string): number | undefined {
+  const start = Date.parse(startedAt);
+  const finish = Date.parse(finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(finish)) return undefined;
+  return Math.max(0, finish - start);
+}
+
+function lastLogTimestamp(logs: AgentRunEvent[]): string | undefined {
+  for (let i = logs.length - 1; i >= 0; i -= 1) {
+    const timestamp = logs[i].timestamp;
+    if (timestamp) return timestamp;
+  }
+  return undefined;
 }
