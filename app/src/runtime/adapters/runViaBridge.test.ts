@@ -124,4 +124,39 @@ describe("runViaBridge approval forwarding", () => {
     const result = await pending;
     expect(result.status).toBe("cancelled");
   });
+
+  it("closes stdin when codex reports it is reading additional input", async () => {
+    const sink: AgentRunEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stderr",
+            text: "Reading additional input from stdin...",
+          },
+        },
+      ],
+    });
+    bridge.onCloseInput("r-stdin", () => ({
+      event: { type: "exited", exitCode: 0 },
+    }));
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-stdin",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: (ev) => sink.push(ev),
+    });
+
+    expect(result.status).toBe("success");
+    expect(bridge.closedInputs()).toEqual(["r-stdin"]);
+    expect(sink).toContainEqual(
+      expect.objectContaining({
+        type: "stderr",
+        text: "Reading additional input from stdin...",
+      }),
+    );
+  });
 });

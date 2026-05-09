@@ -255,6 +255,8 @@ pub async fn runtime_spawn(
         let stdin_slot = stdin_for_task;
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut stdout_done = false;
+        let mut stderr_done = false;
 
         let timeout_fut: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
             match timeout_ms {
@@ -266,7 +268,7 @@ pub async fn runtime_spawn(
         let final_event: Option<RuntimeProcessEvent>;
         loop {
             tokio::select! {
-                line = stdout_reader.next_line() => match line {
+                line = stdout_reader.next_line(), if !stdout_done => match line {
                     Ok(Some(text)) => {
                         let _ = event.send(RuntimeProcessEvent::Stdout {
                             run_id: run_id.clone(),
@@ -274,7 +276,9 @@ pub async fn runtime_spawn(
                             text,
                         });
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        stdout_done = true;
+                    }
                     Err(e) => {
                         final_event = Some(RuntimeProcessEvent::Error {
                             run_id: run_id.clone(),
@@ -285,7 +289,7 @@ pub async fn runtime_spawn(
                         break;
                     }
                 },
-                line = stderr_reader.next_line() => match line {
+                line = stderr_reader.next_line(), if !stderr_done => match line {
                     Ok(Some(text)) => {
                         let _ = event.send(RuntimeProcessEvent::Stderr {
                             run_id: run_id.clone(),
@@ -293,7 +297,9 @@ pub async fn runtime_spawn(
                             text,
                         });
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        stderr_done = true;
+                    }
                     Err(e) => {
                         final_event = Some(RuntimeProcessEvent::Error {
                             run_id: run_id.clone(),
@@ -405,6 +411,18 @@ pub async fn runtime_send_input(
         .flush()
         .await
         .map_err(|e| format!("stdin flush failed: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_close_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+) -> Result<(), String> {
+    if let Some(stdin_slot) = state.stdin_for(&run_id) {
+        let mut guard = stdin_slot.lock().await;
+        *guard = None;
+    }
     Ok(())
 }
 

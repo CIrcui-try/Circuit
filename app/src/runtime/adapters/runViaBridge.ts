@@ -8,6 +8,8 @@ import type {
   SkillExecutionResult,
 } from "./AgentAdapter";
 
+const STDIN_WAITING_RE = /Reading additional input from stdin/i;
+
 export interface BridgeCommand {
   command: string;
   args: string[];
@@ -152,6 +154,17 @@ export function runViaBridge(
           return;
         case "stderr": {
           emit({ type: "stderr", timestamp: ev.timestamp, text: ev.text });
+          if (STDIN_WAITING_RE.test(ev.text)) {
+            void bridge.closeInput(runId).catch((err: unknown) => {
+              if (settled) return;
+              const message = err instanceof Error ? err.message : String(err);
+              emit({
+                type: "error",
+                timestamp: new Date().toISOString(),
+                message: `stdin close failed: ${message}`,
+              });
+            });
+          }
           // Heuristic approval detection runs on the JS side so adapters never
           // need to know about it. Each match becomes its own non-terminal
           // approval_required event so multi-prompt sessions surface every

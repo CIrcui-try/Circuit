@@ -111,7 +111,7 @@ test("F7b: clicking Start while a run is in flight is ignored", async ({ page })
   expect(runIdAfter).toBe("pinned-run");
 });
 
-test("F7c: stuck run identifies the node waiting for stdin", async ({ page }) => {
+test("F7c: stdin wait is surfaced and resolved by closing input", async ({ page }) => {
   await openWorkspace(page);
 
   await addSkillByButton(page, "Review Code");
@@ -126,15 +126,14 @@ test("F7c: stuck run identifies the node waiting for stdin", async ({ page }) =>
   await expect(startBtn).toBeEnabled();
   await startBtn.click();
 
-  await expect(
-    page.locator(
-      '[data-testid="workflow-node"][data-skill-provider="codex"][data-run-state="waiting_input"]',
-    ),
-  ).toHaveCount(1);
-  await expect(page.getByTestId("run-log-run-state")).toContainText(
-    "waiting for input",
-  );
   await expect(page.getByTestId("run-log")).toContainText(
     "Reading additional input from stdin",
   );
+  await expect(
+    page.locator(
+      '[data-testid="workflow-node"][data-skill-provider="codex"][data-run-state="success"]',
+    ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("run-log-run-state")).toContainText("success");
+  await expect(startBtn).toBeEnabled();
 });

@@ -179,6 +179,11 @@ export async function installMockBridge(page: Page) {
       async sendInput(runId: string, text: string) {
         emit(runId, { type: "stdout", text });
       },
+      async closeInput(runId: string) {
+        if (runtimeScenario === "stdin-waiting") {
+          emit(runId, { type: "exited", exitCode: 0 });
+        }
+      },
       subscribe(runId: string, listener: (event: unknown) => void) {
         let set = listeners.get(runId);
         if (!set) {

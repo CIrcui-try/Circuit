@@ -62,6 +62,7 @@ function spy(scenario?: SpawnScenario): SpyBridge {
     },
     cancel: (id) => mock.cancel(id),
     sendInput: (id, text) => mock.sendInput(id, text),
+    closeInput: (id) => mock.closeInput(id),
     subscribe: (id, listener) => mock.subscribe(id, listener),
   };
   return { bridge, mock, spawnCalls };

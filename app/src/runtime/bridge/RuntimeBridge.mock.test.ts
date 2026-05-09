@@ -188,6 +188,42 @@ describe("createMockRuntimeBridge / spawn streaming", () => {
     );
   });
 
+  it("records closeInput calls and lets onCloseInput handler emit follow-up events", async () => {
+    const events: RuntimeProcessEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "Reading additional input from stdin..." } },
+      ],
+    });
+    bridge.subscribe("r-close", (ev) => events.push(ev));
+    bridge.onCloseInput("r-close", () => [
+      { event: { type: "stdout", text: "after eof" } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+
+    await bridge.spawn({
+      runId: "r-close",
+      command: "codex",
+      args: ["exec", "p"],
+      cwd: "/repo",
+    });
+    await nextTick();
+    await bridge.closeInput("r-close");
+    await nextTick();
+
+    expect(bridge.closedInputs()).toEqual(["r-close"]);
+    expect(events.map((e) => e.type)).toEqual([
+      "started",
+      "stderr",
+      "stdout",
+      "exited",
+    ]);
+    await expect(bridge.sendInput("r-close", "late\n")).rejects.toThrow(
+      /no active run/,
+    );
+  });
+
   it("removes finished runs from pendingRunIds after exited event", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [{ event: { type: "exited", exitCode: 0 } }],

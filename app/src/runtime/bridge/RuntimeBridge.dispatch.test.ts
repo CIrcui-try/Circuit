@@ -17,6 +17,7 @@ describe("getRuntimeBridge / dispatcher", () => {
     expect(typeof getRuntimeBridge().readFile).toBe("function");
     expect(typeof getRuntimeBridge().spawn).toBe("function");
     expect(typeof getRuntimeBridge().cancel).toBe("function");
+    expect(typeof getRuntimeBridge().closeInput).toBe("function");
     expect(typeof getRuntimeBridge().subscribe).toBe("function");
   });
 });

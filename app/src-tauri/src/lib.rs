@@ -60,6 +60,7 @@ pub fn run() {
             runtime_bridge::runtime_spawn,
             runtime_bridge::runtime_cancel,
             runtime_bridge::runtime_send_input,
+            runtime_bridge::runtime_close_input,
             run_log_store::save_run_log,
             run_log_store::list_run_logs,
             run_log_store::load_run_log,
