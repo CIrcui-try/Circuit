@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockRunner } from "./mockRunner";
 import type { RunnableEdge, RunnableNode, WorkflowRunner } from "./runner";
-import { useRunStore } from "./runStore";
+import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
 import { runWorkflow } from "./runWorkflow";
 
 const node = (id: string, label = id): RunnableNode => ({
@@ -212,5 +212,68 @@ describe("runWorkflow", () => {
     const s = useRunStore.getState();
     expect(s.status).toBe("timeout");
     expect(s.nodeStates).toEqual({ a: "timeout" });
+  });
+
+  it("RW9: stores repository metadata and an isolated run snapshot at start", async () => {
+    let release!: () => void;
+    const blocker = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const snapshot: WorkflowRunSnapshot = {
+      repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
+      workflowId: "wf-1",
+      workflowName: "Release flow",
+      nodes: [
+        {
+          id: "a",
+          type: "skill",
+          label: "A",
+          skillRef: {
+            provider: "claude",
+            skillFile: ".claude/skills/a/SKILL.md",
+          },
+          position: { x: 1, y: 2 },
+          input: { prompt: "original" },
+        },
+      ],
+      edges: [],
+    };
+    const runner: WorkflowRunner = {
+      async runNode() {
+        await blocker;
+        return { ok: true };
+      },
+    };
+
+    const pending = runWorkflow({
+      nodes: [node("a", "A")],
+      edges: [],
+      workflowId: snapshot.workflowId,
+      workflowName: snapshot.workflowName,
+      repository: { id: snapshot.repository.id, name: snapshot.repository.name },
+      snapshot,
+      runner,
+      store: useRunStore,
+      now: () => "2026-05-09T00:00:00.000Z",
+      newRunId: () => "run-1",
+    });
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("running");
+    });
+    snapshot.workflowName = "Mutated flow";
+    snapshot.nodes[0].label = "Mutated";
+    snapshot.nodes[0].input = { prompt: "mutated" };
+
+    const s = useRunStore.getState();
+    expect(s.repositoryId).toBe("repo-1");
+    expect(s.repositoryName).toBe("alpha");
+    expect(s.workflowName).toBe("Release flow");
+    expect(s.snapshot?.workflowName).toBe("Release flow");
+    expect(s.snapshot?.nodes[0].label).toBe("A");
+    expect(s.snapshot?.nodes[0].input).toEqual({ prompt: "original" });
+
+    release();
+    await pending;
   });
 });

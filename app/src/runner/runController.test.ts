@@ -127,4 +127,20 @@ describe("runController", () => {
     release();
     await run;
   });
+
+  it("RC4: clears the active runner after a terminal run", async () => {
+    await expect(
+      startWorkflowRun({
+        snapshot: snapshot(),
+        bridge: createMockRuntimeBridge(),
+        createRunner: () => ({
+          async runNode(): Promise<RunResult> {
+            return { ok: true };
+          },
+        }),
+      }),
+    ).resolves.toEqual({ kind: "started", status: "success" });
+
+    await expect(cancelWorkflowRun()).resolves.toBe(false);
+  });
 });

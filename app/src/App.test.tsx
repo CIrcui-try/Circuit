@@ -26,6 +26,7 @@ vi.mock("./runner/runController", () => runControllerMock);
 
 import App from "./App";
 import { useRepositoryStore } from "./stores/repositoryStore";
+import { useRunLogStore } from "./runner/runLogStore";
 import { useRunStore } from "./runner/runStore";
 
 beforeEach(() => {
@@ -46,6 +47,7 @@ beforeEach(() => {
     hydrated: true,
   });
   useRunStore.getState().reset();
+  useRunLogStore.getState().reset();
 });
 
 describe("App routing", () => {
@@ -130,6 +132,14 @@ describe("App routing", () => {
       startedAt: "2026-05-09T00:00:00Z",
     });
     useRunStore.getState().setNodeState("node-1", "waiting_input");
+    useRunLogStore.getState().beginRun({ runId: "run-1", workflowId: "wf-1" });
+    useRunLogStore.getState().appendEvent("node-1", {
+      type: "approval_required",
+      timestamp: "2026-05-09T00:00:01Z",
+      requestId: "rq-1",
+      prompt: "Allow command?",
+      approvalKind: "command",
+    });
 
     render(
       <MemoryRouter initialEntries={["/"]}>
@@ -141,5 +151,7 @@ describe("App routing", () => {
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent(
       "Respond in the workflow log",
     );
+    expect(screen.queryByTestId("approval-prompt")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
   });
 });

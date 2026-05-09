@@ -465,6 +465,40 @@ describe("RealWorkflowRunner", () => {
     expect(useRunStore.getState().nodeStates.a).toBe("waiting_input");
   });
 
+  it("returns a waiting_input node to running when adapter output resumes", async () => {
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf",
+      nodeIds: ["a"],
+      startedAt: "t0",
+    });
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      events: [
+        {
+          type: "approval_required",
+          timestamp: "t-approval",
+          requestId: "rq-1",
+          prompt: "Allow?",
+          approvalKind: "command",
+        },
+        {
+          type: "stdout",
+          timestamp: "t-resume",
+          text: "continuing",
+        },
+      ],
+      result: { status: "success" },
+    });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(useRunStore.getState().nodeStates.a).toBe("running");
+  });
+
   it("records idle status when a running node produces no output", async () => {
     vi.useFakeTimers();
     try {
