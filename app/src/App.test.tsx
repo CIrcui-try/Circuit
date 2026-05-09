@@ -113,6 +113,7 @@ describe("App routing", () => {
 
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("Running");
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("run-floating-toast-progress")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to workflow" })).toHaveAttribute(
       "href",
       "/workspace/id-alpha",
@@ -121,6 +122,36 @@ describe("App routing", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(runControllerMock.cancelWorkflowRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("A4b: hides the global run toast while viewing the running workflow", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-1",
+      workflowId: "wf-1",
+      repository: { id: "id-alpha", name: "alpha" },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:00Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/workspace/id-alpha"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("run-floating-toast")).not.toBeInTheDocument();
   });
 
   it("A5: labels waiting input runs without taking over the LogPanel response flow", () => {

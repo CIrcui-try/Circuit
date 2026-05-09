@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { cancelWorkflowRun } from "../runner/runController";
 import { useRunStore } from "../runner/runStore";
 import type { RunStatus } from "../runner/runner";
@@ -44,6 +44,7 @@ const VIEWS: Record<Exclude<RunStatus, "idle"> | "waiting_input", ToastView> = {
 };
 
 export function RunFloatingToast() {
+  const location = useLocation();
   const status = useRunStore((s) => s.status);
   const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
@@ -53,9 +54,13 @@ export function RunFloatingToast() {
   const [cancelling, setCancelling] = useState(false);
 
   if (status === "idle") return null;
+  if (isViewingRunWorkflow(location.pathname, repositoryId)) {
+    return null;
+  }
 
   const view = VIEWS[status === "running" && hasWaitingNode ? "waiting_input" : status];
   const canAct = status === "running";
+  const isActive = status === "running";
 
   async function handleCancel() {
     setCancelling(true);
@@ -101,6 +106,20 @@ export function RunFloatingToast() {
           </button>
         </div>
       ) : null}
+      {isActive ? (
+        <span
+          className="run-floating-toast__progress"
+          data-testid="run-floating-toast-progress"
+          aria-hidden="true"
+        />
+      ) : null}
     </aside>
   );
+}
+
+function isViewingRunWorkflow(pathname: string, repositoryId: string | null): boolean {
+  if (!repositoryId) return false;
+  const basePath = `/workspace/${repositoryId}`;
+  const normalized = pathname.replace(/\/+$/, "");
+  return normalized === basePath || normalized.startsWith(`${basePath}/`);
 }
