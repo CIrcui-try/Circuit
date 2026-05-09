@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useRunStore } from "./runStore";
+import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
 
 beforeEach(() => {
   useRunStore.getState().reset();
@@ -10,6 +10,7 @@ describe("runStore", () => {
     useRunStore.getState().beginRun({
       runId: "run_1",
       workflowId: "wf_1",
+      workflowName: "Release flow",
       repository: { id: "repo_1", name: "alpha" },
       nodeIds: ["n1", "n2"],
       startedAt: "2026-04-30T00:00:00Z",
@@ -18,12 +19,49 @@ describe("runStore", () => {
     expect(s.status).toBe("running");
     expect(s.runId).toBe("run_1");
     expect(s.workflowId).toBe("wf_1");
+    expect(s.workflowName).toBe("Release flow");
     expect(s.repositoryId).toBe("repo_1");
     expect(s.repositoryName).toBe("alpha");
     expect(s.startedAt).toBe("2026-04-30T00:00:00Z");
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({ n1: "queued", n2: "queued" });
     expect(s.nodeDebug).toEqual({});
+  });
+
+  it("RS1b: stores a cloned workflow snapshot for workspace re-entry", () => {
+    const snapshot: WorkflowRunSnapshot = {
+      repository: { id: "repo_1", name: "alpha", path: "/repo" },
+      workflowId: "wf_1",
+      workflowName: "Release flow",
+      nodes: [
+        {
+          id: "n1",
+          type: "skill",
+          label: "Foo",
+          skillRef: {
+            provider: "claude",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+          position: { x: 1, y: 2 },
+          input: { prompt: "go" },
+        },
+      ],
+      edges: [],
+    };
+
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf_1",
+      repository: { id: "repo_1", name: "alpha" },
+      nodeIds: ["n1"],
+      startedAt: "2026-04-30T00:00:00Z",
+      snapshot,
+    });
+    snapshot.nodes[0].label = "Changed after begin";
+
+    const s = useRunStore.getState();
+    expect(s.snapshot?.workflowName).toBe("Release flow");
+    expect(s.snapshot?.nodes[0].label).toBe("Foo");
   });
 
   it("RS2: setNodeState transitions only the targeted node", () => {
@@ -109,11 +147,13 @@ describe("runStore", () => {
     expect(s.status).toBe("idle");
     expect(s.runId).toBeNull();
     expect(s.workflowId).toBeNull();
+    expect(s.workflowName).toBeNull();
     expect(s.repositoryId).toBeNull();
     expect(s.repositoryName).toBeNull();
     expect(s.startedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({});
     expect(s.nodeDebug).toEqual({});
+    expect(s.snapshot).toBeNull();
   });
 });

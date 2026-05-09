@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
 import { getHostBridge } from "../host/bridge";
+import { useRunStore } from "../runner/runStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
 
@@ -14,6 +15,10 @@ export function RepositoryList() {
   const byRepo = useSkillStore((s) => s.byRepo);
   const loading = useSkillStore((s) => s.loading);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const runStatus = useRunStore((s) => s.status);
+  const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const runRepositoryName = useRunStore((s) => s.repositoryName);
+  const runWorkflowName = useRunStore((s) => s.workflowName);
   const [pendingRemoval, setPendingRemoval] = useState<{
     id: string;
     name: string;
@@ -73,6 +78,19 @@ export function RepositoryList() {
           <button type="button" onClick={handleRefreshAll}>Refresh</button>
         )}
       </div>
+      {runStatus === "running" && runRepositoryId ? (
+        <Link
+          to={`/workspace/${runRepositoryId}`}
+          className="repository-list__run-summary"
+          data-testid="repository-run-summary"
+        >
+          <span className="repository-list__run-summary-label">Running</span>
+          <span>
+            {runRepositoryName ?? "Repository"}
+            {runWorkflowName ? ` · ${runWorkflowName}` : ""}
+          </span>
+        </Link>
+      ) : null}
 
       {repositories.length === 0 ? (
         <p className="repository-list__hint">
@@ -83,6 +101,7 @@ export function RepositoryList() {
           {repositories.map((repo) => {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
+            const isRunRepo = runStatus === "running" && runRepositoryId === repo.id;
             return (
               <li key={repo.id} className="repository-list__row">
                 <Link to={`/workspace/${repo.id}`} className="repository-list__item">
@@ -99,6 +118,14 @@ export function RepositoryList() {
                       skills={skills}
                       loading={isLoading}
                     />
+                    {isRunRepo ? (
+                      <span
+                        className="repository-list__badge repository-list__badge--running"
+                        data-testid="badge-running"
+                      >
+                        Running{runWorkflowName ? ` · ${runWorkflowName}` : ""}
+                      </span>
+                    ) : null}
                   </span>
                 </Link>
                 <button

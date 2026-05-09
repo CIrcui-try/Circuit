@@ -5,16 +5,19 @@ import type {
   WorkflowRunner,
 } from "./runner";
 import type { useRunStore as RunStore } from "./runStore";
+import type { WorkflowRunSnapshot } from "./runStore";
 import { topoSort } from "./topoSort";
 
 export type RunWorkflowOptions = {
   nodes: readonly RunnableNode[];
   edges: readonly RunnableEdge[];
   workflowId: string | null;
+  workflowName?: string | null;
   repository?: {
     id: string;
     name: string;
   };
+  snapshot?: WorkflowRunSnapshot;
   runner: WorkflowRunner;
   store: typeof RunStore;
   now?: () => string;
@@ -38,7 +41,9 @@ export async function runWorkflow(
     nodes,
     edges,
     workflowId,
+    workflowName,
     repository,
+    snapshot,
     runner,
     store,
     now = defaultNow,
@@ -61,9 +66,11 @@ export async function runWorkflow(
   store.getState().beginRun({
     runId: newRunId(),
     workflowId,
+    workflowName,
     repository,
     nodeIds,
     startedAt: now(),
+    snapshot,
   });
 
   if (sorted.cycle) {
