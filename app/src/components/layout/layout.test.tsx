@@ -130,18 +130,18 @@ describe("Layout shell", () => {
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
 
     expect(useWorkflowStore.getState().selectedNodeId).toBe("node-1");
-    expect(screen.getByTestId("skill-node-input-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-node-input-popover")).toBeInTheDocument();
   });
 
-  it("SkillNode input modal edits node arguments", () => {
+  it("SkillNode input popover edits command-style node arguments", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
-        id: "codex:.codex/skills/foo",
+        id: "codex:.codex/skills/takeoff",
         provider: "codex",
-        name: "Foo",
+        name: "takeoff",
         description: "",
-        rootDir: ".codex/skills/foo",
-        skillFile: ".codex/skills/foo/SKILL.md",
+        rootDir: ".codex/skills/takeoff",
+        skillFile: ".codex/skills/takeoff/SKILL.md",
       },
       { x: 0, y: 0 },
     );
@@ -153,7 +153,7 @@ describe("Layout shell", () => {
     });
 
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
-    fireEvent.change(screen.getByTestId("skill-node-input-textarea"), {
+    fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
       target: { value: "CIR-43 --force" },
     });
 
@@ -162,7 +162,7 @@ describe("Layout shell", () => {
     });
   });
 
-  it("SkillNode input modal dismisses when clicking outside the panel", () => {
+  it("SkillNode input popover closes from its close button", () => {
     renderSkillNode({
       id: "node-1",
       selected: false,
@@ -176,9 +176,9 @@ describe("Layout shell", () => {
     });
 
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
-    fireEvent.click(screen.getByTestId("skill-node-input-modal"));
+    fireEvent.click(screen.getByLabelText("Close input editor"));
 
-    expect(screen.queryByTestId("skill-node-input-modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
   });
 
   it("SkillNode summarizes configured input on one line", () => {

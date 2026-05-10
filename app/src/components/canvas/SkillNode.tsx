@@ -1,6 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { useState } from "react";
-import { createPortal } from "react-dom";
+import { useState, type SyntheticEvent } from "react";
 import { useNodeRunState } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
@@ -9,26 +8,43 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
+  const inputMode = getInputMode(data.label, data.skillRef.skillFile);
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [draftArguments, setDraftArguments] = useState("");
+  const [draftPrompt, setDraftPrompt] = useState("");
+  const [draftIssueId, setDraftIssueId] = useState("");
+  const [draftForce, setDraftForce] = useState(false);
 
   const handleEditInput = () => {
     useWorkflowStore.getState().selectNode(id);
-    setDraftArguments(readArguments(data.input));
+    const current = useWorkflowStore.getState().nodes.find((n) => n.id === id)
+      ?.data.input ?? data.input;
+    setDraftArguments(readArguments(current));
+    setDraftPrompt(readPrompt(current));
+    const boardingInput = readBoardingArguments(current);
+    setDraftIssueId(boardingInput.issueId);
+    setDraftForce(boardingInput.force);
     setIsEditingInput((open) => !open);
   };
 
   const handleArgumentsChange = (value: string) => {
     setDraftArguments(value);
-    const store = useWorkflowStore.getState();
-    const current = store.nodes.find((n) => n.id === id)?.data.input ?? data.input;
-    const next = isRecord(current) ? { ...current } : {};
-    if (value.length > 0) {
-      next.arguments = value;
-    } else {
-      delete next.arguments;
-    }
-    store.setNodeInput(id, Object.keys(next).length > 0 ? next : null);
+    updateInputField(id, "arguments", value);
+  };
+
+  const handlePromptChange = (value: string) => {
+    setDraftPrompt(value);
+    updateInputField(id, "prompt", value);
+  };
+
+  const handleBoardingChange = (issueId: string, force: boolean) => {
+    setDraftIssueId(issueId);
+    setDraftForce(force);
+    updateInputField(id, "arguments", formatBoardingArguments(issueId, force));
+  };
+
+  const stopCanvasInteraction = (event: SyntheticEvent) => {
+    event.stopPropagation();
   };
 
   return (
@@ -70,64 +86,166 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           className="skill-node__input-affordance nodrag nopan"
           data-testid="skill-node-input-edit"
           aria-label={`Edit input for ${data.label}`}
+          aria-expanded={isEditingInput}
           onClick={handleEditInput}
+          onPointerDown={stopCanvasInteraction}
+          onMouseDown={stopCanvasInteraction}
         >
           Edit
         </button>
       </div>
-      {isEditingInput
-        ? createPortal(
-            <div
-              className="skill-node-input-modal__backdrop nodrag nopan"
-              data-testid="skill-node-input-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={`input-title-${id}`}
+      {isEditingInput ? (
+        <div
+          className="skill-node-input-popover nodrag nopan"
+          data-testid="skill-node-input-popover"
+          role="dialog"
+          aria-label={`Input for ${data.label}`}
+          onClick={stopCanvasInteraction}
+          onPointerDown={stopCanvasInteraction}
+          onMouseDown={stopCanvasInteraction}
+        >
+          <div className="skill-node-input-popover__header">
+            <span className="skill-node-input-popover__title">Input</span>
+            <button
+              type="button"
+              className="skill-node-input-popover__close"
+              aria-label="Close input editor"
               onClick={() => setIsEditingInput(false)}
             >
-              <div
-                className="skill-node-input-modal__panel"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="skill-node-input-modal__header">
-                  <h2 id={`input-title-${id}`}>Edit input</h2>
-                  <button
-                    type="button"
-                    className="skill-node-input-modal__close"
-                    aria-label="Close input editor"
-                    onClick={() => setIsEditingInput(false)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="skill-node-input-modal__node">{data.label}</div>
-                <label
-                  className="skill-node-input-modal__label"
-                  htmlFor={`input-${id}`}
-                >
-                  arguments
-                </label>
-                <textarea
-                  id={`input-${id}`}
-                  className="skill-node-input-modal__textarea"
-                  data-testid="skill-node-input-textarea"
-                  value={draftArguments}
-                  placeholder="<ISSUE-ID> [--force]"
-                  onChange={(e) => handleArgumentsChange(e.target.value)}
-                />
-                <div className="skill-node-input-modal__actions">
-                  <button type="button" onClick={() => setIsEditingInput(false)}>
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+              ×
+            </button>
+          </div>
+          {inputMode === "boarding" ? (
+            <BoardingInputFields
+              issueId={draftIssueId}
+              force={draftForce}
+              onChange={handleBoardingChange}
+            />
+          ) : inputMode === "arguments" ? (
+            <label className="skill-node-input-popover__field">
+              <span>Arguments</span>
+              <textarea
+                className="skill-node-input-popover__textarea"
+                data-testid="skill-node-input-arguments"
+                value={draftArguments}
+                placeholder="<ISSUE-ID> [--force]"
+                onChange={(e) => handleArgumentsChange(e.target.value)}
+              />
+            </label>
+          ) : (
+            <label className="skill-node-input-popover__field">
+              <span>Prompt</span>
+              <textarea
+                className="skill-node-input-popover__textarea"
+                data-testid="skill-node-input-prompt"
+                value={draftPrompt}
+                placeholder="Prompt"
+                onChange={(e) => handlePromptChange(e.target.value)}
+              />
+            </label>
+          )}
+        </div>
+      ) : null}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
+}
+
+function BoardingInputFields({
+  issueId,
+  force,
+  onChange,
+}: {
+  issueId: string;
+  force: boolean;
+  onChange: (issueId: string, force: boolean) => void;
+}) {
+  return (
+    <>
+      <label className="skill-node-input-popover__field">
+        <span>Issue ID</span>
+        <input
+          className="skill-node-input-popover__input"
+          data-testid="skill-node-input-issue"
+          value={issueId}
+          placeholder="CIR-15"
+          onChange={(e) => onChange(e.target.value, force)}
+        />
+      </label>
+      <label className="skill-node-input-popover__checkbox">
+        <input
+          data-testid="skill-node-input-force"
+          type="checkbox"
+          checked={force}
+          onChange={(e) => onChange(issueId, e.target.checked)}
+        />
+        <span>--force</span>
+      </label>
+    </>
+  );
+}
+
+function updateInputField(
+  nodeId: string,
+  key: "arguments" | "prompt",
+  value: string,
+) {
+  const store = useWorkflowStore.getState();
+  const current = store.nodes.find((n) => n.id === nodeId)?.data.input;
+  const next = isRecord(current) ? { ...current } : {};
+  if (value.trim().length > 0) {
+    next[key] = value;
+  } else {
+    delete next[key];
+  }
+  store.setNodeInput(nodeId, Object.keys(next).length > 0 ? next : null);
+}
+
+const COMMAND_STYLE_SKILLS = new Set([
+  "autoland",
+  "boarding",
+  "cnp",
+  "door-closing",
+  "landing",
+  "rejoin",
+  "release",
+  "review-and-fix",
+  "takeoff",
+  "taxiing",
+]);
+
+type InputMode = "arguments" | "boarding" | "prompt";
+
+function getInputMode(label: string, skillFile: string): InputMode {
+  const skillName = readSkillName(label, skillFile);
+  if (skillName === "boarding") return "boarding";
+  return COMMAND_STYLE_SKILLS.has(skillName) ? "arguments" : "prompt";
+}
+
+function readSkillName(label: string, skillFile: string): string {
+  const match = skillFile.match(/\/([^/]+)\/SKILL\.md$/);
+  return (match?.[1] ?? label).trim().toLowerCase();
+}
+
+function formatBoardingArguments(issueId: string, force: boolean): string {
+  const parts = [];
+  const trimmedIssue = issueId.trim();
+  if (trimmedIssue.length > 0) parts.push(trimmedIssue);
+  if (force) parts.push("--force");
+  return parts.join(" ");
+}
+
+function readBoardingArguments(input: unknown): { issueId: string; force: boolean } {
+  const argumentsValue = readArguments(input);
+  const parts = argumentsValue.split(/\s+/).filter(Boolean);
+  const force = parts.includes("--force");
+  const issueId = parts.filter((part) => part !== "--force").join(" ");
+  return { issueId, force };
+}
+
+function readPrompt(input: unknown): string {
+  if (!isRecord(input)) return "";
+  return typeof input.prompt === "string" ? input.prompt : "";
 }
 
 export const nodeTypes = { skill: SkillNode };
