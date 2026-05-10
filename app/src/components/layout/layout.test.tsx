@@ -130,10 +130,10 @@ describe("Layout shell", () => {
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
 
     expect(useWorkflowStore.getState().selectedNodeId).toBe("node-1");
-    expect(screen.getByTestId("skill-node-input-popover")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-node-input-modal")).toBeInTheDocument();
   });
 
-  it("SkillNode input popover edits node arguments", () => {
+  it("SkillNode input modal edits node arguments", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
         id: "codex:.codex/skills/foo",

@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNodeRunState } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
@@ -61,31 +62,52 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           Edit
         </button>
       </div>
-      {isEditingInput ? (
-        <div
-          className="skill-node__input-popover nodrag nopan"
-          data-testid="skill-node-input-popover"
-        >
-          <label className="skill-node__input-label" htmlFor={`input-${id}`}>
-            arguments
-          </label>
-          <textarea
-            id={`input-${id}`}
-            className="skill-node__input-textarea"
-            data-testid="skill-node-input-textarea"
-            value={draftArguments}
-            placeholder="<ISSUE-ID> [--force]"
-            onChange={(e) => handleArgumentsChange(e.target.value)}
-          />
-          <button
-            type="button"
-            className="skill-node__input-done"
-            onClick={() => setIsEditingInput(false)}
-          >
-            Done
-          </button>
-        </div>
-      ) : null}
+      {isEditingInput
+        ? createPortal(
+            <div
+              className="skill-node-input-modal__backdrop nodrag nopan"
+              data-testid="skill-node-input-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`input-title-${id}`}
+            >
+              <div className="skill-node-input-modal__panel">
+                <div className="skill-node-input-modal__header">
+                  <h2 id={`input-title-${id}`}>Edit input</h2>
+                  <button
+                    type="button"
+                    className="skill-node-input-modal__close"
+                    aria-label="Close input editor"
+                    onClick={() => setIsEditingInput(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="skill-node-input-modal__node">{data.label}</div>
+                <label
+                  className="skill-node-input-modal__label"
+                  htmlFor={`input-${id}`}
+                >
+                  arguments
+                </label>
+                <textarea
+                  id={`input-${id}`}
+                  className="skill-node-input-modal__textarea"
+                  data-testid="skill-node-input-textarea"
+                  value={draftArguments}
+                  placeholder="<ISSUE-ID> [--force]"
+                  onChange={(e) => handleArgumentsChange(e.target.value)}
+                />
+                <div className="skill-node-input-modal__actions">
+                  <button type="button" onClick={() => setIsEditingInput(false)}>
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
