@@ -1,5 +1,11 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { useState, type SyntheticEvent } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNodeRunState } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
@@ -9,7 +15,9 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
   const inputMode = getInputMode(data.label, data.skillRef.skillFile);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const [draftArguments, setDraftArguments] = useState("");
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draftIssueId, setDraftIssueId] = useState("");
@@ -26,6 +34,25 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     setDraftForce(boardingInput.force);
     setIsEditingInput((open) => !open);
   };
+
+  useLayoutEffect(() => {
+    if (!isEditingInput) return;
+    let frame = 0;
+    const updatePosition = () => {
+      const rect = editButtonRef.current?.getBoundingClientRect();
+      if (rect) {
+        const next = { top: rect.bottom + 8, left: rect.left };
+        setPopoverPosition((current) =>
+          current.top === next.top && current.left === next.left
+            ? current
+            : next,
+        );
+      }
+      frame = requestAnimationFrame(updatePosition);
+    };
+    updatePosition();
+    return () => cancelAnimationFrame(frame);
+  }, [isEditingInput]);
 
   const handleArgumentsChange = (value: string) => {
     setDraftArguments(value);
@@ -82,6 +109,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           <span className="skill-node__input-state">{inputSummary.summary}</span>
         )}
         <button
+          ref={editButtonRef}
           type="button"
           className="skill-node__input-affordance nodrag nopan"
           data-testid="skill-node-input-edit"
@@ -94,58 +122,62 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           Edit
         </button>
       </div>
-      {isEditingInput ? (
-        <div
-          className="skill-node-input-popover nodrag nopan"
-          data-testid="skill-node-input-popover"
-          role="dialog"
-          aria-label={`Input for ${data.label}`}
-          onClick={stopCanvasInteraction}
-          onPointerDown={stopCanvasInteraction}
-          onMouseDown={stopCanvasInteraction}
-        >
-          <div className="skill-node-input-popover__header">
-            <span className="skill-node-input-popover__title">Input</span>
-            <button
-              type="button"
-              className="skill-node-input-popover__close"
-              aria-label="Close input editor"
-              onClick={() => setIsEditingInput(false)}
+      {isEditingInput
+        ? createPortal(
+            <div
+              className="skill-node-input-popover nodrag nopan"
+              data-testid="skill-node-input-popover"
+              role="dialog"
+              aria-label={`Input for ${data.label}`}
+              style={popoverPosition}
+              onClick={stopCanvasInteraction}
+              onPointerDown={stopCanvasInteraction}
+              onMouseDown={stopCanvasInteraction}
             >
-              ×
-            </button>
-          </div>
-          {inputMode === "boarding" ? (
-            <BoardingInputFields
-              issueId={draftIssueId}
-              force={draftForce}
-              onChange={handleBoardingChange}
-            />
-          ) : inputMode === "arguments" ? (
-            <label className="skill-node-input-popover__field">
-              <span>Arguments</span>
-              <textarea
-                className="skill-node-input-popover__textarea"
-                data-testid="skill-node-input-arguments"
-                value={draftArguments}
-                placeholder="<ISSUE-ID> [--force]"
-                onChange={(e) => handleArgumentsChange(e.target.value)}
-              />
-            </label>
-          ) : (
-            <label className="skill-node-input-popover__field">
-              <span>Prompt</span>
-              <textarea
-                className="skill-node-input-popover__textarea"
-                data-testid="skill-node-input-prompt"
-                value={draftPrompt}
-                placeholder="Prompt"
-                onChange={(e) => handlePromptChange(e.target.value)}
-              />
-            </label>
-          )}
-        </div>
-      ) : null}
+              <div className="skill-node-input-popover__header">
+                <span className="skill-node-input-popover__title">Input</span>
+                <button
+                  type="button"
+                  className="skill-node-input-popover__close"
+                  aria-label="Close input editor"
+                  onClick={() => setIsEditingInput(false)}
+                >
+                  ×
+                </button>
+              </div>
+              {inputMode === "boarding" ? (
+                <BoardingInputFields
+                  issueId={draftIssueId}
+                  force={draftForce}
+                  onChange={handleBoardingChange}
+                />
+              ) : inputMode === "arguments" ? (
+                <label className="skill-node-input-popover__field">
+                  <span>Arguments</span>
+                  <textarea
+                    className="skill-node-input-popover__textarea"
+                    data-testid="skill-node-input-arguments"
+                    value={draftArguments}
+                    placeholder="<ISSUE-ID> [--force]"
+                    onChange={(e) => handleArgumentsChange(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <label className="skill-node-input-popover__field">
+                  <span>Prompt</span>
+                  <textarea
+                    className="skill-node-input-popover__textarea"
+                    data-testid="skill-node-input-prompt"
+                    value={draftPrompt}
+                    placeholder="Prompt"
+                    onChange={(e) => handlePromptChange(e.target.value)}
+                  />
+                </label>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

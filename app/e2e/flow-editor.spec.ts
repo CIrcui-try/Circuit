@@ -188,3 +188,32 @@ test("F6: dragging a canvas node onto the trash dropzone deletes it", async ({ p
   await expect(page.getByTestId("workflow-node")).toHaveCount(0);
   await expect(page.getByTestId("node-properties-panel")).toContainText(/Select a node or edge/i);
 });
+
+test("F7: input popover keeps its visual size when the canvas zoom changes", async ({ page }) => {
+  await openWorkspace(page);
+  await addSkillByButton(page, "Implement Feature");
+
+  const node = page.getByTestId("workflow-node");
+  await node.getByTestId("skill-node-input-edit").click();
+  const popover = page.getByTestId("skill-node-input-popover");
+  await expect(popover).toBeVisible();
+
+  const popoverBefore = await popover.boundingBox();
+  const nodeBefore = await node.boundingBox();
+  if (!popoverBefore || !nodeBefore) {
+    throw new Error("node or input popover has no bounding box before zoom");
+  }
+
+  await page.locator(".react-flow__controls-zoomin").click();
+  await page.locator(".react-flow__controls-zoomin").click();
+
+  const popoverAfter = await popover.boundingBox();
+  const nodeAfter = await node.boundingBox();
+  if (!popoverAfter || !nodeAfter) {
+    throw new Error("node or input popover has no bounding box after zoom");
+  }
+
+  expect(nodeAfter.width).toBeGreaterThan(nodeBefore.width + 10);
+  expect(Math.abs(popoverAfter.width - popoverBefore.width)).toBeLessThan(2);
+  expect(Math.abs(popoverAfter.height - popoverBefore.height)).toBeLessThan(2);
+});
