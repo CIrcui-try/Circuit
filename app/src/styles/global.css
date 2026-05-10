@@ -443,9 +443,19 @@ a:hover {
 
 .workspace__log {
   grid-area: log;
+  display: flex;
+  flex-direction: column;
   background: #1a1a1e;
   border-top: 1px solid #3a3a42;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.workspace__log .panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: 0 0 auto;
+  background: #1a1a1e;
 }
 
 .panel-header {
@@ -571,9 +581,12 @@ a:hover {
 }
 
 .run-log {
+  flex: 1 1 auto;
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 4px 0;
+  overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -1561,6 +1574,7 @@ a:hover {
 
 .run-log__past {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   padding: 4px 12px;

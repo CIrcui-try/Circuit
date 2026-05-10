@@ -81,7 +81,7 @@ describe("Layout shell", () => {
   });
 
   it("LogPanel copies the visible run log and node results", async () => {
-    const writeText = vi.fn(async () => {});
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,
@@ -161,6 +161,25 @@ describe("Layout shell", () => {
     render(<LogPanel />);
 
     expect(screen.getByTestId("run-log-clear")).toBeDisabled();
+  });
+
+  it("LogPanel keeps the header outside the scrollable log list", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "first line",
+    });
+
+    const { container } = render(<LogPanel />);
+
+    const panel = container.querySelector(".workspace__log");
+    const header = container.querySelector(".panel-header");
+    const log = screen.getByTestId("run-log");
+
+    expect(panel?.firstElementChild).toBe(header);
+    expect(log.parentElement).toBe(panel);
+    expect(header?.contains(log)).toBe(false);
   });
 
   it("Canvas mounts a ReactFlow surface", () => {
