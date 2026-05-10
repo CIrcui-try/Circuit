@@ -896,13 +896,14 @@ a:hover {
 }
 
 .skill-node {
-  min-width: 160px;
+  width: 220px;
   padding: 8px 10px;
   border: 1px solid #3a3a42;
   border-radius: 6px;
   background: #1f1f24;
   color: rgba(255, 255, 255, 0.88);
   font-size: 13px;
+  overflow: hidden;
 }
 
 .skill-node--claude {
@@ -996,6 +997,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .skill-node__name {
@@ -1004,6 +1006,54 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.skill-node__input {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #a7a7b0;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.skill-node__input-state {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.skill-node__input-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-node__input-affordance {
+  padding: 1px 5px;
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  color: #c8c8d0;
+  background: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+}
+
+.skill-node--input-present .skill-node__input-state {
+  color: #8ee48e;
+}
+
+.skill-node--input-invalid .skill-node__input-state {
+  color: #ff9f9f;
+}
+
+.skill-node--input-invalid .skill-node__input-affordance {
+  border-color: #8a4f5d;
+  color: #ffb8b8;
 }
 
 .skill-node-menu {
