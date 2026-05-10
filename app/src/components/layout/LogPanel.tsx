@@ -25,6 +25,8 @@ function LogHeader({
   activeNodeLabel,
   activeNodeState,
   activeNodeIdle,
+  copyDisabled,
+  onCopyLog,
   onCollapse,
 }: {
   isRunning: boolean;
@@ -33,6 +35,8 @@ function LogHeader({
   activeNodeLabel: string | null;
   activeNodeState: string | null;
   activeNodeIdle: boolean;
+  copyDisabled: boolean;
+  onCopyLog: () => void | Promise<void>;
   onCollapse?: () => void;
 }) {
   return (
@@ -53,6 +57,27 @@ function LogHeader({
           {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
           {activeNodeIdle ? " · idle" : ""}
         </span>
+        <button
+          type="button"
+          className="panel-header__button panel-header__button--icon"
+          data-testid="run-log-copy"
+          aria-label="Copy run log"
+          title="Copy run log"
+          disabled={copyDisabled}
+          onClick={() => void onCopyLog()}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            focusable="false"
+            className="panel-header__icon"
+          >
+            <path
+              d="M5 1.75A1.75 1.75 0 0 1 6.75 0h5.5A1.75 1.75 0 0 1 14 1.75v7.5A1.75 1.75 0 0 1 12.25 11h-5.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-5.5ZM2 4.75C2 3.784 2.784 3 3.75 3H4v1.5h-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25V12H11v.25A1.75 1.75 0 0 1 9.25 14h-5.5A1.75 1.75 0 0 1 2 12.25v-7.5Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
         {onCollapse ? (
           <button
             type="button"
@@ -182,6 +207,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     ? Boolean(nodeDebug[activeNodeId]?.idleSince)
     : false;
   const headerRunId = runStoreRunId ?? runId;
+  const canCopyLog =
+    events.length > 0 || Object.keys(nodeResults).length > 0;
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -192,6 +219,17 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       console.error("[LogPanel] sendInput failed", err);
     }
     resolvePendingApproval(request.requestId);
+  };
+
+  const handleCopyLog = async () => {
+    if (!canCopyLog) return;
+    try {
+      await navigator.clipboard.writeText(
+        formatRunLogForClipboard(events, nodeResults),
+      );
+    } catch (err) {
+      console.error("[LogPanel] copy run log failed", err);
+    }
   };
 
   if (
@@ -208,6 +246,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
+          copyDisabled={!canCopyLog}
+          onCopyLog={handleCopyLog}
           onCollapse={onCollapse}
         />
         {showPicker ? (
@@ -231,6 +271,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
+        copyDisabled={!canCopyLog}
+        onCopyLog={handleCopyLog}
         onCollapse={onCollapse}
       />
       {showPicker ? (
@@ -298,6 +340,23 @@ function formatPayload(ev: AgentRunEvent): string {
     default:
       return "";
   }
+}
+
+function formatRunLogForClipboard(
+  events: { nodeId: string; event: AgentRunEvent }[],
+  nodeResults: Record<string, { status: string; exitCode?: number }>,
+): string {
+  const lines = events.map((entry) =>
+    [entry.nodeId, entry.event.type, formatPayload(entry.event)].join("\t"),
+  );
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    const payload =
+      result.exitCode != null
+        ? `${result.status} (exit ${result.exitCode})`
+        : result.status;
+    lines.push([nodeId, "result", payload].join("\t"));
+  }
+  return lines.join("\n");
 }
 
 function shortId(id: string): string {

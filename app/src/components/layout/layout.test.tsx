@@ -47,6 +47,7 @@ describe("Layout shell", () => {
     render(<LogPanel />);
     expect(screen.getByText("Run Log")).toBeInTheDocument();
     expect(screen.getByText("No runs yet.")).toBeInTheDocument();
+    expect(screen.getByTestId("run-log-copy")).toBeDisabled();
   });
 
   it("LogPanel header identifies active waiting and idle node", () => {
@@ -76,6 +77,43 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
       /run run_abcd.*running.*Foo.*waiting for input.*idle/,
     );
+  });
+
+  it("LogPanel copies the visible run log and node results", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "hello from stdout",
+    });
+    useRunLogStore.getState().appendEvent("node-b", {
+      type: "status",
+      timestamp: "t2",
+      status: "running command",
+    });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "success",
+      exitCode: 0,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t3",
+    });
+
+    render(<LogPanel />);
+
+    fireEvent.click(screen.getByTestId("run-log-copy"));
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = writeText.mock.calls[0][0];
+    expect(copied).toContain("node-a\tstdout\thello from stdout");
+    expect(copied).toContain("node-b\tstatus\trunning command");
+    expect(copied).toContain("node-a\tresult\tsuccess (exit 0)");
   });
 
   it("Canvas mounts a ReactFlow surface", () => {
