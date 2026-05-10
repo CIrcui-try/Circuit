@@ -11,6 +11,7 @@ import {
 
 type SidebarProps = {
   repoId?: string;
+  onCollapse?: () => void;
 };
 
 type MenuState = { x: number; y: number; skill: Skill };
@@ -25,7 +26,7 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
-export function Sidebar({ repoId }: SidebarProps) {
+export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const skills = useSkillStore((s) => (repoId ? s.byRepo[repoId] : undefined));
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
@@ -92,7 +93,20 @@ export function Sidebar({ repoId }: SidebarProps) {
 
   return (
     <aside className="workspace__sidebar">
-      <div className="panel-header">Skills</div>
+      <div className="panel-header panel-header--with-actions">
+        <span>Skills</span>
+        {onCollapse ? (
+          <button
+            type="button"
+            className="panel-header__button"
+            data-testid="skills-sidebar-collapse"
+            aria-label="Hide skills sidebar"
+            onClick={onCollapse}
+          >
+            Hide
+          </button>
+        ) : null}
+      </div>
 
       {!repoId ? (
         <div className="empty-state">No repository selected.</div>

@@ -15,6 +15,7 @@ import { ApprovalPrompt } from "./ApprovalPrompt";
 export interface LogPanelProps {
   /** Override the runtime bridge — used by tests / Storybook. */
   runtimeBridgeOverride?: { sendInput: (runId: string, text: string) => Promise<void> };
+  onCollapse?: () => void;
 }
 
 function LogHeader({
@@ -24,6 +25,7 @@ function LogHeader({
   activeNodeLabel,
   activeNodeState,
   activeNodeIdle,
+  onCollapse,
 }: {
   isRunning: boolean;
   status: string;
@@ -31,23 +33,37 @@ function LogHeader({
   activeNodeLabel: string | null;
   activeNodeState: string | null;
   activeNodeIdle: boolean;
+  onCollapse?: () => void;
 }) {
   return (
     <div className="panel-header panel-header--with-status">
       <span>Run Log</span>
-      <span className="panel-header__running" data-testid="run-log-run-state">
-        {isRunning ? (
-          <span
-            className="cli-status-spinner cli-status-spinner--inline"
-            aria-hidden="true"
-            role="presentation"
-          />
+      <span className="panel-header__actions">
+        <span className="panel-header__running" data-testid="run-log-run-state">
+          {isRunning ? (
+            <span
+              className="cli-status-spinner cli-status-spinner--inline"
+              aria-hidden="true"
+              role="presentation"
+            />
+          ) : null}
+          {runId ? `run ${shortId(runId)} · ` : ""}
+          {status}
+          {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
+          {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
+          {activeNodeIdle ? " · idle" : ""}
+        </span>
+        {onCollapse ? (
+          <button
+            type="button"
+            className="panel-header__button"
+            data-testid="run-log-collapse"
+            aria-label="Hide run log"
+            onClick={onCollapse}
+          >
+            Hide
+          </button>
         ) : null}
-        {runId ? `run ${shortId(runId)} · ` : ""}
-        {status}
-        {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
-        {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
-        {activeNodeIdle ? " · idle" : ""}
       </span>
     </div>
   );
@@ -134,7 +150,7 @@ function PastRunsPicker({
   );
 }
 
-export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
+export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = {}) {
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
   const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
@@ -192,6 +208,7 @@ export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
+          onCollapse={onCollapse}
         />
         {showPicker ? (
           <PastRunsPicker
@@ -214,6 +231,7 @@ export function LogPanel({ runtimeBridgeOverride }: LogPanelProps = {}) {
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
+        onCollapse={onCollapse}
       />
       {showPicker ? (
         <PastRunsPicker
