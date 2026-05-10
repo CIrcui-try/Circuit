@@ -23,6 +23,10 @@ beforeEach(() => {
 describe("runWorkflow", () => {
   it("RW1: runs every node in topo order and ends with status=success", async () => {
     const order: string[] = [];
+    const times = [
+      "2026-05-09T00:00:00.000Z",
+      "2026-05-09T00:00:05.000Z",
+    ];
     const runner: WorkflowRunner = {
       async runNode(n) {
         order.push(n.id);
@@ -36,7 +40,7 @@ describe("runWorkflow", () => {
       workflowId: "wf",
       runner,
       store: useRunStore,
-      now: () => "t",
+      now: () => times.shift() ?? "2026-05-09T00:00:05.000Z",
       newRunId: () => "run_1",
     });
 
@@ -44,6 +48,8 @@ describe("runWorkflow", () => {
     expect(order).toEqual(["a", "b", "c"]);
     const s = useRunStore.getState();
     expect(s.status).toBe("success");
+    expect(s.startedAt).toBe("2026-05-09T00:00:00.000Z");
+    expect(s.finishedAt).toBe("2026-05-09T00:00:05.000Z");
     expect(s.nodeStates).toEqual({ a: "success", b: "success", c: "success" });
   });
 
@@ -104,6 +110,10 @@ describe("runWorkflow", () => {
     const runner: WorkflowRunner = {
       runNode: vi.fn(async () => ({ ok: true as const })),
     };
+    const times = [
+      "2026-05-09T00:00:00.000Z",
+      "2026-05-09T00:00:02.000Z",
+    ];
 
     const outcome = await runWorkflow({
       nodes: [node("a"), node("b")],
@@ -111,7 +121,7 @@ describe("runWorkflow", () => {
       workflowId: "wf",
       runner,
       store: useRunStore,
-      now: () => "t",
+      now: () => times.shift() ?? "2026-05-09T00:00:02.000Z",
       newRunId: () => "run_1",
     });
 
@@ -119,6 +129,7 @@ describe("runWorkflow", () => {
     expect(runner.runNode).not.toHaveBeenCalled();
     const s = useRunStore.getState();
     expect(s.status).toBe("failed");
+    expect(s.finishedAt).toBe("2026-05-09T00:00:02.000Z");
     expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
   });
 

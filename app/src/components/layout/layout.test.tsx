@@ -80,6 +80,29 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel header shows terminal elapsed time", () => {
+    useRunStore.setState({
+      status: "success",
+      runId: "run_abcdef123",
+      workflowId: "wf",
+      workflowName: null,
+      repositoryId: null,
+      repositoryName: null,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: {},
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
+      "run run_abcd · success · 0:05",
+    );
+  });
+
   it("LogPanel copies the visible run log and node results", async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
     Object.defineProperty(navigator, "clipboard", {

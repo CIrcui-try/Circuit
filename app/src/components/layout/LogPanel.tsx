@@ -5,6 +5,7 @@ import {
   useRunLogStore,
   type PendingApproval,
 } from "../../runner/runLogStore";
+import { useRunElapsedLabel } from "../../runner/runElapsed";
 import { useRunStore } from "../../runner/runStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
@@ -25,6 +26,7 @@ function LogHeader({
   activeNodeLabel,
   activeNodeState,
   activeNodeIdle,
+  elapsedLabel,
   copyDisabled,
   onCopyLog,
   clearDisabled,
@@ -37,6 +39,7 @@ function LogHeader({
   activeNodeLabel: string | null;
   activeNodeState: string | null;
   activeNodeIdle: boolean;
+  elapsedLabel: string | null;
   copyDisabled: boolean;
   onCopyLog: () => void | Promise<void>;
   clearDisabled: boolean;
@@ -57,6 +60,7 @@ function LogHeader({
           ) : null}
           {runId ? `run ${shortId(runId)} · ` : ""}
           {status}
+          {elapsedLabel ? ` · ${elapsedLabel}` : ""}
           {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
           {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
           {activeNodeIdle ? " · idle" : ""}
@@ -214,6 +218,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const activeNodeId = useRunStore((s) => s.activeNodeId);
   const nodeStates = useRunStore((s) => s.nodeStates);
   const nodeDebug = useRunStore((s) => s.nodeDebug);
+  const elapsedLabel = useRunElapsedLabel();
   const isRunning = runStatus === "running";
   const repo = useRepositoryStore((s) =>
     s.selectedId
@@ -279,6 +284,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
+          elapsedLabel={elapsedLabel}
           copyDisabled={!canCopyLog}
           onCopyLog={handleCopyLog}
           clearDisabled={!canClearLog}
@@ -306,6 +312,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
+        elapsedLabel={elapsedLabel}
         copyDisabled={!canCopyLog}
         onCopyLog={handleCopyLog}
         clearDisabled={!canClearLog}

@@ -14,6 +14,7 @@ import type { WorkflowSummaryDTO } from "../host/bridge";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
+import { useRunElapsedLabel } from "../runner/runElapsed";
 import { useRunStore } from "../runner/runStore";
 import {
   cancelWorkflowRun,
@@ -39,15 +40,20 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const isRunning = useRunStore((s) => s.status === "running");
+  const runStatus = useRunStore((s) => s.status);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
   const runRepositoryName = useRunStore((s) => s.repositoryName);
   const runWorkflowName = useRunStore((s) => s.workflowName);
+  const runElapsed = useRunElapsedLabel();
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
   const logCollapsed = useLayoutStore((s) => s.logCollapsed);
   const setLogCollapsed = useLayoutStore((s) => s.setLogCollapsed);
   const activeRunSnapshot = useRunStore((s) =>
     s.status === "running" ? s.snapshot : null,
+  );
+  const isRunHere = Boolean(
+    runStatus !== "idle" && repo?.id && runRepositoryId === repo.id,
   );
   const isRunningHere = Boolean(
     isRunning && repo?.id && runRepositoryId === repo.id,
@@ -180,10 +186,11 @@ export function Workspace() {
 
   const toolbarStatus =
     runStatusText({
-      isRunning,
-      isRunningHere,
+      status: runStatus,
+      isRunningHere: isRunHere,
       repositoryName: runRepositoryName,
       workflowName: runWorkflowName,
+      elapsedLabel: runElapsed,
     }) ?? saveStatus;
 
   if (repoId && hydrated && !repo) {
@@ -262,6 +269,11 @@ export function Workspace() {
                 role="presentation"
               />
               Running…
+              {runElapsed ? (
+                <span className="workspace__toolbar-start-elapsed">
+                  {runElapsed}
+                </span>
+              ) : null}
             </>
           ) : (
             "Start Circuit"
@@ -378,20 +390,41 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
 }
 
 function runStatusText({
-  isRunning,
+  status,
   isRunningHere,
   repositoryName,
   workflowName,
+  elapsedLabel,
 }: {
-  isRunning: boolean;
+  status: ReturnType<typeof useRunStore.getState>["status"];
   isRunningHere: boolean;
   repositoryName: string | null;
   workflowName: string | null;
+  elapsedLabel: string | null;
 }): string | null {
-  if (!isRunning) return null;
+  if (status === "idle") return null;
   const name = workflowName ?? "workflow";
-  if (isRunningHere) return `Running: ${name}`;
-  return `Running in ${repositoryName ?? "another repository"}: ${name}`;
+  const elapsed = elapsedLabel ? ` · ${elapsedLabel}` : "";
+  const label = runStatusLabel(status);
+  if (isRunningHere) return `${label}: ${name}${elapsed}`;
+  return `${label} in ${repositoryName ?? "another repository"}: ${name}${elapsed}`;
+}
+
+function runStatusLabel(status: ReturnType<typeof useRunStore.getState>["status"]): string {
+  switch (status) {
+    case "running":
+      return "Running";
+    case "success":
+      return "Success";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    case "timeout":
+      return "Timed out";
+    default:
+      return "Idle";
+  }
 }
 
 function describeLastRunFailure(): string | null {

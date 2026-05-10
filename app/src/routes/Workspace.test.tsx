@@ -589,4 +589,28 @@ describe("Workspace", () => {
     );
     expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
   });
+
+  it("W19: shows final elapsed time in the toolbar after a run completes", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy flow",
+      repositoryId: SAMPLE.id,
+      repositoryName: SAMPLE.name,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workflow-save-status")).toHaveTextContent(
+      "Success: Deploy flow · 0:05",
+    );
+  });
 });

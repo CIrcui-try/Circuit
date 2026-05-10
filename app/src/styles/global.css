@@ -158,6 +158,7 @@ button:hover {
 
 .run-floating-toast__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
@@ -356,6 +357,8 @@ a:hover {
   color: #8a8a92;
   font-size: 12px;
   margin-left: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .workspace__sidebar {
@@ -471,6 +474,7 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .panel-header--with-actions {
@@ -530,7 +534,9 @@ a:hover {
 .panel-header__running {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
   color: #d8b86a;
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -540,7 +546,15 @@ a:hover {
 .workspace__toolbar-start {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+.workspace__toolbar-start-elapsed {
+  color: #d8d8df;
+  font-variant-numeric: tabular-nums;
 }
 
 .workspace__sidebar-restore {
