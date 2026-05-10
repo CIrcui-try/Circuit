@@ -83,8 +83,12 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
               role="dialog"
               aria-modal="true"
               aria-labelledby={`input-title-${id}`}
+              onClick={() => setIsEditingInput(false)}
             >
-              <div className="skill-node-input-modal__panel">
+              <div
+                className="skill-node-input-modal__panel"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="skill-node-input-modal__header">
                   <h2 id={`input-title-${id}`}>Edit input</h2>
                   <button

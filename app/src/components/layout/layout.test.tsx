@@ -162,6 +162,25 @@ describe("Layout shell", () => {
     });
   });
 
+  it("SkillNode input modal dismisses when clicking outside the panel", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.click(screen.getByTestId("skill-node-input-modal"));
+
+    expect(screen.queryByTestId("skill-node-input-modal")).not.toBeInTheDocument();
+  });
+
   it("SkillNode summarizes configured input on one line", () => {
     renderSkillNode({
       id: "node-1",
