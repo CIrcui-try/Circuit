@@ -7,6 +7,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "foo")).toEqual({
       name: "Foo Skill",
       description: "Does foo things",
+      inputHints: [],
     });
   });
 
@@ -15,6 +16,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "x")).toEqual({
       name: "Quoted Name",
       description: "single quoted",
+      inputHints: [],
     });
   });
 
@@ -23,6 +25,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "ignored")).toEqual({
       name: "Heading Title",
       description: "only desc",
+      inputHints: [],
     });
   });
 
@@ -31,6 +34,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "ignored")).toEqual({
       name: "Hello World",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -39,6 +43,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "my-dir")).toEqual({
       name: "my-dir",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -47,6 +52,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "dir")).toEqual({
       name: "Real Heading",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -55,6 +61,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "dir")).toEqual({
       name: "Skill",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -62,6 +69,37 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta("", "fallback-name")).toEqual({
       name: "fallback-name",
       description: "",
+      inputHints: [],
     });
+  });
+
+  it("P9: extracts command-style arguments placeholder from $ARGUMENTS format", () => {
+    const content = [
+      "# boarding",
+      "",
+      "## Command Template",
+      "",
+      "`$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/boarding CIR-15`.",
+    ].join("\n");
+
+    expect(parseSkillMeta(content, "boarding").inputHints).toEqual([
+      {
+        kind: "command",
+        key: "arguments",
+        placeholder: "<ISSUE-ID> [--force]",
+      },
+    ]);
+  });
+
+  it("P10: marks command template skills even when the argument shape is omitted", () => {
+    const content = "## Command Template\n\nRun this command with $ARGUMENTS.";
+
+    expect(parseSkillMeta(content, "command").inputHints).toEqual([
+      {
+        kind: "command",
+        key: "arguments",
+        placeholder: "$ARGUMENTS",
+      },
+    ]);
   });
 });

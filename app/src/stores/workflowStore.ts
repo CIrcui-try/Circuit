@@ -45,6 +45,7 @@ type WorkflowState = {
   onConnect: (conn: Connection) => void;
 
   addSkillNode: (skill: Skill, position: XYPosition) => string;
+  setNodeInput: (nodeId: string, input: Record<string, unknown> | null) => void;
   selectNode: (id: string | null) => void;
   selectEdge: (id: string | null) => void;
   deleteSelected: () => void;
@@ -128,6 +129,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     };
     set({ nodes: [...get().nodes, node] });
     return id;
+  },
+
+  setNodeInput: (nodeId, input) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        const data = { ...n.data };
+        if (input && Object.keys(input).length > 0) {
+          data.input = input;
+        } else {
+          delete data.input;
+        }
+        return { ...n, data };
+      }) as SkillNode[],
+    }));
   },
 
   selectNode: (id) => {

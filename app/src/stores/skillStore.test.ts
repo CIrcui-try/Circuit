@@ -26,7 +26,8 @@ describe("skillStore — scanRepository", () => {
         dirName: "implement-feature",
         rootDir: ".claude/skills/implement-feature",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
-        content: "---\nname: Implement Feature\ndescription: Adds features\n---\n",
+        content:
+          "---\nname: Implement Feature\ndescription: Adds features\n---\n\n`$ARGUMENTS` format: `<TASK> [--force]`.",
       },
       {
         provider: "codex",
@@ -48,6 +49,13 @@ describe("skillStore — scanRepository", () => {
         provider: "claude",
         name: "Implement Feature",
         description: "Adds features",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            placeholder: "<TASK> [--force]",
+          },
+        ],
         rootDir: ".claude/skills/implement-feature",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
       },
@@ -56,6 +64,7 @@ describe("skillStore — scanRepository", () => {
         provider: "codex",
         name: "Lint",
         description: "",
+        inputHints: [],
         rootDir: ".codex/skills/lint",
         skillFile: ".codex/skills/lint/SKILL.md",
       },

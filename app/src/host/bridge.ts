@@ -9,6 +9,12 @@ export type RawSkill = {
   content: string;
 };
 
+export type SkillInputHint = {
+  kind: "command";
+  key: "arguments";
+  placeholder: string;
+};
+
 export type WorkflowSummaryDTO = {
   id: string;
   name: string;
