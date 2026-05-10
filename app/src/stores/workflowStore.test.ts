@@ -218,4 +218,33 @@ describe("workflowStore", () => {
     expect(s.currentWorkflowId).toBe("wf-loaded");
     expect(s.workflowName).toBe("Loaded flow");
   });
+
+  it("WS15: setNodeInput stores input on the targeted node only", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+
+    useWorkflowStore.getState().setNodeInput(a, {
+      arguments: "CIR-42 --force",
+    });
+
+    const nodes = useWorkflowStore.getState().nodes;
+    expect(nodes.find((n) => n.id === a)?.data.input).toEqual({
+      arguments: "CIR-42 --force",
+    });
+    expect(nodes.find((n) => n.id === b)?.data.input).toBeUndefined();
+  });
+
+  it("WS16: setNodeInput deletes input when given null or an empty object", () => {
+    const id = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+
+    useWorkflowStore.getState().setNodeInput(id, { arguments: "CIR-42" });
+    useWorkflowStore.getState().setNodeInput(id, {});
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
+
+    useWorkflowStore.getState().setNodeInput(id, { arguments: "CIR-42" });
+    useWorkflowStore.getState().setNodeInput(id, null);
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
+  });
 });

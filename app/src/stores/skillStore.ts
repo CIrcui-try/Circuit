@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getHostBridge } from "../host/bridge";
+import type { SkillInputHint } from "../host/bridge";
 import { parseSkillMeta } from "../skills/parseSkillMeta";
 
 export type SkillProvider = "claude" | "codex";
@@ -9,6 +10,7 @@ export type Skill = {
   provider: SkillProvider;
   name: string;
   description: string;
+  inputHints?: SkillInputHint[];
   rootDir: string;
   skillFile: string;
 };
@@ -42,6 +44,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
           provider: r.provider,
           name: meta.name,
           description: meta.description,
+          inputHints: meta.inputHints,
           rootDir: r.rootDir,
           skillFile: r.skillFile,
         };

@@ -1,6 +1,13 @@
 export type SkillMeta = {
   name: string;
   description: string;
+  inputHints: SkillInputHint[];
+};
+
+export type SkillInputHint = {
+  kind: "command";
+  key: "arguments";
+  placeholder: string;
 };
 
 export function parseSkillMeta(content: string, dirName: string): SkillMeta {
@@ -8,7 +15,8 @@ export function parseSkillMeta(content: string, dirName: string): SkillMeta {
   const name =
     fm.name ?? extractFirstHeading(stripFrontmatter(content, fm.matched)) ?? dirName;
   const description = fm.description ?? "";
-  return { name, description };
+  const inputHints = extractInputHints(content);
+  return { name, description, inputHints };
 }
 
 type Frontmatter = {
@@ -70,4 +78,34 @@ function unquote(value: string): string {
     }
   }
   return value;
+}
+
+function extractInputHints(content: string): SkillInputHint[] {
+  if (!/\$ARGUMENTS|Command Template/i.test(content)) return [];
+
+  const placeholder = extractArgumentsFormat(content) ?? "$ARGUMENTS";
+  return [
+    {
+      kind: "command",
+      key: "arguments",
+      placeholder,
+    },
+  ];
+}
+
+function extractArgumentsFormat(content: string): string | null {
+  const lines = content.split("\n");
+  for (const line of lines) {
+    if (!line.includes("$ARGUMENTS")) continue;
+
+    const inlineCode = line.match(/`([^`]*<[^`]+>[^`]*)`/);
+    if (inlineCode) return inlineCode[1].trim();
+
+    const afterColon = line.match(/[:：]\s*(.+?)\s*(?:[.。]|$)/);
+    if (afterColon) {
+      const cleaned = afterColon[1].replace(/`/g, "").trim();
+      if (cleaned.length > 0) return cleaned;
+    }
+  }
+  return null;
 }
