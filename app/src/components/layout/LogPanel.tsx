@@ -27,6 +27,8 @@ function LogHeader({
   activeNodeIdle,
   copyDisabled,
   onCopyLog,
+  clearDisabled,
+  onClearLog,
   onCollapse,
 }: {
   isRunning: boolean;
@@ -37,6 +39,8 @@ function LogHeader({
   activeNodeIdle: boolean;
   copyDisabled: boolean;
   onCopyLog: () => void | Promise<void>;
+  clearDisabled: boolean;
+  onClearLog: () => void;
   onCollapse?: () => void;
 }) {
   return (
@@ -74,6 +78,27 @@ function LogHeader({
           >
             <path
               d="M5 1.75A1.75 1.75 0 0 1 6.75 0h5.5A1.75 1.75 0 0 1 14 1.75v7.5A1.75 1.75 0 0 1 12.25 11h-5.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-5.5ZM2 4.75C2 3.784 2.784 3 3.75 3H4v1.5h-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25V12H11v.25A1.75 1.75 0 0 1 9.25 14h-5.5A1.75 1.75 0 0 1 2 12.25v-7.5Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="panel-header__button panel-header__button--icon"
+          data-testid="run-log-clear"
+          aria-label="Clear run log"
+          title="Clear run log"
+          disabled={clearDisabled}
+          onClick={onClearLog}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            focusable="false"
+            className="panel-header__icon"
+          >
+            <path
+              d="M6.5 1.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V2H13v1.5H3V2h3.5v-.5ZM4 4.5h8l-.45 8.08A1.5 1.5 0 0 1 10.05 14h-4.1a1.5 1.5 0 0 1-1.5-1.42L4 4.5Zm2.25 1.25.25 6h1.25l-.25-6H6.25Zm2.5 0-.25 6h1.25l.25-6H8.75Z"
               fill="currentColor"
             />
           </svg>
@@ -180,6 +205,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const nodeResults = useRunLogStore((s) => s.nodeResults);
   const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
   const runId = useRunLogStore((s) => s.runId);
+  const resetLog = useRunLogStore((s) => s.reset);
   const resolvePendingApproval = useRunLogStore(
     (s) => s.resolvePendingApproval,
   );
@@ -209,6 +235,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const headerRunId = runStoreRunId ?? runId;
   const canCopyLog =
     events.length > 0 || Object.keys(nodeResults).length > 0;
+  const hasLogContent = canCopyLog || approvals.length > 0;
+  const canClearLog = hasLogContent && !isRunning;
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -232,6 +260,11 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     }
   };
 
+  const handleClearLog = () => {
+    if (!canClearLog) return;
+    resetLog();
+  };
+
   if (
     events.length === 0 &&
     Object.keys(nodeResults).length === 0 &&
@@ -248,6 +281,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeIdle={activeNodeIdle}
           copyDisabled={!canCopyLog}
           onCopyLog={handleCopyLog}
+          clearDisabled={!canClearLog}
+          onClearLog={handleClearLog}
           onCollapse={onCollapse}
         />
         {showPicker ? (
@@ -273,6 +308,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeIdle={activeNodeIdle}
         copyDisabled={!canCopyLog}
         onCopyLog={handleCopyLog}
+        clearDisabled={!canClearLog}
+        onClearLog={handleClearLog}
         onCollapse={onCollapse}
       />
       {showPicker ? (

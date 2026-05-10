@@ -48,6 +48,7 @@ describe("Layout shell", () => {
     expect(screen.getByText("Run Log")).toBeInTheDocument();
     expect(screen.getByText("No runs yet.")).toBeInTheDocument();
     expect(screen.getByTestId("run-log-copy")).toBeDisabled();
+    expect(screen.getByTestId("run-log-clear")).toBeDisabled();
   });
 
   it("LogPanel header identifies active waiting and idle node", () => {
@@ -114,6 +115,52 @@ describe("Layout shell", () => {
     expect(copied).toContain("node-a\tstdout\thello from stdout");
     expect(copied).toContain("node-b\tstatus\trunning command");
     expect(copied).toContain("node-a\tresult\tsuccess (exit 0)");
+  });
+
+  it("LogPanel clears visible run log entries when the run is idle", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "hello from stdout",
+    });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "success",
+      exitCode: 0,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-clear")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("run-log-clear"));
+
+    expect(screen.getByText("No runs yet.")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-log-line")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-log-result")).not.toBeInTheDocument();
+    expect(useRunLogStore.getState().events).toEqual([]);
+    expect(useRunLogStore.getState().nodeResults).toEqual({});
+  });
+
+  it("LogPanel keeps clear disabled while a run is active", () => {
+    useRunStore.getState().beginRun({
+      runId: "run_42",
+      workflowId: "wf",
+      nodeIds: ["node-a"],
+      startedAt: "t1",
+    });
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "still running",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-clear")).toBeDisabled();
   });
 
   it("Canvas mounts a ReactFlow surface", () => {
