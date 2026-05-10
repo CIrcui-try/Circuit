@@ -125,4 +125,13 @@ describe("Sidebar", () => {
       skillFile: ".claude/skills/foo/SKILL.md",
     });
   });
+
+  it("SB7: clicking the header button requests sidebar collapse", async () => {
+    const onCollapse = vi.fn();
+
+    render(<Sidebar onCollapse={onCollapse} />);
+    await userEvent.click(screen.getByRole("button", { name: /Hide skills sidebar/i }));
+
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
 });

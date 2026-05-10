@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const bridgeMock = vi.hoisted(() => ({
@@ -18,6 +18,7 @@ vi.mock("../host/bridge", () => ({
 
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore } from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -77,6 +78,7 @@ beforeEach(() => {
     hydrated: true,
   });
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useLayoutStore.setState({ sidebarCollapsed: false });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
   useRunLogStore.getState().reset();
@@ -510,5 +512,43 @@ describe("Workspace", () => {
       "Running: Active run",
     );
     expect(screen.getByTestId("workflow-start")).toBeDisabled();
+  });
+
+  it("W15: collapses and restores the skills sidebar without a sidebar resize handle", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("skills-sidebar-collapse"));
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--sidebar-collapsed",
+    );
+    expect(screen.getByTestId("skills-sidebar-restore")).toBeInTheDocument();
+    expect(screen.queryByTestId("skills-sidebar-collapse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("resize-handle-sidebar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("skills-sidebar-restore"));
+
+    expect(screen.getByTestId("workspace-root")).not.toHaveClass(
+      "workspace--sidebar-collapsed",
+    );
+    expect(screen.getByTestId("skills-sidebar-collapse")).toBeInTheDocument();
+    expect(screen.getByTestId("resize-handle-sidebar")).toBeInTheDocument();
+    expect(screen.queryByTestId("skills-sidebar-restore")).not.toBeInTheDocument();
+  });
+
+  it("W16: keeps the collapsed sidebar state across workspace remounts in the same session", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    const firstRender = renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("skills-sidebar-collapse"));
+    firstRender.unmount();
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--sidebar-collapsed",
+    );
+    expect(screen.getByTestId("skills-sidebar-restore")).toBeInTheDocument();
   });
 });
