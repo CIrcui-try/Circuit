@@ -204,6 +204,65 @@ describe("Workspace", () => {
     });
   });
 
+  it("W8b: edits boarding card input as issue id plus force arguments", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/boarding",
+        provider: "codex",
+        name: "boarding",
+        description: "",
+        rootDir: ".codex/skills/boarding",
+        skillFile: ".codex/skills/boarding/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(await screen.findByTestId("skill-node-input-edit"));
+    expect(screen.getByTestId("skill-node-input-popover")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("skill-node-input-issue"), {
+      target: { value: "CIR-15" },
+    });
+    fireEvent.click(screen.getByTestId("skill-node-input-force"));
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-15 --force",
+    });
+  });
+
+  it("W8c: edits generic skill input as prompt", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/generic",
+        provider: "codex",
+        name: "Generic Skill",
+        description: "",
+        rootDir: ".codex/skills/generic",
+        skillFile: ".codex/skills/generic/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(await screen.findByTestId("skill-node-input-edit"));
+    fireEvent.change(screen.getByTestId("skill-node-input-prompt"), {
+      target: { value: "Write a concise summary." },
+    });
+    fireEvent.click(screen.getByLabelText("Close input editor"));
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      prompt: "Write a concise summary.",
+    });
+    expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
+  });
+
   it("W9: clicking Start drives the run store to success without a confirmation modal", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
