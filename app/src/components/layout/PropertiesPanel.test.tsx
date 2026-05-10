@@ -118,4 +118,118 @@ describe("PropertiesPanel", () => {
       arguments: "CIR-43 --force",
     });
   });
+
+  it("PP6: edits the full selected node input as JSON", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    fireEvent.click(screen.getByTestId("node-input-mode-json"));
+    fireEvent.change(screen.getByTestId("node-input-json"), {
+      target: {
+        value: JSON.stringify({
+          arguments: "CIR-45",
+          timeoutMs: 5000,
+          idleTimeoutMs: 1000,
+          env: { DEBUG: true },
+        }),
+      },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-45",
+      timeoutMs: 5000,
+      idleTimeoutMs: 1000,
+      env: { DEBUG: true },
+    });
+  });
+
+  it("PP7: rejects invalid JSON without replacing the last valid input", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, {
+      arguments: "CIR-45",
+      timeoutMs: 5000,
+    });
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    fireEvent.click(screen.getByTestId("node-input-mode-json"));
+    fireEvent.change(screen.getByTestId("node-input-json"), {
+      target: { value: '{"arguments": ' },
+    });
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-45",
+      timeoutMs: 5000,
+    });
+  });
+
+  it("PP8: friendly argument edits preserve advanced JSON fields", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, {
+      arguments: "CIR-44",
+      timeoutMs: 5000,
+      idleTimeoutMs: 1000,
+    });
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    fireEvent.click(screen.getByTestId("node-input-mode-json"));
+    expect(screen.getByTestId("node-input-json")).toHaveValue(
+      JSON.stringify(
+        {
+          arguments: "CIR-44",
+          timeoutMs: 5000,
+          idleTimeoutMs: 1000,
+        },
+        null,
+        2,
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("node-input-mode-friendly"));
+    fireEvent.change(screen.getByTestId("node-input-arguments"), {
+      target: { value: "CIR-45 --force" },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-45 --force",
+      timeoutMs: 5000,
+      idleTimeoutMs: 1000,
+    });
+  });
 });

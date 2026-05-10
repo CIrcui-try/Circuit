@@ -1269,6 +1269,41 @@ a:hover {
   min-width: 0;
 }
 
+.properties__input-editor {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.properties__segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.properties__segmented button {
+  min-width: 0;
+  padding: 5px 8px;
+  color: #b8b8c0;
+  background: #232329;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.properties__segmented button + button {
+  border-left: 1px solid #3a3a42;
+}
+
+.properties__segmented button.is-active {
+  color: #ffffff;
+  background: #3a3a42;
+}
+
 .properties__textarea {
   width: 100%;
   min-height: 72px;
@@ -1279,6 +1314,19 @@ a:hover {
   border: 1px solid #3a3a42;
   border-radius: 6px;
   font: inherit;
+}
+
+.properties__textarea--json {
+  min-height: 132px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.properties__error {
+  color: #ff9f9f;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .properties code {

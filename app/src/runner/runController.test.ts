@@ -17,7 +17,11 @@ function snapshot(): WorkflowRunSnapshot {
         skillRef: { provider: "claude", skillFile: ".claude/skills/a/SKILL.md" },
         label: "A",
         position: { x: 0, y: 0 },
-        input: { prompt: "original" },
+        input: {
+          prompt: "original",
+          timeoutMs: 5000,
+          env: { DEBUG: true },
+        },
       },
       {
         id: "b",
@@ -42,7 +46,11 @@ describe("runController", () => {
     const blocker = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const seen: { id: string; label: string; prompt: unknown }[] = [];
+    const seen: {
+      id: string;
+      label: string;
+      input: Record<string, unknown> | undefined;
+    }[] = [];
     const source = snapshot();
 
     const run = startWorkflowRun({
@@ -56,7 +64,7 @@ describe("runController", () => {
           seen.push({
             id: node.id,
             label: full?.label ?? "",
-            prompt: full?.input?.prompt,
+            input: full?.input,
           });
           if (node.id === "a") await blocker;
           return { ok: true };
@@ -72,8 +80,16 @@ describe("runController", () => {
     release();
     await expect(run).resolves.toEqual({ kind: "started", status: "success" });
     expect(seen).toEqual([
-      { id: "a", label: "A", prompt: "original" },
-      { id: "b", label: "B", prompt: "second" },
+      {
+        id: "a",
+        label: "A",
+        input: {
+          prompt: "original",
+          timeoutMs: 5000,
+          env: { DEBUG: true },
+        },
+      },
+      { id: "b", label: "B", input: { prompt: "second" } },
     ]);
   });
 
