@@ -1,6 +1,0 @@
-interface:
-  display_name: "Rejoin"
-  short_description: "중단된 워크트리 정리 후 로컬 브랜치를 안전하게 보존"
-  default_prompt: "Use $rejoin to remove a worktree while preserving the branch."
-policy:
-  allow_implicit_invocation: true
