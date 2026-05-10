@@ -897,6 +897,7 @@ a:hover {
 
 .skill-node {
   width: 220px;
+  position: relative;
   padding: 8px 10px;
   border: 1px solid #3a3a42;
   border-radius: 6px;
@@ -1060,6 +1061,47 @@ a:hover {
 .skill-node--input-invalid .skill-node__input-affordance {
   border-color: #8a4f5d;
   color: #ffb8b8;
+}
+
+.skill-node__input-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 260px;
+  padding: 10px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #26262b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.skill-node__input-label {
+  color: #8a8a92;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.skill-node__input-textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  padding: 6px 8px;
+  color: rgba(255, 255, 255, 0.88);
+  background: #1f1f24;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.skill-node__input-done {
+  align-self: flex-end;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .skill-node-menu {

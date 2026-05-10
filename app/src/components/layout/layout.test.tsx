@@ -130,6 +130,36 @@ describe("Layout shell", () => {
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
 
     expect(useWorkflowStore.getState().selectedNodeId).toBe("node-1");
+    expect(screen.getByTestId("skill-node-input-popover")).toBeInTheDocument();
+  });
+
+  it("SkillNode input popover edits node arguments", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    const node = useWorkflowStore.getState().nodes[0];
+    renderSkillNode({
+      id,
+      selected: false,
+      data: node.data,
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.change(screen.getByTestId("skill-node-input-textarea"), {
+      target: { value: "CIR-43 --force" },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-43 --force",
+    });
   });
 
   it("SkillNode summarizes configured input on one line", () => {
