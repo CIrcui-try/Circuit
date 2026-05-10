@@ -16,7 +16,7 @@ type SidebarProps = {
 type MenuState = { x: number; y: number; skill: Skill };
 
 function dropPosition(index: number) {
-  return { x: 80 + 32 * index, y: 80 + 32 * index };
+  return { x: 80 + 280 * index, y: 80 + 80 * index };
 }
 
 function joinPath(base: string, rel: string): string {
