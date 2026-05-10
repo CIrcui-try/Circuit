@@ -17,7 +17,7 @@ vi.mock("../../host/bridge", () => ({
 import { Sidebar } from "./Sidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
-import { Canvas } from "./Canvas";
+import { CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
 import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
@@ -82,6 +82,10 @@ describe("Layout shell", () => {
     const { container } = render(<Canvas />);
     expect(container.querySelector(".react-flow")).not.toBeNull();
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
+  });
+
+  it("Canvas caps fitView zoom so a single node is not enlarged", () => {
+    expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
   });
 
   it("nodeTypes registers a 'skill' custom node", () => {
