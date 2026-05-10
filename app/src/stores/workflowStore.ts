@@ -48,6 +48,7 @@ type WorkflowState = {
   setNodeInput: (nodeId: string, input: Record<string, unknown> | null) => void;
   selectNode: (id: string | null) => void;
   selectEdge: (id: string | null) => void;
+  deleteNode: (nodeId: string) => void;
   deleteSelected: () => void;
   resetWorkflow: () => void;
   setWorkflowName: (name: string) => void;
@@ -164,16 +165,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }));
   },
 
+  deleteNode: (nodeId) => {
+    const { nodes, edges, selectedNodeId, selectedEdgeId } = get();
+    const incidentEdgeIds = new Set(
+      edges
+        .filter((e) => e.source === nodeId || e.target === nodeId)
+        .map((e) => e.id),
+    );
+    set({
+      nodes: nodes.filter((n) => n.id !== nodeId),
+      edges: edges.filter((e) => !incidentEdgeIds.has(e.id)),
+      selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId,
+      selectedEdgeId:
+        selectedEdgeId && incidentEdgeIds.has(selectedEdgeId)
+          ? null
+          : selectedEdgeId,
+    });
+  },
+
   deleteSelected: () => {
-    const { selectedNodeId, selectedEdgeId, nodes, edges } = get();
+    const { selectedNodeId, selectedEdgeId, edges } = get();
     if (selectedNodeId) {
-      set({
-        nodes: nodes.filter((n) => n.id !== selectedNodeId),
-        edges: edges.filter(
-          (e) => e.source !== selectedNodeId && e.target !== selectedNodeId,
-        ),
-        selectedNodeId: null,
-      });
+      get().deleteNode(selectedNodeId);
       return;
     }
     if (selectedEdgeId) {

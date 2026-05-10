@@ -48,9 +48,26 @@ function joinPath(base: string, rel: string): string {
   return `${base.replace(/\/+$/, "")}/${rel.replace(/^\/+/, "")}`;
 }
 
+function isPointInsideElement(
+  event: ReactMouseEvent,
+  element: HTMLElement | null,
+): boolean {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return (
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  );
+}
+
 function CanvasInner() {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const trashRef = useRef<HTMLDivElement>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
+  const [isNodeDragging, setIsNodeDragging] = useState(false);
+  const [isTrashTarget, setIsTrashTarget] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
@@ -64,6 +81,7 @@ function CanvasInner() {
       })),
     );
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
+  const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const activeRepoPath = useRepositoryStore((s) => {
     if (!s.selectedId) return null;
     return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
@@ -115,6 +133,29 @@ function CanvasInner() {
       );
     },
     [addSkillNode, screenToFlowPosition],
+  );
+
+  const onNodeDragStart = useCallback(() => {
+    setMenu(null);
+    setIsNodeDragging(true);
+    setIsTrashTarget(false);
+  }, []);
+
+  const onNodeDrag = useCallback((event: ReactMouseEvent) => {
+    setIsTrashTarget(isPointInsideElement(event, trashRef.current));
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (event: ReactMouseEvent, node: RFNode) => {
+      const shouldDelete = isPointInsideElement(event, trashRef.current);
+      setIsNodeDragging(false);
+      setIsTrashTarget(false);
+      if (shouldDelete) {
+        setMenu(null);
+        deleteNode(node.id);
+      }
+    },
+    [deleteNode],
   );
 
   const onNodeContextMenu = useCallback(
@@ -181,6 +222,9 @@ function CanvasInner() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeContextMenu={onNodeContextMenu}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onPaneClick={() => setMenu(null)}
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"
@@ -190,6 +234,24 @@ function CanvasInner() {
         <Background gap={16} />
         <Controls />
       </ReactFlow>
+      <div
+        ref={trashRef}
+        className={`canvas-trash-dropzone${isNodeDragging ? " is-visible" : ""}${isTrashTarget ? " is-over" : ""}`}
+        data-testid="canvas-trash-dropzone"
+        data-active={isNodeDragging ? "true" : "false"}
+        data-over={isTrashTarget ? "true" : "false"}
+        aria-label="Drop node to delete"
+        aria-hidden={isNodeDragging ? "false" : "true"}
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="canvas-trash-dropzone__icon"
+        >
+          <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" />
+          <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+        </svg>
+      </div>
       {menu && (
         <SkillNodeMenu
           x={menu.x}

@@ -149,3 +149,42 @@ test("F4: selecting a node and pressing Backspace deletes node and incident edge
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await expect(page.getByTestId("node-properties-panel")).toContainText(/Select a node or edge/i);
 });
+
+test("F6: dragging a canvas node onto the trash dropzone deletes it", async ({ page }) => {
+  await openWorkspace(page);
+  await addSkillByButton(page, "Implement Feature");
+
+  const node = page.getByTestId("workflow-node");
+  await expect(node).toHaveCount(1);
+
+  const nodeBox = await node.boundingBox();
+  if (!nodeBox) throw new Error("workflow node has no bounding box");
+
+  await page.mouse.move(
+    nodeBox.x + nodeBox.width / 2,
+    nodeBox.y + nodeBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    nodeBox.x + nodeBox.width / 2,
+    nodeBox.y + nodeBox.height / 2 + 24,
+    { steps: 6 },
+  );
+
+  const trash = page.getByTestId("canvas-trash-dropzone");
+  await expect(trash).toHaveAttribute("data-active", "true");
+
+  const trashBox = await trash.boundingBox();
+  if (!trashBox) throw new Error("trash dropzone has no bounding box");
+
+  await page.mouse.move(
+    trashBox.x + trashBox.width / 2,
+    trashBox.y + trashBox.height / 2,
+    { steps: 12 },
+  );
+  await expect(trash).toHaveAttribute("data-over", "true");
+  await page.mouse.up();
+
+  await expect(page.getByTestId("workflow-node")).toHaveCount(0);
+  await expect(page.getByTestId("node-properties-panel")).toContainText(/Select a node or edge/i);
+});

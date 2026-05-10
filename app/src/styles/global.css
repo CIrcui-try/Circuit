@@ -382,6 +382,50 @@ a:hover {
   z-index: 5;
 }
 
+.canvas-trash-dropzone {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #53535d;
+  border-radius: 8px;
+  background: rgba(31, 31, 36, 0.92);
+  color: #d6d6dc;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px) scale(0.94);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+  z-index: 6;
+}
+
+.canvas-trash-dropzone.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.canvas-trash-dropzone.is-over {
+  border-color: #ff746e;
+  background: rgba(102, 32, 34, 0.96);
+  color: #fff2f1;
+  transform: translate(-50%, 0) scale(1.06);
+}
+
+.canvas-trash-dropzone__icon {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
 .workspace__props {
   grid-area: props;
   background: #26262b;

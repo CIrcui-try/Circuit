@@ -131,6 +131,23 @@ describe("workflowStore", () => {
     expect(selectedEdgeId).toBeNull();
   });
 
+  it("WS7b: deleteNode removes the node, incident edges, and stale selection", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    const edgeId = useWorkflowStore.getState().edges[0].id;
+    useWorkflowStore.getState().selectEdge(edgeId);
+
+    useWorkflowStore.getState().deleteNode(a);
+
+    const { nodes, edges, selectedEdgeId } = useWorkflowStore.getState();
+    expect(nodes.map((n) => n.id)).toEqual([b]);
+    expect(edges).toHaveLength(0);
+    expect(selectedEdgeId).toBeNull();
+  });
+
   it("WS8: resetWorkflow clears nodes, edges, and selection", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     useWorkflowStore.getState().selectNode(a);
