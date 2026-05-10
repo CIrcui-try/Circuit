@@ -181,6 +181,58 @@ describe("Layout shell", () => {
     expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
   });
 
+  it("SkillNode input popover closes from Done", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.click(screen.getByTestId("skill-node-input-done"));
+
+    expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
+  });
+
+  it("SkillNode input popover saves and closes on Enter", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/takeoff",
+        provider: "codex",
+        name: "takeoff",
+        description: "",
+        rootDir: ".codex/skills/takeoff",
+        skillFile: ".codex/skills/takeoff/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    const node = useWorkflowStore.getState().nodes[0];
+    renderSkillNode({
+      id,
+      selected: false,
+      data: node.data,
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
+      target: { value: "CIR-46" },
+    });
+    fireEvent.keyDown(screen.getByTestId("skill-node-input-arguments"), {
+      key: "Enter",
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-46",
+    });
+    expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
+  });
+
   it("SkillNode summarizes configured input on one line", () => {
     renderSkillNode({
       id: "node-1",

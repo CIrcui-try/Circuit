@@ -100,6 +100,8 @@ Required fields for agent execution:
 | `position`             | no       | UI only — agents may ignore.                                                                 |
 | `input`                | no       | `Record<string, unknown>`. Free-form for MVP; may match the SKILL.md frontmatter input schema in the future. May contain placeholders (see below). |
 
+`input.arguments` is the default field for slash-command style skills, for example `{ "arguments": "CIR-46 --force" }`. `input.prompt` is the default field for prompt-only skills, for example `{ "prompt": "Review this diff" }`. Both are v1 conventions, not exclusive schema requirements; other keys remain skill-specific and future typed input schemas may make these fields explicit.
+
 ## Edge
 
 ```json

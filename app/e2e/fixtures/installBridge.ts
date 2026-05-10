@@ -37,6 +37,14 @@ export async function installMockBridge(page: Page) {
       },
       {
         provider: "codex",
+        dirName: "boarding",
+        rootDir: ".codex/skills/boarding",
+        skillFile: ".codex/skills/boarding/SKILL.md",
+        content:
+          "---\nname: boarding\ndescription: Prepare a Linear issue before implementation.\n---\n",
+      },
+      {
+        provider: "codex",
         dirName: "review-code",
         rootDir: ".codex/skills/review-code",
         skillFile: ".codex/skills/review-code/SKILL.md",
@@ -48,6 +56,7 @@ export async function installMockBridge(page: Page) {
     const REPO_LS_KEY = "__circuit_mock_repositories__";
     const WORKFLOW_LS_KEY = "__circuit_mock_workflows__";
     let runtimeScenario: "success" | "stdin-waiting" = "success";
+    const spawnCalls: unknown[] = [];
 
     function readRepositories(): Repository[] {
       try {
@@ -152,6 +161,11 @@ export async function installMockBridge(page: Page) {
     ).__CIRCUIT_SET_RUNTIME_SCENARIO__ = (scenario) => {
       runtimeScenario = scenario;
     };
+    (
+      window as unknown as {
+        __CIRCUIT_RUNTIME_SPAWN_CALLS__?: unknown[];
+      }
+    ).__CIRCUIT_RUNTIME_SPAWN_CALLS__ = spawnCalls;
 
     (window as unknown as { __CIRCUIT_RUNTIME__: unknown }).__CIRCUIT_RUNTIME__ = {
       async readFile(absPath: string) {
@@ -160,6 +174,7 @@ export async function installMockBridge(page: Page) {
         return skill.content;
       },
       async spawn(options: { runId: string }) {
+        spawnCalls.push(options);
         queueMicrotask(() => {
           emit(options.runId, { type: "started" });
           if (runtimeScenario === "stdin-waiting") {

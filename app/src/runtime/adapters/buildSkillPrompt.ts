@@ -7,15 +7,12 @@ const MAX_STDOUT_LINES = 200;
 const MAX_STDOUT_BYTES = 8 * 1024;
 
 export function buildSkillPrompt(ctx: SkillExecutionContext): string {
-  const inputJson = JSON.stringify(ctx.input ?? {}, null, 2);
   const sections: string[] = [
     `# Skill: ${ctx.skill.name}`,
     "",
     ctx.skill.content,
     "",
-    "# Input",
-    "",
-    inputJson,
+    formatInput(ctx.input),
   ];
 
   const upstream = formatUpstreamOutputs(ctx.previousOutputs);
@@ -24,6 +21,17 @@ export function buildSkillPrompt(ctx: SkillExecutionContext): string {
   }
 
   return sections.join("\n");
+}
+
+function formatInput(input: Record<string, unknown> | undefined): string {
+  const inputJson = JSON.stringify(input ?? {}, null, 2);
+  return [
+    "# Input",
+    "",
+    "The JSON below is the exact workflow node input. Treat `arguments` as slash-command style arguments when present, and treat `prompt` as the free-form user prompt when present. Other keys are skill-specific input.",
+    "",
+    inputJson,
+  ].join("\n");
 }
 
 function formatUpstreamOutputs(

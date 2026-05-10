@@ -161,4 +161,35 @@ describe("workflow/serialize", () => {
       idleTimeoutMs: 1_000,
     });
   });
+
+  it("SR7: preserves slash-command arguments and prompt-only input", () => {
+    const nodes: SkillNode[] = [
+      {
+        ...sampleNodes[0],
+        data: {
+          ...sampleNodes[0].data,
+          input: { arguments: "CIR-46 --force" },
+        },
+      },
+      {
+        ...sampleNodes[1],
+        data: {
+          ...sampleNodes[1].data,
+          input: { prompt: "Review only the regression tests" },
+        },
+      },
+    ];
+
+    const wf = toWorkflow({ nodes, edges: sampleEdges }, meta, () => "2026-05-02T00:00:00Z");
+    expect(wf.nodes.map((node) => node.input)).toEqual([
+      { arguments: "CIR-46 --force" },
+      { prompt: "Review only the regression tests" },
+    ]);
+
+    const restored = fromWorkflow(wf);
+    expect(restored.nodes.map((node) => node.data.input)).toEqual([
+      { arguments: "CIR-46 --force" },
+      { prompt: "Review only the regression tests" },
+    ]);
+  });
 });
