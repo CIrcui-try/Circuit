@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type KeyboardEvent,
   type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -68,6 +69,18 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     setDraftIssueId(issueId);
     setDraftForce(force);
     updateInputField(id, "arguments", formatBoardingArguments(issueId, force));
+  };
+
+  const dismissInputEditor = () => {
+    setIsEditingInput(false);
+  };
+
+  const handleInputKeyDown = (
+    event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    dismissInputEditor();
   };
 
   const stopCanvasInteraction = (event: SyntheticEvent) => {
@@ -140,7 +153,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                   type="button"
                   className="skill-node-input-popover__close"
                   aria-label="Close input editor"
-                  onClick={() => setIsEditingInput(false)}
+                  onClick={dismissInputEditor}
                 >
                   ×
                 </button>
@@ -150,6 +163,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                   issueId={draftIssueId}
                   force={draftForce}
                   onChange={handleBoardingChange}
+                  onKeyDown={handleInputKeyDown}
                 />
               ) : inputMode === "arguments" ? (
                 <label className="skill-node-input-popover__field">
@@ -160,6 +174,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                     value={draftArguments}
                     placeholder="<ISSUE-ID> [--force]"
                     onChange={(e) => handleArgumentsChange(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
                   />
                 </label>
               ) : (
@@ -171,9 +186,20 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                     value={draftPrompt}
                     placeholder="Prompt"
                     onChange={(e) => handlePromptChange(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
                   />
                 </label>
               )}
+              <div className="skill-node-input-popover__footer">
+                <button
+                  type="button"
+                  className="skill-node-input-popover__done"
+                  data-testid="skill-node-input-done"
+                  onClick={dismissInputEditor}
+                >
+                  Done
+                </button>
+              </div>
             </div>,
             document.body,
           )
@@ -187,10 +213,12 @@ function BoardingInputFields({
   issueId,
   force,
   onChange,
+  onKeyDown,
 }: {
   issueId: string;
   force: boolean;
   onChange: (issueId: string, force: boolean) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }) {
   return (
     <>
@@ -202,6 +230,7 @@ function BoardingInputFields({
           value={issueId}
           placeholder="CIR-15"
           onChange={(e) => onChange(e.target.value, force)}
+          onKeyDown={onKeyDown}
         />
       </label>
       <label className="skill-node-input-popover__checkbox">
