@@ -1,0 +1,6 @@
+interface:
+  display_name: "Landing"
+  short_description: "PR 머지 후 워크트리 제거와 develop 동기화"
+  default_prompt: "Use $landing to clean up after a merged PR."
+policy:
+  allow_implicit_invocation: true

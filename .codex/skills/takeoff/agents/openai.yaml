@@ -1,0 +1,6 @@
+interface:
+  display_name: "Takeoff"
+  short_description: "develop 리베이스 후 push와 PR 생성"
+  default_prompt: "Use $takeoff to rebase on develop, push, and create a PR."
+policy:
+  allow_implicit_invocation: true

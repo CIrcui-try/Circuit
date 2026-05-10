@@ -1,12 +1,14 @@
 ## 슬래시 커맨드 공통 규칙
 
-`.claude/commands/`, `.codex/commands/`, `.agents/skills/` 안의 모든 워크플로에 공통으로 적용한다. 개별 커맨드와 스킬은 이 규칙을 다시 명시하지 않는다.
+`.claude/commands/`, `.claude/skills/`, `.codex/commands/`, `.codex/skills/`, `.agents/skills/` 안의 모든 워크플로에 공통으로 적용한다. 개별 커맨드와 스킬은 이 규칙을 다시 명시하지 않는다.
 
 ### Claude / Codex 양립
 
 - `.claude/commands/` 는 Claude 전용 슬래시 커맨드다. `.claude/state`, `mcp__linear-server__*`, `TodoWrite`, `AskUserQuestion`, `ExitPlanMode` 같은 Claude 전용 표현을 Codex 방식으로 바꾸지 않는다.
+- `.claude/skills/` 는 Circuit 앱의 Claude 스킬 디스커버리용 미러다. Claude 커맨드와 같은 런타임 표현을 유지한다.
 - `.codex/commands/` 는 Codex 슬래시 커맨드 전용이다. `.codex/state` 와 Codex에서 사용할 수 있는 도구명을 기준으로 유지한다.
-- `.agents/skills/` 는 Codex app skill 전용이다. Claude 커맨드를 덮어쓰거나 대체하지 않고, Codex 앱에서 재사용할 워크플로 지침으로 관리한다.
+- `.codex/skills/` 는 Circuit 앱의 Codex 스킬 디스커버리용 미러다. `.agents/skills/` 와 같은 Codex 런타임 표현을 유지한다.
+- `.agents/skills/` 는 Codex 프로젝트 스킬용 원본이다. Claude 커맨드를 덮어쓰거나 대체하지 않고, Codex 앱에서 재사용할 워크플로 지침으로 관리한다.
 - 같은 워크플로 이름을 공유하더라도 Claude와 Codex의 상태 디렉터리, MCP 서버명, 도구명은 런타임별로 분리한다.
 
 ### Plan mode 호환

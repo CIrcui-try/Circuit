@@ -1,0 +1,6 @@
+interface:
+  display_name: "Door Closing"
+  short_description: "develop 기반 워크트리와 구현 계획 준비"
+  default_prompt: "Use $door-closing to prepare a develop-based worktree and plan."
+policy:
+  allow_implicit_invocation: true
