@@ -48,10 +48,23 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         </span>
       </div>
       <div className="skill-node__input" data-testid="skill-node-input-summary">
-        <span className="skill-node__input-state">{inputSummary.label}</span>
-        <span className="skill-node__input-summary" title={inputSummary.summary}>
-          {inputSummary.summary}
-        </span>
+        {inputSummary.state === "present" ? (
+          <span
+            className="skill-node__input-summary"
+            title={inputSummary.summary}
+          >
+            {inputSummary.items.map((item, index) => (
+              <span key={item.key} className="skill-node__input-token">
+                {index > 0 ? <span className="skill-node__input-separator">, </span> : null}
+                <span className="skill-node__input-key">{item.key}</span>
+                <span className="skill-node__input-separator">: </span>
+                <span>{item.value}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="skill-node__input-state">{inputSummary.summary}</span>
+        )}
         <button
           type="button"
           className="skill-node__input-affordance nodrag nopan"
@@ -117,31 +130,37 @@ export const nodeTypes = { skill: SkillNode };
 
 type InputSummary = {
   state: "none" | "present" | "invalid";
-  label: string;
   summary: string;
+  items: InputSummaryItem[];
+};
+
+type InputSummaryItem = {
+  key: string;
+  value: string;
 };
 
 function summarizeInput(input: unknown): InputSummary {
   if (input === undefined) {
-    return { state: "none", label: "No input", summary: "No input configured" };
+    return { state: "none", summary: "No input configured", items: [] };
   }
   if (!isRecord(input)) {
     return {
       state: "invalid",
-      label: "Invalid input",
       summary: "Input data cannot be previewed",
+      items: [],
     };
   }
 
   const entries = Object.entries(input);
   if (entries.length === 0) {
-    return { state: "none", label: "No input", summary: "No input configured" };
+    return { state: "none", summary: "No input configured", items: [] };
   }
+  const items = entries.map(([key, value]) => ({ key, value: summarizeValue(value) }));
 
   return {
     state: "present",
-    label: "Input set",
-    summary: entries.map(([key, value]) => `${key}: ${summarizeValue(value)}`).join(", "),
+    summary: items.map((item) => `${item.key}: ${item.value}`).join(", "),
+    items,
   };
 }
 

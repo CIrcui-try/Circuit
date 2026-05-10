@@ -183,8 +183,9 @@ describe("Layout shell", () => {
       "data-input-state",
       "present",
     );
-    expect(screen.getByText("Input set")).toBeInTheDocument();
-    expect(screen.getByText(/prompt: Summarize/)).toHaveAttribute(
+    expect(screen.queryByText("Input set")).not.toBeInTheDocument();
+    expect(screen.getByText("prompt")).toHaveClass("skill-node__input-key");
+    expect(screen.getByText(/Summarize a very long/).closest(".skill-node__input-summary")).toHaveAttribute(
       "title",
       expect.stringContaining("timeoutMs: 120000"),
     );
@@ -208,7 +209,7 @@ describe("Layout shell", () => {
       "data-input-state",
       "invalid",
     );
-    expect(screen.getByText("Invalid input")).toBeInTheDocument();
+    expect(screen.getByText("Input data cannot be previewed")).toBeInTheDocument();
   });
 
   it("LogPanel renders an inline ApprovalPrompt for each pendingApproval and routes Allow → sendInput", async () => {

@@ -1011,7 +1011,7 @@ a:hover {
 
 .skill-node__input {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -1035,6 +1035,15 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node__input-key {
+  color: #8ee48e;
+  font-weight: 600;
+}
+
+.skill-node__input-separator {
+  color: #8a8a92;
+}
+
 .skill-node__input-affordance {
   font: inherit;
   cursor: pointer;
@@ -1048,10 +1057,6 @@ a:hover {
 
 .skill-node__input-affordance:hover {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.skill-node--input-present .skill-node__input-state {
-  color: #8ee48e;
 }
 
 .skill-node--input-invalid .skill-node__input-state {
