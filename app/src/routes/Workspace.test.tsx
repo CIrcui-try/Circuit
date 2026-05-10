@@ -78,7 +78,7 @@ beforeEach(() => {
     hydrated: true,
   });
   useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
-  useLayoutStore.setState({ sidebarCollapsed: false });
+  useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: false });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
   useRunLogStore.getState().reset();
@@ -550,5 +550,43 @@ describe("Workspace", () => {
       "workspace--sidebar-collapsed",
     );
     expect(screen.getByTestId("skills-sidebar-restore")).toBeInTheDocument();
+  });
+
+  it("W17: collapses and restores the run log without a log resize handle", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("run-log-collapse"));
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--log-collapsed",
+    );
+    expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-log-collapse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("resize-handle-log")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("run-log-restore"));
+
+    expect(screen.getByTestId("workspace-root")).not.toHaveClass(
+      "workspace--log-collapsed",
+    );
+    expect(screen.getByTestId("run-log-collapse")).toBeInTheDocument();
+    expect(screen.getByTestId("resize-handle-log")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
+  });
+
+  it("W18: keeps the collapsed run log state across workspace remounts in the same session", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    const firstRender = renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("run-log-collapse"));
+    firstRender.unmount();
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--log-collapsed",
+    );
+    expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
   });
 });

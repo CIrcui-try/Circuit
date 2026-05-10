@@ -18,12 +18,15 @@ type LayoutState = {
   propsWidth: number;
   logHeight: number;
   sidebarCollapsed: boolean;
+  logCollapsed: boolean;
   hydrated: boolean;
   setSidebarWidth: (px: number) => void;
   setPropsWidth: (px: number) => void;
   setLogHeight: (px: number) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarCollapsed: () => void;
+  setLogCollapsed: (collapsed: boolean) => void;
+  toggleLogCollapsed: () => void;
   hydrate: () => Promise<void>;
 };
 
@@ -66,6 +69,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   propsWidth: LAYOUT_DEFAULTS.propsWidth,
   logHeight: LAYOUT_DEFAULTS.logHeight,
   sidebarCollapsed: false,
+  logCollapsed: false,
   hydrated: false,
 
   setSidebarWidth: (px) => {
@@ -102,6 +106,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   toggleSidebarCollapsed: () => {
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+  },
+
+  setLogCollapsed: (collapsed) => {
+    if (collapsed === get().logCollapsed) return;
+    set({ logCollapsed: collapsed });
+  },
+
+  toggleLogCollapsed: () => {
+    set((state) => ({ logCollapsed: !state.logCollapsed }));
   },
 
   hydrate: async () => {

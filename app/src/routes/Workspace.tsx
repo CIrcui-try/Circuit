@@ -44,6 +44,8 @@ export function Workspace() {
   const runWorkflowName = useRunStore((s) => s.workflowName);
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
+  const logCollapsed = useLayoutStore((s) => s.logCollapsed);
+  const setLogCollapsed = useLayoutStore((s) => s.setLogCollapsed);
   const activeRunSnapshot = useRunStore((s) =>
     s.status === "running" ? s.snapshot : null,
   );
@@ -200,7 +202,11 @@ export function Workspace() {
 
   return (
     <div
-      className={`workspace${sidebarCollapsed ? " workspace--sidebar-collapsed" : ""}`}
+      className={[
+        "workspace",
+        sidebarCollapsed ? "workspace--sidebar-collapsed" : "",
+        logCollapsed ? "workspace--log-collapsed" : "",
+      ].filter(Boolean).join(" ")}
       data-testid="workspace-root"
     >
       <header className="workspace__toolbar">
@@ -290,10 +296,22 @@ export function Workspace() {
       )}
       <Canvas />
       <PropertiesPanel />
-      <LogPanel />
+      {logCollapsed ? (
+        <button
+          type="button"
+          className="workspace__log-restore"
+          data-testid="run-log-restore"
+          aria-label="Show run log"
+          onClick={() => setLogCollapsed(false)}
+        >
+          Run Log
+        </button>
+      ) : (
+        <LogPanel onCollapse={() => setLogCollapsed(true)} />
+      )}
       {sidebarCollapsed ? null : <ResizeHandle direction="sidebar" />}
       <ResizeHandle direction="props" />
-      <ResizeHandle direction="log" />
+      {logCollapsed ? null : <ResizeHandle direction="log" />}
     </div>
   );
 }

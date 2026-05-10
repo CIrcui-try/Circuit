@@ -276,6 +276,10 @@ a:hover {
   grid-template-columns: 40px 1fr var(--props-width);
 }
 
+.workspace--log-collapsed {
+  grid-template-rows: 44px 1fr 40px;
+}
+
 .resize-handle {
   position: absolute;
   z-index: 5;
@@ -466,6 +470,13 @@ a:hover {
   gap: 8px;
 }
 
+.panel-header__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .panel-header__button {
   min-width: 0;
   padding: 2px 6px;
@@ -516,6 +527,23 @@ a:hover {
 }
 
 .workspace__sidebar-restore:hover {
+  background: #303038;
+}
+
+.workspace__log-restore {
+  grid-area: log;
+  align-self: center;
+  justify-self: center;
+  min-width: 92px;
+  height: 28px;
+  padding: 0 10px;
+  color: #c8c8d0;
+  background: #26262b;
+  border-color: #3a3a42;
+  border-radius: 6px;
+}
+
+.workspace__log-restore:hover {
   background: #303038;
 }
 
