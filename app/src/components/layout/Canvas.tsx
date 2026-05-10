@@ -29,6 +29,7 @@ import {
 } from "../../stores/workflowStore";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
+export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
 
 type SkillDragPayload = {
   provider: "claude" | "codex";
@@ -184,6 +185,7 @@ function CanvasInner() {
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"
         fitView
+        fitViewOptions={CANVAS_FIT_VIEW_OPTIONS}
       >
         <Background gap={16} />
         <Controls />

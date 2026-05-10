@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { ReactFlowProvider, type NodeProps } from "@xyflow/react";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -16,11 +17,12 @@ vi.mock("../../host/bridge", () => ({
 import { Sidebar } from "./Sidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
-import { Canvas } from "./Canvas";
-import { nodeTypes } from "../canvas/SkillNode";
+import { CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
+import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
+import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
@@ -82,8 +84,151 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
   });
 
+  it("Canvas caps fitView zoom so a single node is not enlarged", () => {
+    expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
+  });
+
   it("nodeTypes registers a 'skill' custom node", () => {
     expect(nodeTypes.skill).toBeDefined();
+  });
+
+  it("SkillNode shows when no input is configured", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    expect(screen.getByTestId("workflow-node")).toHaveAttribute(
+      "data-input-state",
+      "none",
+    );
+    expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
+      "No input configured",
+    );
+  });
+
+  it("SkillNode Edit selects the node for input editing", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+
+    expect(useWorkflowStore.getState().selectedNodeId).toBe("node-1");
+    expect(screen.getByTestId("skill-node-input-modal")).toBeInTheDocument();
+  });
+
+  it("SkillNode input modal edits node arguments", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    const node = useWorkflowStore.getState().nodes[0];
+    renderSkillNode({
+      id,
+      selected: false,
+      data: node.data,
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.change(screen.getByTestId("skill-node-input-textarea"), {
+      target: { value: "CIR-43 --force" },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-43 --force",
+    });
+  });
+
+  it("SkillNode input modal dismisses when clicking outside the panel", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    fireEvent.click(screen.getByTestId("skill-node-input-modal"));
+
+    expect(screen.queryByTestId("skill-node-input-modal")).not.toBeInTheDocument();
+  });
+
+  it("SkillNode summarizes configured input on one line", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+        input: {
+          prompt: "Summarize a very long upstream output before running",
+          timeoutMs: 120000,
+        },
+      },
+    });
+
+    expect(screen.getByTestId("workflow-node")).toHaveAttribute(
+      "data-input-state",
+      "present",
+    );
+    expect(screen.queryByText("Input set")).not.toBeInTheDocument();
+    expect(screen.getByText("prompt")).toHaveClass("skill-node__input-key");
+    expect(screen.getByText(/Summarize a very long/).closest(".skill-node__input-summary")).toHaveAttribute(
+      "title",
+      expect.stringContaining("timeoutMs: 120000"),
+    );
+  });
+
+  it("SkillNode marks non-object input as invalid", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+        input: "bad",
+      },
+    });
+
+    expect(screen.getByTestId("workflow-node")).toHaveAttribute(
+      "data-input-state",
+      "invalid",
+    );
+    expect(screen.getByText("Input data cannot be previewed")).toBeInTheDocument();
   });
 
   it("LogPanel renders an inline ApprovalPrompt for each pendingApproval and routes Allow → sendInput", async () => {
@@ -112,3 +257,11 @@ describe("Layout shell", () => {
     expect(useRunLogStore.getState().pendingApprovals).toEqual({});
   });
 });
+
+function renderSkillNode(props: Partial<NodeProps<SkillNodeType>>) {
+  render(
+    <ReactFlowProvider>
+      <SkillNode {...(props as NodeProps<SkillNodeType>)} />
+    </ReactFlowProvider>,
+  );
+}

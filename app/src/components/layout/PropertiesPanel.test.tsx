@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useRunStore } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -93,5 +93,29 @@ describe("PropertiesPanel", () => {
     expect(screen.getByText("process")).toBeInTheDocument();
     expect(screen.getByText("42ms")).toBeInTheDocument();
     expect(screen.getByText("t1")).toBeInTheDocument();
+  });
+
+  it("PP5: edits selected node input arguments", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    const input = screen.getByTestId("node-input-arguments");
+    fireEvent.change(input, { target: { value: "CIR-43 --force" } });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-43 --force",
+    });
   });
 });
