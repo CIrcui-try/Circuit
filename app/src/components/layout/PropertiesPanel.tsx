@@ -1,8 +1,14 @@
+import { useEffect, useState } from "react";
 import { useRunStore } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
+type InputEditorMode = "friendly" | "json";
+
 export function PropertiesPanel() {
   const setNodeInput = useWorkflowStore((s) => s.setNodeInput);
+  const [inputMode, setInputMode] = useState<InputEditorMode>("friendly");
+  const [jsonDraft, setJsonDraft] = useState("{}");
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const selectedNode = useWorkflowStore((s) =>
     s.selectedNodeId
       ? s.nodes.find((n) => n.id === s.selectedNodeId) ?? null
@@ -16,8 +22,21 @@ export function PropertiesPanel() {
     selectedNodeId ? s.nodeDebug[selectedNodeId] ?? null : null,
   );
   const selectedInput = asRecord(selectedNode?.data.input);
+  const selectedInputJson = formatJsonDraft(selectedInput);
   const argumentsValue =
     typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
+
+  useEffect(() => {
+    setInputMode("friendly");
+    setJsonDraft(selectedInputJson);
+    setJsonError(null);
+  }, [selectedNodeId]);
+
+  useEffect(() => {
+    if (inputMode === "json" && jsonError === null) {
+      setJsonDraft(selectedInputJson);
+    }
+  }, [inputMode, jsonError, selectedInputJson]);
 
   const handleArgumentsChange = (value: string) => {
     if (!selectedNodeId) return;
@@ -28,6 +47,27 @@ export function PropertiesPanel() {
       delete next.arguments;
     }
     setNodeInput(selectedNodeId, Object.keys(next).length > 0 ? next : null);
+  };
+
+  const handleJsonChange = (value: string) => {
+    setJsonDraft(value);
+    if (!selectedNodeId) return;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch (error) {
+      setJsonError(error instanceof Error ? error.message : "Invalid JSON");
+      return;
+    }
+
+    if (!isRecord(parsed)) {
+      setJsonError("Input JSON must be an object.");
+      return;
+    }
+
+    setJsonError(null);
+    setNodeInput(selectedNodeId, Object.keys(parsed).length > 0 ? parsed : null);
   };
 
   return (
@@ -47,14 +87,65 @@ export function PropertiesPanel() {
           </dd>
           <dt>Input</dt>
           <dd className="properties__field">
-            <textarea
-              data-testid="node-input-arguments"
-              className="properties__textarea"
-              aria-label="Node input arguments"
-              placeholder="<ISSUE-ID> [--force]"
-              value={argumentsValue}
-              onChange={(e) => handleArgumentsChange(e.target.value)}
-            />
+            <div className="properties__input-editor">
+              <div
+                className="properties__segmented"
+                role="group"
+                aria-label="Input editor mode"
+              >
+                <button
+                  type="button"
+                  className={inputMode === "friendly" ? "is-active" : ""}
+                  data-testid="node-input-mode-friendly"
+                  aria-pressed={inputMode === "friendly"}
+                  onClick={() => {
+                    setInputMode("friendly");
+                    setJsonError(null);
+                  }}
+                >
+                  Friendly
+                </button>
+                <button
+                  type="button"
+                  className={inputMode === "json" ? "is-active" : ""}
+                  data-testid="node-input-mode-json"
+                  aria-pressed={inputMode === "json"}
+                  onClick={() => {
+                    setInputMode("json");
+                    setJsonDraft(selectedInputJson);
+                    setJsonError(null);
+                  }}
+                >
+                  JSON
+                </button>
+              </div>
+              {inputMode === "friendly" ? (
+                <textarea
+                  data-testid="node-input-arguments"
+                  className="properties__textarea"
+                  aria-label="Node input arguments"
+                  placeholder="<ISSUE-ID> [--force]"
+                  value={argumentsValue}
+                  onChange={(e) => handleArgumentsChange(e.target.value)}
+                />
+              ) : (
+                <>
+                  <textarea
+                    data-testid="node-input-json"
+                    className="properties__textarea properties__textarea--json"
+                    aria-label="Node input JSON"
+                    aria-invalid={jsonError !== null}
+                    value={jsonDraft}
+                    onChange={(e) => handleJsonChange(e.target.value)}
+                  />
+                  {jsonError ? (
+                    <div className="properties__error" role="alert">
+                      {jsonError}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
           </dd>
           <dt>Run Status</dt>
           <dd data-testid="node-run-status">{formatRunState(runState)}</dd>
@@ -123,4 +214,12 @@ function formatRunState(state: string): string {
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function formatJsonDraft(input: Record<string, unknown> | null): string {
+  return JSON.stringify(input ?? {}, null, 2);
 }
