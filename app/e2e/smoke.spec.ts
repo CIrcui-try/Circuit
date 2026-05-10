@@ -26,7 +26,7 @@ test("E3: clicking Add Repository (with mocked picker) adds the fixture repo", a
   await expect(list).toContainText(FIXTURE_REPO_PATH);
 });
 
-test("E4: workspace shows two skills (Claude + Codex) from the fixture repo", async ({ page }) => {
+test("E4: workspace shows fixture skills from the sample repo", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("add-repository-button").click();
   await page.getByRole("link", { name: /sample-repo/ }).click();
@@ -37,10 +37,11 @@ test("E4: workspace shows two skills (Claude + Codex) from the fixture repo", as
   const skills = page.getByTestId("skill-list");
   await expect(skills).toBeVisible();
   await expect(skills).toContainText("Implement Feature");
+  await expect(skills).toContainText("boarding");
   await expect(skills).toContainText("Review Code");
-  await expect(skills.locator("li")).toHaveCount(2);
+  await expect(skills.locator("li")).toHaveCount(3);
   await expect(skills.getByText("claude", { exact: true })).toBeVisible();
-  await expect(skills.getByText("codex", { exact: true })).toBeVisible();
+  await expect(skills.getByText("codex", { exact: true })).toHaveCount(2);
 });
 
 test("E5: arbitrary docs/ignored-skill SKILL.md is not surfaced", async ({ page }) => {
