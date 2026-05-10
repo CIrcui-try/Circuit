@@ -1,11 +1,16 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useNodeRunState } from "../../runner/runStore";
+import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
+  const handleEditInput = () => {
+    useWorkflowStore.getState().selectNode(id);
+  };
+
   return (
     <div
       className={`skill-node skill-node--${provider} skill-node--${runState} skill-node--input-${inputSummary.state}${selected ? " is-selected" : ""}`}
@@ -27,7 +32,15 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         <span className="skill-node__input-summary" title={inputSummary.summary}>
           {inputSummary.summary}
         </span>
-        <span className="skill-node__input-affordance">Edit</span>
+        <button
+          type="button"
+          className="skill-node__input-affordance nodrag nopan"
+          data-testid="skill-node-input-edit"
+          aria-label={`Edit input for ${data.label}`}
+          onClick={handleEditInput}
+        >
+          Edit
+        </button>
       </div>
       <Handle type="source" position={Position.Bottom} />
     </div>

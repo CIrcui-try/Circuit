@@ -1035,12 +1035,18 @@ a:hover {
 }
 
 .skill-node__input-affordance {
+  font: inherit;
+  cursor: pointer;
   padding: 1px 5px;
   border: 1px solid #3a3a42;
   border-radius: 4px;
   color: #c8c8d0;
   background: rgba(255, 255, 255, 0.03);
   white-space: nowrap;
+}
+
+.skill-node__input-affordance:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .skill-node--input-present .skill-node__input-state {
@@ -1112,6 +1118,23 @@ a:hover {
   margin: 0;
   color: rgba(255, 255, 255, 0.88);
   overflow-wrap: anywhere;
+}
+
+.properties__field {
+  display: flex;
+  min-width: 0;
+}
+
+.properties__textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  padding: 6px 8px;
+  color: inherit;
+  background: #1f1f24;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  font: inherit;
 }
 
 .properties code {

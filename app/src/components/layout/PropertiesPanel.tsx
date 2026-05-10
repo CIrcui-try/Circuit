@@ -2,6 +2,7 @@ import { useRunStore } from "../../runner/runStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
 export function PropertiesPanel() {
+  const setNodeInput = useWorkflowStore((s) => s.setNodeInput);
   const selectedNode = useWorkflowStore((s) =>
     s.selectedNodeId
       ? s.nodes.find((n) => n.id === s.selectedNodeId) ?? null
@@ -14,6 +15,20 @@ export function PropertiesPanel() {
   const debug = useRunStore((s) =>
     selectedNodeId ? s.nodeDebug[selectedNodeId] ?? null : null,
   );
+  const selectedInput = asRecord(selectedNode?.data.input);
+  const argumentsValue =
+    typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
+
+  const handleArgumentsChange = (value: string) => {
+    if (!selectedNodeId) return;
+    const next = selectedInput ? { ...selectedInput } : {};
+    if (value.length > 0) {
+      next.arguments = value;
+    } else {
+      delete next.arguments;
+    }
+    setNodeInput(selectedNodeId, Object.keys(next).length > 0 ? next : null);
+  };
 
   return (
     <aside className="workspace__props" data-testid="node-properties-panel">
@@ -29,6 +44,17 @@ export function PropertiesPanel() {
           <dt>Skill File</dt>
           <dd>
             <code>{selectedNode.data.skillRef.skillFile}</code>
+          </dd>
+          <dt>Input</dt>
+          <dd className="properties__field">
+            <textarea
+              data-testid="node-input-arguments"
+              className="properties__textarea"
+              aria-label="Node input arguments"
+              placeholder="<ISSUE-ID> [--force]"
+              value={argumentsValue}
+              onChange={(e) => handleArgumentsChange(e.target.value)}
+            />
           </dd>
           <dt>Run Status</dt>
           <dd data-testid="node-run-status">{formatRunState(runState)}</dd>
@@ -92,4 +118,9 @@ function formatRunState(state: string): string {
   if (state === "queued") return "pending";
   if (state === "waiting_input") return "waiting for input";
   return state;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
