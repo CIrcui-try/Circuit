@@ -157,6 +157,32 @@ describe("RealWorkflowRunner", () => {
     expect(ctx.nodeId).toBe("a");
   });
 
+  it("passes slash-command arguments input into the adapter context", async () => {
+    const node = workflowNode("a", "codex", { arguments: "CIR-46 --force" });
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({ provider: "codex" });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(adapter.seenContexts[0].input).toEqual({
+      arguments: "CIR-46 --force",
+    });
+  });
+
+  it("keeps prompt-only input working for existing workflows", async () => {
+    const node = workflowNode("a", "claude", { prompt: "Review this diff" });
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({ provider: "claude" });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(adapter.seenContexts[0].input).toEqual({
+      prompt: "Review this diff",
+    });
+  });
+
   it("R3: accumulates previousOutputs for downstream nodes", async () => {
     const a = workflowNode("a");
     const b = workflowNode("b");

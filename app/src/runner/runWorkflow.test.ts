@@ -276,4 +276,48 @@ describe("runWorkflow", () => {
     release();
     await pending;
   });
+
+  it("RW10: preserves arguments input inside the run snapshot", async () => {
+    const snapshot: WorkflowRunSnapshot = {
+      repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
+      workflowId: "wf-1",
+      workflowName: "Release flow",
+      nodes: [
+        {
+          id: "a",
+          type: "skill",
+          label: "Boarding",
+          skillRef: {
+            provider: "codex",
+            skillFile: ".codex/skills/boarding/SKILL.md",
+          },
+          position: { x: 1, y: 2 },
+          input: { arguments: "CIR-46" },
+        },
+      ],
+      edges: [],
+    };
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: true };
+      },
+    };
+
+    await runWorkflow({
+      nodes: [node("a", "Boarding")],
+      edges: [],
+      workflowId: snapshot.workflowId,
+      workflowName: snapshot.workflowName,
+      repository: { id: snapshot.repository.id, name: snapshot.repository.name },
+      snapshot,
+      runner,
+      store: useRunStore,
+      now: () => "2026-05-09T00:00:00.000Z",
+      newRunId: () => "run-1",
+    });
+
+    expect(useRunStore.getState().snapshot?.nodes[0].input).toEqual({
+      arguments: "CIR-46",
+    });
+  });
 });

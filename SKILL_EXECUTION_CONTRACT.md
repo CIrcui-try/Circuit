@@ -80,6 +80,13 @@ MVP에서는 구조화된 input schema가 없어도 실행 가능해야 한다.
 }
 ```
 
+v1 기본 규약은 두 필드를 우선한다.
+
+- `arguments`: slash command 또는 커맨드형 스킬에 그대로 전달할 인자 문자열. 예: `{ "arguments": "CIR-46 --force" }`
+- `prompt`: prompt-only 스킬에 전달할 자유 지시문. 예: `{ "prompt": "Review this diff" }`
+
+두 필드는 기본 UI/adapter 안내 규약일 뿐이며, 스킬별 추가 key는 계속 허용한다. typed input schema와 필수/선택 필드 검증은 Future Input Schema 범위다.
+
 ## Future Input Schema
 
 향후 `SKILL.md` frontmatter에 input schema를 정의할 수 있다.
