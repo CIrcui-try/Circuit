@@ -11,6 +11,11 @@ import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
+import { fromWorkflow } from "../workflow/serialize";
+import {
+  CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES,
+  createCodexStarterWorkflow,
+} from "../workflow/starterFlow";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -63,6 +68,9 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [starterGoal, setStarterGoal] = useState("");
+  const [pendingRunPreview, setPendingRunPreview] =
+    useState<WorkflowRunSnapshot | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
 
@@ -176,8 +184,25 @@ export function Workspace() {
       setPendingCycleRun(snapshot);
       return;
     }
-    await startSnapshot(snapshot);
-  }, [repo, startSnapshot]);
+    setPendingRunPreview(snapshot);
+  }, [repo]);
+
+  const handleAddStarterFlow = useCallback(() => {
+    if (!repo) return;
+    const initialRequest = starterGoal.trim();
+    const workflow = createCodexStarterWorkflow({
+      repositoryId: repo.id,
+      initialRequest,
+    });
+    const restored = fromWorkflow(workflow);
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: restored.nodes,
+      edges: restored.edges,
+      workflowId: restored.meta.id,
+      workflowName: restored.meta.name,
+    });
+    setSaveStatus("Starter flow added");
+  }, [repo, starterGoal]);
 
   const handleCancel = useCallback(() => {
     setCancelling(true);
@@ -353,6 +378,17 @@ export function Workspace() {
           </div>
         </div>
       ) : null}
+      {pendingRunPreview ? (
+        <RunPreviewModal
+          snapshot={pendingRunPreview}
+          onCancel={() => setPendingRunPreview(null)}
+          onConfirm={() => {
+            const snapshot = pendingRunPreview;
+            setPendingRunPreview(null);
+            void startSnapshot(snapshot);
+          }}
+        />
+      ) : null}
       {sidebarCollapsed ? (
         <button
           type="button"
@@ -367,6 +403,33 @@ export function Workspace() {
         <Sidebar repoId={repo?.id} onCollapse={() => setSidebarCollapsed(true)} />
       )}
       <Canvas />
+      {repo && nodeCount === 0 ? (
+        <section className="starter-flow-empty" data-testid="starter-flow-empty">
+          <div className="starter-flow-empty__eyebrow">Actual repository</div>
+          <h2 className="starter-flow-empty__title">Add Codex starter flow</h2>
+          <p className="starter-flow-empty__copy">
+            This flow will run against <strong>{repo.name}</strong> at{" "}
+            <code>{repo.path}</code>.
+          </p>
+          <label className="starter-flow-empty__field">
+            <span>What would you like to build?</span>
+            <input
+              value={starterGoal}
+              data-testid="starter-flow-goal-input"
+              placeholder="Example: add a theme toggle to settings"
+              onChange={(event) => setStarterGoal(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="starter-flow-empty__action"
+            data-testid="starter-flow-add"
+            onClick={handleAddStarterFlow}
+          >
+            Add Starter Flow
+          </button>
+        </section>
+      ) : null}
       <PropertiesPanel />
       {logCollapsed ? (
         <button
@@ -384,6 +447,74 @@ export function Workspace() {
       {sidebarCollapsed ? null : <ResizeHandle direction="sidebar" />}
       <ResizeHandle direction="props" />
       {logCollapsed ? null : <ResizeHandle direction="log" />}
+    </div>
+  );
+}
+
+function RunPreviewModal({
+  snapshot,
+  onCancel,
+  onConfirm,
+}: {
+  snapshot: WorkflowRunSnapshot;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const riskyBoundaries = CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES.filter((boundary) =>
+    snapshot.nodes.some((node) => node.id === boundary.nodeId),
+  );
+
+  return (
+    <div className="modal__backdrop">
+      <div
+        className="modal__panel modal__panel--confirm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="run-preview-title"
+        data-testid="run-preview-modal"
+      >
+        <h2 id="run-preview-title" className="modal__title">
+          Confirm actual repository run
+        </h2>
+        <p className="modal__message">
+          This workflow runs against the selected repository, not a mock or demo.
+        </p>
+        <dl className="modal__meta">
+          <dt>Repository</dt>
+          <dd>{snapshot.repository.name}</dd>
+          <dt>Path</dt>
+          <dd>
+            <code>{snapshot.repository.path}</code>
+          </dd>
+          <dt>Workflow</dt>
+          <dd>{snapshot.workflowName}</dd>
+          <dt>Nodes</dt>
+          <dd>{snapshot.nodes.length}</dd>
+        </dl>
+        {riskyBoundaries.length > 0 ? (
+          <div className="modal__warn" data-testid="run-preview-risk">
+            <strong>Changes may affect this repo.</strong>
+            <ul>
+              {riskyBoundaries.map((boundary) => (
+                <li key={boundary.nodeId}>{boundary.description}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="modal__footer">
+          <button type="button" onClick={onCancel} data-testid="run-preview-cancel">
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button-danger"
+            onClick={onConfirm}
+            data-testid="run-preview-confirm"
+          >
+            Run on this repository
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

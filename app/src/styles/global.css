@@ -375,6 +375,86 @@ a:hover {
   overflow: hidden;
 }
 
+.starter-flow-empty {
+  grid-area: canvas;
+  align-self: center;
+  justify-self: center;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100% - 48px));
+  padding: 18px;
+  border: 1px solid #3f4652;
+  border-radius: 8px;
+  background: rgba(38, 38, 43, 0.96);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.36);
+}
+
+.starter-flow-empty__eyebrow {
+  color: #d8b86a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.starter-flow-empty__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.starter-flow-empty__copy {
+  margin: 0;
+  color: #c8c8d0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.starter-flow-empty__copy code {
+  color: #a7c7ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.starter-flow-empty__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #a7a7b0;
+  font-size: 12px;
+}
+
+.starter-flow-empty__field input {
+  min-height: 32px;
+  padding: 5px 8px;
+  color: rgba(255, 255, 255, 0.88);
+  background: #1f1f24;
+  border: 1px solid #4a4a54;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.starter-flow-empty__action {
+  align-self: flex-start;
+  min-width: 148px;
+  background: #32425a;
+  border-color: #4b6790;
+}
+
+.starter-flow-empty__action:hover {
+  background: #3a4d68;
+}
+
+.starter-flow-empty__action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.starter-flow-empty__action:disabled:hover {
+  background: #32425a;
+}
+
 .workspace__canvas.is-drop-target::after {
   content: "Drop to add to workflow";
   position: absolute;

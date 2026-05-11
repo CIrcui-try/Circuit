@@ -1,7 +1,7 @@
 import { WORKFLOW_VERSION, type Workflow, type WorkflowEdge, type WorkflowSkillNode } from "./schema";
 
 export const CODEX_STARTER_FLOW_ID = "codex-starter-issue-lifecycle";
-export const CODEX_STARTER_FLOW_NAME = "Codex issue lifecycle";
+export const CODEX_STARTER_FLOW_NAME = "Codex starter flow";
 
 export const CODEX_STARTER_FLOW_BINDING_POLICY = {
   repository: "selected-repository",
@@ -37,7 +37,7 @@ const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_boarding",
     label: "boarding",
-    description: "Read the Linear issue and cache requirements plus code impact.",
+    description: "Capture the request and map requirements plus code impact.",
     systemSkillId: "codex:starter/boarding",
     x: 80,
     y: 160,
@@ -78,7 +78,8 @@ const STARTER_STEPS: StarterStep[] = [
 
 export type CreateCodexStarterWorkflowArgs = {
   repositoryId: string;
-  issueId: string;
+  initialRequest?: string;
+  issueId?: string;
   workflowId?: string;
   now?: () => string;
 };
@@ -88,19 +89,21 @@ export function createCodexStarterWorkflow(
 ): Workflow {
   const now = args.now?.() ?? new Date().toISOString();
   const id = args.workflowId ?? CODEX_STARTER_FLOW_ID;
+  const initialRequest = args.initialRequest ?? args.issueId ?? "";
   return {
     version: WORKFLOW_VERSION,
     id,
     repositoryId: args.repositoryId,
     name: CODEX_STARTER_FLOW_NAME,
-    nodes: STARTER_STEPS.map((step) => toNode(step, args.issueId)),
+    nodes: STARTER_STEPS.map((step) => toNode(step, initialRequest)),
     edges: toEdges(STARTER_STEPS),
     createdAt: now,
     updatedAt: now,
   };
 }
 
-function toNode(step: StarterStep, issueId: string): WorkflowSkillNode {
+function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
+  const trimmedRequest = initialRequest.trim();
   return {
     id: step.id,
     type: "skill",
@@ -112,7 +115,7 @@ function toNode(step: StarterStep, issueId: string): WorkflowSkillNode {
     label: step.label,
     description: step.description,
     position: { x: step.x, y: step.y },
-    input: { arguments: issueId },
+    ...(trimmedRequest ? { input: { arguments: trimmedRequest } } : {}),
   };
 }
 
