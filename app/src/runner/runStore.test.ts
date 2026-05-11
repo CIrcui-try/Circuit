@@ -23,6 +23,7 @@ describe("runStore", () => {
     expect(s.repositoryId).toBe("repo_1");
     expect(s.repositoryName).toBe("alpha");
     expect(s.startedAt).toBe("2026-04-30T00:00:00Z");
+    expect(s.finishedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({ n1: "queued", n2: "queued" });
     expect(s.nodeDebug).toEqual({});
@@ -129,8 +130,23 @@ describe("runStore", () => {
     useRunStore.getState().finishRun("success");
     const s = useRunStore.getState();
     expect(s.status).toBe("success");
+    expect(s.finishedAt).toBeTruthy();
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates.n1).toBe("success");
+  });
+
+  it("RS4b: finishRun stores an explicit finishedAt timestamp", () => {
+    useRunStore.getState().beginRun({
+      runId: "r",
+      workflowId: null,
+      nodeIds: ["n1"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+    });
+    useRunStore.getState().finishRun("success", "2026-05-09T00:00:05.000Z");
+
+    expect(useRunStore.getState().finishedAt).toBe(
+      "2026-05-09T00:00:05.000Z",
+    );
   });
 
   it("RS5: reset returns the store to idle with no node states", () => {
@@ -151,6 +167,7 @@ describe("runStore", () => {
     expect(s.repositoryId).toBeNull();
     expect(s.repositoryName).toBeNull();
     expect(s.startedAt).toBeNull();
+    expect(s.finishedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({});
     expect(s.nodeDebug).toEqual({});

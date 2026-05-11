@@ -166,6 +166,7 @@ describe("App routing", () => {
       repositoryId: "id-alpha",
       repositoryName: "alpha",
       startedAt: "2026-05-09T00:00:00Z",
+      finishedAt: "2026-05-09T00:00:05Z",
       activeNodeId: null,
       nodeStates: { "node-1": "success" },
       nodeDebug: {},
@@ -179,6 +180,7 @@ describe("App routing", () => {
     );
 
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("Success");
+    expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("0:05");
     expect(screen.getByRole("link", { name: "Go to workflow" })).toHaveAttribute(
       "href",
       "/workspace/id-alpha",

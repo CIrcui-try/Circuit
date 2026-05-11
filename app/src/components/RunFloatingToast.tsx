@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cancelWorkflowRun } from "../runner/runController";
+import { useRunElapsedLabel } from "../runner/runElapsed";
 import { useRunStore } from "../runner/runStore";
 import type { RunStatus } from "../runner/runner";
 
@@ -49,6 +50,7 @@ export function RunFloatingToast() {
   const runId = useRunStore((s) => s.runId);
   const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
+  const elapsedLabel = useRunElapsedLabel();
   const hasWaitingNode = useRunStore((s) =>
     Object.values(s.nodeStates).some((state) => state === "waiting_input"),
   );
@@ -66,6 +68,7 @@ export function RunFloatingToast() {
   const canCancel = status === "running";
   const isActive = status === "running";
   const canDismiss = !isActive && Boolean(runId);
+  const detail = formatToastDetail(view.detail, repositoryName, elapsedLabel);
 
   async function handleCancel() {
     setCancelling(true);
@@ -86,9 +89,7 @@ export function RunFloatingToast() {
         <span className="run-floating-toast__dot" aria-hidden="true" />
         <div className="run-floating-toast__copy">
           <strong>{view.label}</strong>
-          <span>
-            {repositoryName ? `${view.detail} - ${repositoryName}` : view.detail}
-          </span>
+          <span>{detail}</span>
         </div>
       </div>
       {canGoToWorkflow || canCancel ? (
@@ -132,6 +133,14 @@ export function RunFloatingToast() {
       ) : null}
     </aside>
   );
+}
+
+function formatToastDetail(
+  detail: string,
+  repositoryName: string | null,
+  elapsedLabel: string | null,
+): string {
+  return [detail, elapsedLabel, repositoryName].filter(Boolean).join(" · ");
 }
 
 function isViewingRunWorkflow(pathname: string, repositoryId: string | null): boolean {

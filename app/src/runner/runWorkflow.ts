@@ -75,7 +75,7 @@ export async function runWorkflow(
 
   if (sorted.cycle) {
     for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
-    store.getState().finishRun("failed");
+    store.getState().finishRun("failed", now());
     return { kind: "rejected", reason: "cycle" };
   }
 
@@ -117,6 +117,6 @@ export async function runWorkflow(
     }
   }
 
-  store.getState().finishRun(finalStatus);
+  store.getState().finishRun(finalStatus, now());
   return { kind: "started", status: finalStatus };
 }

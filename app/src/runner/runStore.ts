@@ -36,6 +36,7 @@ export type RunStoreState = {
   repositoryId: string | null;
   repositoryName: string | null;
   startedAt: string | null;
+  finishedAt: string | null;
   activeNodeId: string | null;
   nodeStates: Record<string, NodeRunState>;
   nodeDebug: Record<string, NodeDebugInfo>;
@@ -56,7 +57,7 @@ export type RunStoreState = {
   setActiveNode: (id: string | null) => void;
   setNodeState: (id: string, state: NodeRunState) => void;
   patchNodeDebug: (id: string, patch: NodeDebugInfo) => void;
-  finishRun: (status: RunTerminalStatus) => void;
+  finishRun: (status: RunTerminalStatus, finishedAt?: string) => void;
   reset: () => void;
 };
 
@@ -69,6 +70,7 @@ const INITIAL: Pick<
   | "repositoryId"
   | "repositoryName"
   | "startedAt"
+  | "finishedAt"
   | "activeNodeId"
   | "nodeStates"
   | "nodeDebug"
@@ -81,6 +83,7 @@ const INITIAL: Pick<
   repositoryId: null,
   repositoryName: null,
   startedAt: null,
+  finishedAt: null,
   activeNodeId: null,
   nodeStates: {},
   nodeDebug: {},
@@ -109,6 +112,7 @@ export const useRunStore = create<RunStoreState>((set) => ({
       repositoryId: repository?.id ?? null,
       repositoryName: repository?.name ?? null,
       startedAt,
+      finishedAt: null,
       activeNodeId: null,
       nodeStates,
       nodeDebug: {},
@@ -135,8 +139,12 @@ export const useRunStore = create<RunStoreState>((set) => ({
     }));
   },
 
-  finishRun: (status) => {
-    set({ status, activeNodeId: null });
+  finishRun: (status, finishedAt) => {
+    set({
+      status,
+      finishedAt: finishedAt ?? new Date().toISOString(),
+      activeNodeId: null,
+    });
   },
 
   reset: () => {
