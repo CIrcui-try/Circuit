@@ -10,6 +10,7 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { create } from "zustand";
+import { topoSort } from "../runner/topoSort";
 import type { Skill, SkillProvider } from "./skillStore";
 
 export type SkillRef = {
@@ -33,6 +34,11 @@ export type ReplaceCanvasArgs = {
   workflowName: string;
 };
 
+export type WorkflowConnectionWarning = {
+  id: string;
+  message: string;
+};
+
 type WorkflowState = {
   nodes: SkillNode[];
   edges: Edge[];
@@ -40,6 +46,7 @@ type WorkflowState = {
   selectedEdgeId: string | null;
   workflowName: string;
   currentWorkflowId: string | null;
+  connectionWarning: WorkflowConnectionWarning | null;
 
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -54,9 +61,11 @@ type WorkflowState = {
   resetWorkflow: () => void;
   setWorkflowName: (name: string) => void;
   replaceCanvas: (args: ReplaceCanvasArgs) => void;
+  clearConnectionWarning: (id?: string) => void;
 };
 
 export const DEFAULT_WORKFLOW_NAME = "Untitled workflow";
+export const WORKFLOW_CYCLE_WARNING_MESSAGE = "무한히 돌 수 있습니다.";
 
 function nextNodeId(): string {
   return crypto.randomUUID();
@@ -75,6 +84,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   selectedEdgeId: null,
   workflowName: DEFAULT_WORKFLOW_NAME,
   currentWorkflowId: null,
+  connectionWarning: null,
 
   onNodesChange: (changes) => {
     const nextNodes = applyNodeChanges(changes, get().nodes).map((n) =>
@@ -110,7 +120,20 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       (e) => e.source === conn.source && e.target === conn.target,
     );
     if (duplicate) return;
-    set({ edges: addEdge(conn, edges) });
+    const nextEdges = addEdge(conn, edges);
+    const sorted = topoSort(
+      get().nodes.map((n) => n.id),
+      nextEdges,
+    );
+    set({
+      edges: nextEdges,
+      connectionWarning: sorted.cycle
+        ? {
+            id: crypto.randomUUID(),
+            message: WORKFLOW_CYCLE_WARNING_MESSAGE,
+          }
+        : get().connectionWarning,
+    });
   },
 
   addSkillNode: (skill, position) => {
@@ -207,6 +230,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       selectedEdgeId: null,
       workflowName: DEFAULT_WORKFLOW_NAME,
       currentWorkflowId: null,
+      connectionWarning: null,
     });
   },
 
@@ -222,7 +246,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       selectedEdgeId: null,
       workflowName,
       currentWorkflowId: workflowId,
+      connectionWarning: null,
     });
+  },
+
+  clearConnectionWarning: (id) => {
+    const { connectionWarning } = get();
+    if (!connectionWarning) return;
+    if (id && connectionWarning.id !== id) return;
+    set({ connectionWarning: null });
   },
 }));
 

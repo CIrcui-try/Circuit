@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MarkerType, ReactFlowProvider, type NodeProps } from "@xyflow/react";
 
 vi.mock("../../host/bridge", () => ({
@@ -19,11 +19,14 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
 import { CANVAS_EDGE_MARKER, CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
 import { SkillNode, nodeTypes } from "../canvas/SkillNode";
-import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
 import { useSkillStore } from "../../stores/skillStore";
-import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
+import {
+  WORKFLOW_CYCLE_WARNING_MESSAGE,
+  useWorkflowStore,
+  type SkillNode as SkillNodeType,
+} from "../../stores/workflowStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
@@ -415,6 +418,33 @@ describe("Layout shell", () => {
     const { container } = render(<Canvas />);
     expect(container.querySelector(".react-flow")).not.toBeNull();
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
+  });
+
+  it("Canvas shows and dismisses connection warning toast", () => {
+    vi.useFakeTimers();
+    try {
+      useWorkflowStore.setState({
+        connectionWarning: {
+          id: "warning-1",
+          message: WORKFLOW_CYCLE_WARNING_MESSAGE,
+        },
+      });
+
+      render(<Canvas />);
+
+      expect(screen.getByTestId("canvas-connection-warning")).toHaveTextContent(
+        WORKFLOW_CYCLE_WARNING_MESSAGE,
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+
+      expect(screen.queryByTestId("canvas-connection-warning")).toBeNull();
+      expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("Canvas caps fitView zoom so a single node is not enlarged", () => {
