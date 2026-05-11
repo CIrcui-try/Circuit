@@ -9,10 +9,10 @@ import {
 import { validateWorkflow } from "./validate";
 
 describe("workflow/starterFlow", () => {
-  it("SF1: defines the Codex issue lifecycle as a regular workflow JSON", () => {
+  it("SF1: defines the Codex starter flow as a regular workflow JSON", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
-      issueId: "CIR-61",
+      initialRequest: "Add a theme toggle",
       now: () => "2026-05-11T00:00:00.000Z",
     });
 
@@ -31,7 +31,19 @@ describe("workflow/starterFlow", () => {
       ["starter_taxiing", "starter_takeoff"],
       ["starter_takeoff", "starter_landing"],
     ]);
-    expect(wf.nodes.every((node) => node.input?.arguments === "CIR-61")).toBe(true);
+    expect(
+      wf.nodes.every((node) => node.input?.arguments === "Add a theme toggle"),
+    ).toBe(true);
+    expect(validateWorkflow(wf)).toEqual({ ok: true });
+  });
+
+  it("SF1b: allows creating the starter flow without an initial request", () => {
+    const wf = createCodexStarterWorkflow({
+      repositoryId: "repo-1",
+      now: () => "2026-05-11T00:00:00.000Z",
+    });
+
+    expect(wf.nodes.every((node) => node.input === undefined)).toBe(true);
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
@@ -52,7 +64,7 @@ describe("workflow/starterFlow", () => {
   it("SF3: survives the existing load and save path without repository skill files", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
-      issueId: "CIR-61",
+      initialRequest: "Refine the onboarding flow",
       workflowId: "wf-starter",
       now: () => "2026-05-11T00:00:00.000Z",
     });

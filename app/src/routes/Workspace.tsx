@@ -68,7 +68,7 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [starterIssueId, setStarterIssueId] = useState("");
+  const [starterGoal, setStarterGoal] = useState("");
   const [pendingRunPreview, setPendingRunPreview] =
     useState<WorkflowRunSnapshot | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
@@ -189,11 +189,10 @@ export function Workspace() {
 
   const handleAddStarterFlow = useCallback(() => {
     if (!repo) return;
-    const issueId = starterIssueId.trim();
-    if (!issueId) return;
+    const initialRequest = starterGoal.trim();
     const workflow = createCodexStarterWorkflow({
       repositoryId: repo.id,
-      issueId,
+      initialRequest,
     });
     const restored = fromWorkflow(workflow);
     useWorkflowStore.getState().replaceCanvas({
@@ -202,8 +201,8 @@ export function Workspace() {
       workflowId: restored.meta.id,
       workflowName: restored.meta.name,
     });
-    setSaveStatus(`Starter flow added for ${issueId}`);
-  }, [repo, starterIssueId]);
+    setSaveStatus("Starter flow added");
+  }, [repo, starterGoal]);
 
   const handleCancel = useCallback(() => {
     setCancelling(true);
@@ -413,12 +412,12 @@ export function Workspace() {
             <code>{repo.path}</code>.
           </p>
           <label className="starter-flow-empty__field">
-            <span>Linear issue ID</span>
+            <span>어떤 기능을 개발해보고 싶으신가요?</span>
             <input
-              value={starterIssueId}
-              data-testid="starter-flow-issue-input"
-              placeholder="CIR-62"
-              onChange={(event) => setStarterIssueId(event.target.value)}
+              value={starterGoal}
+              data-testid="starter-flow-goal-input"
+              placeholder="예: settings 화면에 theme toggle 추가"
+              onChange={(event) => setStarterGoal(event.target.value)}
             />
           </label>
           <button
@@ -426,7 +425,6 @@ export function Workspace() {
             className="starter-flow-empty__action"
             data-testid="starter-flow-add"
             onClick={handleAddStarterFlow}
-            disabled={!starterIssueId.trim()}
           >
             Add Starter Flow
           </button>

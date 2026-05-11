@@ -222,14 +222,17 @@ describe("Workspace", () => {
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
       "/Users/me/alpha",
     );
-    expect(screen.getByTestId("starter-flow-add")).toBeDisabled();
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "어떤 기능을 개발해보고 싶으신가요?",
+    );
+    expect(screen.getByTestId("starter-flow-add")).not.toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("starter-flow-issue-input"), {
-      target: { value: "CIR-62" },
+    fireEvent.change(screen.getByTestId("starter-flow-goal-input"), {
+      target: { value: "Add a theme toggle" },
     });
     fireEvent.click(screen.getByTestId("starter-flow-add"));
 
-    expect(useWorkflowStore.getState().workflowName).toBe("Codex issue lifecycle");
+    expect(useWorkflowStore.getState().workflowName).toBe("Codex starter flow");
     expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
       "starter_boarding",
       "starter_door_closing",
@@ -239,7 +242,7 @@ describe("Workspace", () => {
     ]);
     expect(useWorkflowStore.getState().edges).toHaveLength(4);
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
-      arguments: "CIR-62",
+      arguments: "Add a theme toggle",
     });
     expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
 
@@ -260,6 +263,16 @@ describe("Workspace", () => {
       provider: "codex",
       systemSkillId: "codex:starter/boarding",
     });
+  });
+
+  it("W8e: adds the Codex starter flow even when the feature prompt is blank", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("starter-flow-add"));
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(5);
+    expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
   it("W8b: edits boarding card input as issue id plus force arguments", async () => {
