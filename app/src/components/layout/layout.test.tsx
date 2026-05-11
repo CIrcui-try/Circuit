@@ -138,6 +138,9 @@ describe("Layout shell", () => {
     expect(copied).toContain("node-a\tstdout\thello from stdout");
     expect(copied).toContain("node-b\tstatus\trunning command");
     expect(copied).toContain("node-a\tresult\tsuccess (exit 0)");
+    expect(await screen.findByTestId("run-log-copy-feedback")).toHaveTextContent(
+      "Copied",
+    );
   });
 
   it("LogPanel clears visible run log entries when the run is idle", () => {

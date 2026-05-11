@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getHostBridge, type RunLogEntryDTO } from "../../host/bridge";
 import { parseRunLogJsonl } from "../../runner/runLogPersistence";
 import {
@@ -28,6 +28,7 @@ function LogHeader({
   activeNodeIdle,
   elapsedLabel,
   copyDisabled,
+  copyFeedback,
   onCopyLog,
   clearDisabled,
   onClearLog,
@@ -41,6 +42,7 @@ function LogHeader({
   activeNodeIdle: boolean;
   elapsedLabel: string | null;
   copyDisabled: boolean;
+  copyFeedback: string | null;
   onCopyLog: () => void | Promise<void>;
   clearDisabled: boolean;
   onClearLog: () => void;
@@ -86,6 +88,15 @@ function LogHeader({
             />
           </svg>
         </button>
+        {copyFeedback ? (
+          <span
+            className="panel-header__feedback"
+            data-testid="run-log-copy-feedback"
+            role="status"
+          >
+            {copyFeedback}
+          </span>
+        ) : null}
         <button
           type="button"
           className="panel-header__button panel-header__button--icon"
@@ -205,6 +216,8 @@ function PastRunsPicker({
 }
 
 export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = {}) {
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const copyFeedbackTimeoutRef = useRef<number | null>(null);
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
   const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
@@ -260,10 +273,27 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       await navigator.clipboard.writeText(
         formatRunLogForClipboard(events, nodeResults),
       );
+      setCopyFeedback("Copied");
+      if (copyFeedbackTimeoutRef.current != null) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+      copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+        setCopyFeedback(null);
+        copyFeedbackTimeoutRef.current = null;
+      }, 1600);
     } catch (err) {
+      setCopyFeedback(null);
       console.error("[LogPanel] copy run log failed", err);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimeoutRef.current != null) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleClearLog = () => {
     if (!canClearLog) return;
@@ -286,6 +316,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeIdle={activeNodeIdle}
           elapsedLabel={elapsedLabel}
           copyDisabled={!canCopyLog}
+          copyFeedback={copyFeedback}
           onCopyLog={handleCopyLog}
           clearDisabled={!canClearLog}
           onClearLog={handleClearLog}
@@ -314,6 +345,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeIdle={activeNodeIdle}
         elapsedLabel={elapsedLabel}
         copyDisabled={!canCopyLog}
+        copyFeedback={copyFeedback}
         onCopyLog={handleCopyLog}
         clearDisabled={!canClearLog}
         onClearLog={handleClearLog}
