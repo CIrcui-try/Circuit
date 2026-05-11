@@ -78,4 +78,31 @@ describe("workflow/validate", () => {
       expect(result.errors.some((e) => e.includes("duplicated"))).toBe(true);
     }
   });
+
+  it("V9: system skill refs pass with systemSkillId instead of skillFile", () => {
+    const wf = JSON.parse(JSON.stringify(sampleWorkflow));
+    wf.nodes[0].skillRef = {
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:imagegen",
+    };
+
+    expect(validateWorkflow(wf)).toEqual({ ok: true });
+  });
+
+  it("V10: system skill refs reject skillFile paths", () => {
+    const wf = JSON.parse(JSON.stringify(sampleWorkflow));
+    wf.nodes[0].skillRef = {
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:imagegen",
+      skillFile: "/Users/kai.lee/.codex/skills/.system/imagegen/SKILL.md",
+    };
+
+    const result = validateWorkflow(wf);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.includes("must be omitted"))).toBe(true);
+    }
+  });
 });

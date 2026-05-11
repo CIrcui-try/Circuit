@@ -13,6 +13,7 @@ const sampleNodes: SkillNode[] = [
       label: "Implement Feature",
       description: "Drive an end-to-end feature implementation.",
       skillRef: {
+        source: "repository",
         provider: "claude",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
       },
@@ -25,6 +26,7 @@ const sampleNodes: SkillNode[] = [
     data: {
       label: "Review Code",
       skillRef: {
+        source: "repository",
         provider: "codex",
         skillFile: ".codex/skills/review-code/SKILL.md",
       },
@@ -85,6 +87,7 @@ describe("workflow/serialize", () => {
     expect(wf.updatedAt).toBe("2026-04-30T12:00:00.000Z");
     expect(wf.createdAt).toBe("2026-04-01T00:00:00.000Z");
     expect(wf.nodes[0].skillRef).toEqual({
+      source: "repository",
       provider: "claude",
       skillFile: ".claude/skills/implement-feature/SKILL.md",
     });
@@ -195,5 +198,56 @@ describe("workflow/serialize", () => {
       { arguments: "CIR-46 --force" },
       { prompt: "Review only the regression tests" },
     ]);
+  });
+
+  it("SR8: treats missing skillRef.source as repository for existing workflows", () => {
+    const wf = toWorkflow(
+      { nodes: sampleNodes, edges: [] },
+      meta,
+      () => "2026-05-02T00:00:00Z",
+    );
+    delete wf.nodes[0].skillRef.source;
+
+    const restored = fromWorkflow(wf);
+
+    expect(restored.nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "claude",
+      skillFile: ".claude/skills/implement-feature/SKILL.md",
+    });
+  });
+
+  it("SR9: preserves system skill refs by stable systemSkillId", () => {
+    const nodes: SkillNode[] = [
+      {
+        id: "33333333-3333-4333-8333-333333333333",
+        type: "skill",
+        position: { x: 1, y: 2 },
+        data: {
+          label: "imagegen",
+          skillRef: {
+            source: "system",
+            provider: "codex",
+            skillFile: "",
+            systemSkillId: "codex:imagegen",
+          },
+        },
+      },
+    ];
+
+    const wf = toWorkflow({ nodes, edges: [] }, meta, () => "2026-05-02T00:00:00Z");
+
+    expect(wf.nodes[0].skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:imagegen",
+    });
+    const restored = fromWorkflow(wf);
+    expect(restored.nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:imagegen",
+    });
   });
 });

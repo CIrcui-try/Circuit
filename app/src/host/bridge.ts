@@ -9,6 +9,14 @@ export type RawSkill = {
   content: string;
 };
 
+export type RawSystemSkill = {
+  id: string;
+  provider: "claude" | "codex";
+  name: string;
+  description: string;
+  source: "system";
+};
+
 export type SkillInputHint = {
   kind: "command";
   key: "arguments";
@@ -57,6 +65,7 @@ export interface WorkspaceBridge {
 export interface HostBridge extends Partial<WorkspaceBridge> {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
+  scanSystemSkills?(): Promise<RawSystemSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;
   saveRepositories(repos: Repository[]): Promise<void>;
   listWorkflows(repoPath: string): Promise<WorkflowSummaryDTO[]>;

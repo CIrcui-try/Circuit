@@ -14,8 +14,10 @@ import { topoSort } from "../runner/topoSort";
 import type { Skill, SkillProvider } from "./skillStore";
 
 export type SkillRef = {
+  source?: "repository" | "system";
   provider: SkillProvider;
   skillFile: string;
+  systemSkillId?: string;
 };
 
 export type SkillNodeData = {
@@ -139,6 +141,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   addSkillNode: (skill, position) => {
     const id = nextNodeId();
+    const source = skill.source ?? "repository";
     const node: SkillNode = {
       id,
       type: "skill",
@@ -149,8 +152,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         label: skill.name,
         ...(skill.description ? { description: skill.description } : {}),
         skillRef: {
+          source,
           provider: skill.provider,
           skillFile: skill.skillFile,
+          ...(source === "system"
+            ? { systemSkillId: skill.systemSkillId ?? skill.id }
+            : {}),
         },
       },
     };

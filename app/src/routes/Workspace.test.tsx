@@ -205,6 +205,7 @@ describe("Workspace", () => {
     expect(parsed.repositoryId).toBe("id-alpha");
     expect(parsed.nodes).toHaveLength(1);
     expect(parsed.nodes[0].skillRef).toEqual({
+      source: "repository",
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
     });

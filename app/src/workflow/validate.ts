@@ -1,7 +1,9 @@
 import {
   WORKFLOW_SKILL_PROVIDERS,
+  WORKFLOW_SKILL_SOURCES,
   WORKFLOW_VERSION,
   type WorkflowSkillProvider,
+  type WorkflowSkillSource,
 } from "./schema";
 
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
@@ -15,6 +17,10 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function isProvider(v: unknown): v is WorkflowSkillProvider {
   return typeof v === "string" && (WORKFLOW_SKILL_PROVIDERS as readonly string[]).includes(v);
+}
+
+function isSource(v: unknown): v is WorkflowSkillSource {
+  return typeof v === "string" && (WORKFLOW_SKILL_SOURCES as readonly string[]).includes(v);
 }
 
 function collectPlaceholderRefs(input: Record<string, unknown>, errors: string[], where: string) {
@@ -83,12 +89,34 @@ export function validateWorkflow(value: unknown): ValidationResult {
       if (!isObject(node.skillRef)) {
         errors.push(`${where}.skillRef is required`);
       } else {
+        const source = node.skillRef.source ?? "repository";
+        if (!isSource(source)) {
+          errors.push(
+            `${where}.skillRef.source must be one of ${WORKFLOW_SKILL_SOURCES.join(", ")} (got ${JSON.stringify(node.skillRef.source)})`,
+          );
+        }
         if (!isProvider(node.skillRef.provider)) {
           errors.push(
             `${where}.skillRef.provider must be one of ${WORKFLOW_SKILL_PROVIDERS.join(", ")} (got ${JSON.stringify(node.skillRef.provider)})`,
           );
         }
-        if (typeof node.skillRef.skillFile !== "string" || node.skillRef.skillFile.length === 0) {
+        if (source === "system") {
+          if (
+            typeof node.skillRef.systemSkillId !== "string" ||
+            node.skillRef.systemSkillId.length === 0
+          ) {
+            errors.push(`${where}.skillRef.systemSkillId is required (non-empty string)`);
+          }
+          if (
+            typeof node.skillRef.skillFile === "string" &&
+            node.skillRef.skillFile.length > 0
+          ) {
+            errors.push(`${where}.skillRef.skillFile must be omitted for system skills`);
+          }
+        } else if (
+          typeof node.skillRef.skillFile !== "string" ||
+          node.skillRef.skillFile.length === 0
+        ) {
           errors.push(`${where}.skillRef.skillFile is required (non-empty string)`);
         }
       }

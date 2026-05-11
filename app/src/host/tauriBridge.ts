@@ -5,6 +5,7 @@ import type {
   HostBridge,
   LayoutPrefsDTO,
   RawSkill,
+  RawSystemSkill,
   RunLogEntryDTO,
   WorkflowSummaryDTO,
   WorkspaceDTO,
@@ -25,6 +26,10 @@ export const tauriHostBridge: HostBridge = {
 
   async scanSkills(repoPath: string) {
     return await invoke<RawSkill[]>("scan_skills", { repoPath });
+  },
+
+  async scanSystemSkills() {
+    return await invoke<RawSystemSkill[]>("scan_system_skills");
   },
 
   async loadRepositories() {

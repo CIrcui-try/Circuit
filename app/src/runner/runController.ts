@@ -122,6 +122,12 @@ function toRunnableNode(node: WorkflowSkillNode): RunnableNode {
   if (node.skillRef.provider !== "claude" && node.skillRef.provider !== "codex") {
     throw new Error(`Unsupported runnable provider: ${node.skillRef.provider}`);
   }
+  if ((node.skillRef.source ?? "repository") !== "repository") {
+    throw new Error(`System skill "${node.skillRef.systemSkillId}" is not runnable yet`);
+  }
+  if (!node.skillRef.skillFile) {
+    throw new Error(`Node ${node.id} is missing skillRef.skillFile`);
+  }
   return {
     id: node.id,
     label: node.label,

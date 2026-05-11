@@ -13,8 +13,63 @@ pub struct RawSkill {
     pub content: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawSystemSkill {
+    pub id: String,
+    pub provider: String,
+    pub name: String,
+    pub description: String,
+    pub source: String,
+}
+
+struct SystemSkillCatalogEntry {
+    provider: &'static str,
+    id: &'static str,
+    dir_name: &'static str,
+    content: &'static str,
+}
+
 const PROVIDERS: [&str; 2] = ["claude", "codex"];
 const MAX_CONTENT_BYTES: usize = 16 * 1024;
+const SYSTEM_SKILL_CATALOG: [SystemSkillCatalogEntry; 6] = [
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:imagegen",
+        dir_name: "imagegen",
+        content: include_str!("../system-skills/codex/imagegen/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/boarding",
+        dir_name: "boarding",
+        content: include_str!("../system-skills/codex/starter/boarding/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/door-closing",
+        dir_name: "door-closing",
+        content: include_str!("../system-skills/codex/starter/door-closing/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/landing",
+        dir_name: "landing",
+        content: include_str!("../system-skills/codex/starter/landing/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/takeoff",
+        dir_name: "takeoff",
+        content: include_str!("../system-skills/codex/starter/takeoff/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/taxiing",
+        dir_name: "taxiing",
+        content: include_str!("../system-skills/codex/starter/taxiing/SKILL.md"),
+    },
+];
 
 #[tauri::command]
 pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
@@ -80,6 +135,30 @@ pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
     Ok(out)
 }
 
+#[tauri::command]
+pub fn scan_system_skills() -> Result<Vec<RawSystemSkill>, String> {
+    let mut out: Vec<RawSystemSkill> = SYSTEM_SKILL_CATALOG
+        .iter()
+        .map(|entry| {
+            let meta = parse_skill_meta(entry.content, entry.dir_name);
+            RawSystemSkill {
+                id: entry.id.to_string(),
+                provider: entry.provider.to_string(),
+                name: meta.name,
+                description: meta.description,
+                source: "system".to_string(),
+            }
+        })
+        .collect();
+
+    out.sort_by(|a, b| {
+        a.provider
+            .cmp(&b.provider)
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    Ok(out)
+}
+
 fn resolve_skill_file(skill_dir: &Path) -> Option<(&'static str, PathBuf)> {
     for name in ["SKILL.md", "skill.md"] {
         let candidate = skill_dir.join(name);
@@ -99,6 +178,53 @@ fn truncate_chars(input: &str, max_bytes: usize) -> String {
         end -= 1;
     }
     input[..end].to_string()
+}
+
+struct SkillMeta {
+    name: String,
+    description: String,
+}
+
+fn parse_skill_meta(content: &str, dir_name: &str) -> SkillMeta {
+    let mut name: Option<String> = None;
+    let mut description: Option<String> = None;
+
+    if let Some(frontmatter) = extract_frontmatter(content) {
+        for line in frontmatter.lines() {
+            if let Some((raw_key, raw_value)) = line.split_once(':') {
+                let key = raw_key.trim();
+                let value = unquote(raw_value.trim());
+                if key == "name" {
+                    name = Some(value.to_string());
+                } else if key == "description" {
+                    description = Some(value.to_string());
+                }
+            }
+        }
+    }
+
+    SkillMeta {
+        name: name.unwrap_or_else(|| dir_name.to_string()),
+        description: description.unwrap_or_default(),
+    }
+}
+
+fn extract_frontmatter(content: &str) -> Option<&str> {
+    let rest = content.strip_prefix("---")?;
+    let rest = rest.strip_prefix('\n')?;
+    let close = rest.find("\n---")?;
+    Some(&rest[..close])
+}
+
+fn unquote(value: &str) -> &str {
+    if value.len() >= 2 {
+        let first = value.as_bytes()[0];
+        let last = value.as_bytes()[value.len() - 1];
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            return &value[1..value.len() - 1];
+        }
+    }
+    value
 }
 
 #[cfg(test)]
@@ -154,5 +280,27 @@ mod tests {
     fn scan_skills_errors_for_missing_dir() {
         let result = scan_skills("/definitely/does/not/exist".into());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn scan_system_skills_returns_internal_catalog_metadata() {
+        let skills = scan_system_skills().expect("scan failed");
+
+        assert_eq!(skills.len(), 6);
+        let imagegen = skills.iter().find(|s| s.id == "codex:imagegen").unwrap();
+        assert_eq!(imagegen.provider, "codex");
+        assert_eq!(imagegen.name, "imagegen");
+        assert_eq!(
+            imagegen.description,
+            "Generate or edit raster images from prompt or reference assets."
+        );
+        assert_eq!(imagegen.source, "system");
+
+        let boarding = skills
+            .iter()
+            .find(|s| s.id == "codex:starter/boarding")
+            .unwrap();
+        assert_eq!(boarding.name, "boarding");
+        assert_eq!(boarding.source, "system");
     }
 }

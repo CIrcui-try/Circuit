@@ -50,6 +50,9 @@ function runnable(node: WorkflowSkillNode): RunnableNode {
   if (provider !== "claude" && provider !== "codex") {
     throw new Error(`unsupported provider in test: ${provider}`);
   }
+  if (!node.skillRef.skillFile) {
+    throw new Error(`missing skillFile in test node ${node.id}`);
+  }
   return {
     id: node.id,
     label: node.label,
