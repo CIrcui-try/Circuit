@@ -11,6 +11,7 @@ import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { getRuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
+import type { WorkflowSkillProvider } from "../../workflow/schema";
 import { ApprovalPrompt } from "./ApprovalPrompt";
 
 type RunLogDisplayItem =
@@ -252,6 +253,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       : null,
   );
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
+  const workflowNodes = useWorkflowStore((s) => s.nodes);
   const activeNodeLabel = useWorkflowStore((s) => {
     if (!activeNodeId) return null;
     return s.nodes.find((n) => n.id === activeNodeId)?.data.label ?? activeNodeId;
@@ -272,6 +274,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     events,
     new Set(approvals.map((a) => a.requestId)),
   );
+  const getNodeProvider = (nodeId: string): WorkflowSkillProvider | undefined =>
+    workflowNodes.find((n) => n.id === nodeId)?.data.skillRef.provider;
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -378,14 +382,21 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       <ul className="run-log" data-testid="run-log">
         {displayItems.map((item, i) =>
           item.kind === "stream" ? (
-            <StreamLogGroup key={`ev-${i}`} item={item} />
+            <StreamLogGroup
+              key={`ev-${i}`}
+              item={item}
+              provider={getNodeProvider(item.nodeId)}
+            />
           ) : (
             <li
               key={`ev-${i}`}
               className={`run-log__line run-log__line--${item.event.type}`}
               data-testid="run-log-line"
             >
-              <span className="run-log__node">{item.nodeId}</span>
+              <RunLogNodeBadge
+                nodeId={item.nodeId}
+                provider={getNodeProvider(item.nodeId)}
+              />
               <span className="run-log__type">{formatEventType(item.event)}</span>
               <span className="run-log__payload">
                 {formatSummaryPayload(item.event)}
@@ -397,6 +408,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           <ApprovalPrompt
             key={`approval-${approval.requestId}`}
             request={approval}
+            provider={getNodeProvider(approval.nodeId)}
             onRespond={(text) => handleRespond(approval, text)}
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
@@ -407,7 +419,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}
             data-testid="run-log-result"
           >
-            <span className="run-log__node">{nodeId}</span>
+            <RunLogNodeBadge nodeId={nodeId} provider={getNodeProvider(nodeId)} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -420,7 +432,13 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   );
 }
 
-function StreamLogGroup({ item }: { item: Extract<RunLogDisplayItem, { kind: "stream" }> }) {
+function StreamLogGroup({
+  item,
+  provider,
+}: {
+  item: Extract<RunLogDisplayItem, { kind: "stream" }>;
+  provider?: WorkflowSkillProvider;
+}) {
   const lineCount = countStreamLines(item.events);
   const preview = summarizeStreamGroup(item.events);
   const rawText = joinStreamText(item.events);
@@ -432,7 +450,7 @@ function StreamLogGroup({ item }: { item: Extract<RunLogDisplayItem, { kind: "st
     >
       <details className="run-log__details">
         <summary className="run-log__summary-row">
-          <span className="run-log__node">{item.nodeId}</span>
+          <RunLogNodeBadge nodeId={item.nodeId} provider={provider} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
             {lineCount} {lineCount === 1 ? "line" : "lines"}
@@ -445,6 +463,27 @@ function StreamLogGroup({ item }: { item: Extract<RunLogDisplayItem, { kind: "st
       </details>
     </li>
   );
+}
+
+function RunLogNodeBadge({
+  nodeId,
+  provider,
+}: {
+  nodeId: string;
+  provider?: WorkflowSkillProvider;
+}) {
+  if (provider) {
+    return (
+      <span
+        className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
+        data-testid="run-log-provider"
+      >
+        {provider}
+      </span>
+    );
+  }
+
+  return <span className="run-log__node">{nodeId}</span>;
 }
 
 function buildRunLogDisplayItems(

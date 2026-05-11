@@ -178,6 +178,41 @@ describe("Layout shell", () => {
     expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
   });
 
+  it("LogPanel shows provider chips instead of workflow node ids when available", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent(id, {
+      type: "stdout",
+      timestamp: "t1",
+      text: "hello from codex\n",
+    });
+    useRunLogStore.getState().setNodeResult(id, {
+      status: "success",
+      exitCode: 0,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    const providers = screen.getAllByTestId("run-log-provider");
+    expect(providers).toHaveLength(2);
+    expect(providers[0]).toHaveTextContent("codex");
+    expect(providers[0]).toHaveClass("skill-list__chip--codex");
+    expect(screen.getByTestId("run-log")).not.toHaveTextContent(id);
+  });
+
   it("LogPanel summarizes stderr with the user-facing line after Codex metadata", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {

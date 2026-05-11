@@ -732,6 +732,12 @@ a:hover {
   white-space: nowrap;
 }
 
+.run-log__provider {
+  justify-self: start;
+  align-self: center;
+  color: #c8c8d0;
+}
+
 .run-log__type {
   color: #6f6f78;
 }
