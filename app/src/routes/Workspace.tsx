@@ -269,11 +269,6 @@ export function Workspace() {
                 role="presentation"
               />
               Running…
-              {runElapsed ? (
-                <span className="workspace__toolbar-start-elapsed">
-                  {runElapsed}
-                </span>
-              ) : null}
             </>
           ) : (
             "Start Circuit"

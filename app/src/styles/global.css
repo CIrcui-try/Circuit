@@ -552,11 +552,6 @@ a:hover {
   white-space: nowrap;
 }
 
-.workspace__toolbar-start-elapsed {
-  color: #d8d8df;
-  font-variant-numeric: tabular-nums;
-}
-
 .workspace__sidebar-restore {
   grid-area: sidebar;
   align-self: start;
