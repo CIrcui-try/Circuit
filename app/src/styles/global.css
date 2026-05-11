@@ -618,6 +618,11 @@ a:hover {
   word-break: break-word;
 }
 
+.run-log__line--stream {
+  display: block;
+  padding: 0;
+}
+
 .run-log__line--stderr {
   color: #f3a5a5;
 }
@@ -655,6 +660,49 @@ a:hover {
   gap: 8px;
 }
 
+.run-log__details {
+  color: #c8c8cf;
+}
+
+.run-log__line--stderr .run-log__details {
+  color: #f3a5a5;
+}
+
+.run-log__summary-row {
+  display: grid;
+  grid-template-columns: 90px 60px 1fr;
+  gap: 8px;
+  padding: 2px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.run-log__summary-row::-webkit-details-marker {
+  display: none;
+}
+
+.run-log__summary-row .run-log__payload::before {
+  content: "+";
+  display: inline-block;
+  width: 12px;
+  color: #6f6f78;
+}
+
+.run-log__details[open] .run-log__summary-row .run-log__payload::before {
+  content: "-";
+}
+
+.run-log__raw {
+  margin: 2px 12px 6px 170px;
+  padding: 6px 8px;
+  color: #d7d7dd;
+  background: #18181c;
+  border: 1px solid #303038;
+  border-radius: 4px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .approval__choices,
 .approval__freeform {
   display: inline-flex;
@@ -682,6 +730,12 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.run-log__provider {
+  justify-self: start;
+  align-self: center;
+  color: #c8c8d0;
 }
 
 .run-log__type {

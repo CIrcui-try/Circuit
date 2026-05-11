@@ -143,6 +143,207 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel groups consecutive stdout and stderr entries behind summaries", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "first stdout\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t2",
+      text: "second stdout\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t3",
+      text: "first stderr\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t4",
+      text: "second stderr\n",
+    });
+
+    render(<LogPanel />);
+
+    const groups = screen.getAllByTestId("run-log-stream-group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveTextContent("node-a");
+    expect(groups[0]).toHaveTextContent("stdout");
+    expect(groups[0]).toHaveTextContent("2 lines - first stdout");
+    expect(groups[1]).toHaveTextContent("stderr");
+    expect(groups[1]).toHaveTextContent("2 lines - first stderr");
+    expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
+  });
+
+  it("LogPanel shows provider chips instead of workflow node ids when available", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent(id, {
+      type: "stdout",
+      timestamp: "t1",
+      text: "hello from codex\n",
+    });
+    useRunLogStore.getState().setNodeResult(id, {
+      status: "success",
+      exitCode: 0,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    const providers = screen.getAllByTestId("run-log-provider");
+    expect(providers).toHaveLength(2);
+    expect(providers[0]).toHaveTextContent("codex");
+    expect(providers[0]).toHaveClass("skill-list__chip--codex");
+    expect(screen.getByTestId("run-log")).not.toHaveTextContent(id);
+  });
+
+  it("LogPanel summarizes stderr with the user-facing line after Codex metadata", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: [
+        "Reading additional input from stdin...",
+        "OpenAI Codex v0.128.0 (research preview)",
+        "--------",
+        "workdir: /Users/kai.lee/Documents/Github/Others/Circuit",
+        "`landing`을 중단했습니다. PR 머지 확인이 불가능했습니다.",
+      ].join("\n"),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "5 lines - `landing`을 중단했습니다. PR 머지 확인이 불가능했습니다.",
+    );
+  });
+
+  it("LogPanel prefers CIRCUIT_SUMMARY lines over heuristic stream summaries", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: [
+        "현재 상태를 확인합니다.",
+        "`taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+        "CIRCUIT_SUMMARY: taxiing 중단 - 이슈 ID 입력이 필요합니다.",
+      ].join("\n"),
+    });
+
+    const { container } = render(<LogPanel />);
+    const summary = container.querySelector(".run-log__summary-row");
+
+    expect(summary).toHaveTextContent(
+      "3 lines - taxiing 중단 - 이슈 ID 입력이 필요합니다.",
+    );
+    expect(summary).not.toHaveTextContent("CIRCUIT_SUMMARY:");
+  });
+
+  it("LogPanel skips tokens used and token counts when picking a stream summary", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: ["tokens used", "22,708", "현재 상태: PR 머지 확인 불가"].join(
+        "\n",
+      ),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "3 lines - 현재 상태: PR 머지 확인 불가",
+    );
+  });
+
+  it("LogPanel prefers failure summaries over ordinary progress lines", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: [
+        "현재 상태를 확인합니다.",
+        "`taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+      ].join("\n"),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "2 lines - `taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+    );
+  });
+
+  it("LogPanel falls back to only the line count when every stream line is noise", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: ["Reading additional input from stdin...", "tokens used", "22,708"].join(
+        "\n",
+      ),
+    });
+
+    render(<LogPanel />);
+
+    const group = screen.getByTestId("run-log-stream-group");
+    expect(group).toHaveTextContent("3 lines");
+    expect(group).not.toHaveTextContent(" - ");
+  });
+
+  it("LogPanel keeps approval prompts actionable instead of folding them into the summary", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "approval_required",
+      timestamp: "t1",
+      requestId: "approval-1",
+      prompt: "Allow this command?",
+      approvalKind: "command",
+    });
+
+    render(<LogPanel runtimeBridgeOverride={{ sendInput: vi.fn() }} />);
+
+    expect(screen.getByTestId("approval-prompt")).toHaveTextContent(
+      "Allow this command?",
+    );
+    expect(screen.getByTestId("approval-allow")).toBeEnabled();
+    expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
+  });
+
+  it("LogPanel highlights failed node results in the summary timeline", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "failed",
+      exitCode: 2,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    const result = screen.getByTestId("run-log-result");
+    expect(result).toHaveTextContent("node-a");
+    expect(result).toHaveTextContent("failed (exit 2)");
+    expect(result).toHaveClass("run-log__line--result-failed");
+  });
+
   it("LogPanel clears visible run log entries when the run is idle", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {

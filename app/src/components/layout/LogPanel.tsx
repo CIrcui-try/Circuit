@@ -11,7 +11,21 @@ import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { getRuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
+import type { WorkflowSkillProvider } from "../../workflow/schema";
 import { ApprovalPrompt } from "./ApprovalPrompt";
+
+type RunLogDisplayItem =
+  | {
+      kind: "event";
+      nodeId: string;
+      event: AgentRunEvent;
+    }
+  | {
+      kind: "stream";
+      nodeId: string;
+      stream: "stdout" | "stderr";
+      events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[];
+    };
 
 export interface LogPanelProps {
   /** Override the runtime bridge — used by tests / Storybook. */
@@ -239,6 +253,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       : null,
   );
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
+  const workflowNodes = useWorkflowStore((s) => s.nodes);
   const activeNodeLabel = useWorkflowStore((s) => {
     if (!activeNodeId) return null;
     return s.nodes.find((n) => n.id === activeNodeId)?.data.label ?? activeNodeId;
@@ -255,6 +270,12 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     events.length > 0 || Object.keys(nodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
   const canClearLog = hasLogContent && !isRunning;
+  const displayItems = buildRunLogDisplayItems(
+    events,
+    new Set(approvals.map((a) => a.requestId)),
+  );
+  const getNodeProvider = (nodeId: string): WorkflowSkillProvider | undefined =>
+    workflowNodes.find((n) => n.id === nodeId)?.data.skillRef.provider;
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -359,23 +380,35 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         />
       ) : null}
       <ul className="run-log" data-testid="run-log">
-        {events.map((entry, i) => (
-          <li
-            key={`ev-${i}`}
-            className={`run-log__line run-log__line--${entry.event.type}`}
-            data-testid="run-log-line"
-          >
-            <span className="run-log__node">{entry.nodeId}</span>
-            <span className="run-log__type">{entry.event.type}</span>
-            <span className="run-log__payload">
-              {formatPayload(entry.event)}
-            </span>
-          </li>
-        ))}
+        {displayItems.map((item, i) =>
+          item.kind === "stream" ? (
+            <StreamLogGroup
+              key={`ev-${i}`}
+              item={item}
+              provider={getNodeProvider(item.nodeId)}
+            />
+          ) : (
+            <li
+              key={`ev-${i}`}
+              className={`run-log__line run-log__line--${item.event.type}`}
+              data-testid="run-log-line"
+            >
+              <RunLogNodeBadge
+                nodeId={item.nodeId}
+                provider={getNodeProvider(item.nodeId)}
+              />
+              <span className="run-log__type">{formatEventType(item.event)}</span>
+              <span className="run-log__payload">
+                {formatSummaryPayload(item.event)}
+              </span>
+            </li>
+          ),
+        )}
         {approvals.map((approval) => (
           <ApprovalPrompt
             key={`approval-${approval.requestId}`}
             request={approval}
+            provider={getNodeProvider(approval.nodeId)}
             onRespond={(text) => handleRespond(approval, text)}
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
@@ -386,7 +419,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}
             data-testid="run-log-result"
           >
-            <span className="run-log__node">{nodeId}</span>
+            <RunLogNodeBadge nodeId={nodeId} provider={getNodeProvider(nodeId)} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -397,6 +430,240 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       </ul>
     </footer>
   );
+}
+
+function StreamLogGroup({
+  item,
+  provider,
+}: {
+  item: Extract<RunLogDisplayItem, { kind: "stream" }>;
+  provider?: WorkflowSkillProvider;
+}) {
+  const lineCount = countStreamLines(item.events);
+  const preview = summarizeStreamGroup(item.events);
+  const rawText = joinStreamText(item.events);
+
+  return (
+    <li
+      className={`run-log__line run-log__line--stream run-log__line--${item.stream}`}
+      data-testid="run-log-stream-group"
+    >
+      <details className="run-log__details">
+        <summary className="run-log__summary-row">
+          <RunLogNodeBadge nodeId={item.nodeId} provider={provider} />
+          <span className="run-log__type">{item.stream}</span>
+          <span className="run-log__payload">
+            {lineCount} {lineCount === 1 ? "line" : "lines"}
+            {preview ? ` - ${preview}` : ""}
+          </span>
+        </summary>
+        <pre className="run-log__raw" data-testid="run-log-stream-raw">
+          {rawText}
+        </pre>
+      </details>
+    </li>
+  );
+}
+
+function RunLogNodeBadge({
+  nodeId,
+  provider,
+}: {
+  nodeId: string;
+  provider?: WorkflowSkillProvider;
+}) {
+  if (provider) {
+    return (
+      <span
+        className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
+        data-testid="run-log-provider"
+      >
+        {provider}
+      </span>
+    );
+  }
+
+  return <span className="run-log__node">{nodeId}</span>;
+}
+
+function buildRunLogDisplayItems(
+  events: { nodeId: string; event: AgentRunEvent }[],
+  pendingApprovalIds: Set<string>,
+): RunLogDisplayItem[] {
+  const items: RunLogDisplayItem[] = [];
+
+  for (const entry of events) {
+    if (
+      entry.event.type === "approval_required" &&
+      pendingApprovalIds.has(entry.event.requestId)
+    ) {
+      continue;
+    }
+
+    if (entry.event.type === "stdout" || entry.event.type === "stderr") {
+      const prior = items[items.length - 1];
+      if (
+        prior?.kind === "stream" &&
+        prior.nodeId === entry.nodeId &&
+        prior.stream === entry.event.type
+      ) {
+        prior.events.push(entry.event);
+      } else {
+        items.push({
+          kind: "stream",
+          nodeId: entry.nodeId,
+          stream: entry.event.type,
+          events: [entry.event],
+        });
+      }
+      continue;
+    }
+
+    items.push({
+      kind: "event",
+      nodeId: entry.nodeId,
+      event: entry.event,
+    });
+  }
+
+  return items;
+}
+
+function formatEventType(ev: AgentRunEvent): string {
+  if (ev.type === "approval_required") return "approval";
+  return ev.type;
+}
+
+function formatSummaryPayload(ev: AgentRunEvent): string {
+  switch (ev.type) {
+    case "start":
+      return ev.command ? `started ${ev.command}` : ev.message;
+    case "finish":
+      return ev.exitCode != null
+        ? ev.exitCode === 0
+          ? `completed successfully (exit ${ev.exitCode})`
+          : `failed (exit ${ev.exitCode})`
+        : "finished";
+    case "status":
+      return ev.status;
+    case "error":
+      return ev.message;
+    case "approval_required":
+      return ev.prompt;
+    case "stdout":
+    case "stderr":
+      return ev.text;
+    default:
+      return "";
+  }
+}
+
+function countStreamLines(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): number {
+  let count = 0;
+  for (const ev of events) {
+    const trimmed = ev.text.replace(/\n$/, "");
+    if (trimmed.length === 0) continue;
+    count += trimmed.split(/\r?\n/).length;
+  }
+  return Math.max(count, events.length);
+}
+
+function summarizeStreamGroup(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): string {
+  const lines = events.flatMap((ev) =>
+    ev.text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
+  );
+  const circuitSummary = extractCircuitSummary(lines);
+  if (circuitSummary.length > 0) return truncate(circuitSummary, 96);
+
+  const candidates = lines.filter((line) => !isStreamSummaryNoise(line));
+  let bestLine = "";
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestIndex = -1;
+
+  candidates.forEach((line, index) => {
+    const score = scoreStreamSummaryLine(line);
+    if (
+      score > bestScore ||
+      (score === bestScore && score >= 100 && index > bestIndex)
+    ) {
+      bestLine = line;
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  if (bestLine.length > 0) return truncate(bestLine, 96);
+  return "";
+}
+
+function extractCircuitSummary(lines: string[]): string {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const match = /^CIRCUIT_SUMMARY:\s*(.+)$/i.exec(lines[i]);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
+}
+
+function isStreamSummaryNoise(line: string): boolean {
+  if (
+    /^[-=]{4,}$/.test(line) ||
+    /^Reading additional input from stdin/i.test(line) ||
+    /^OpenAI Codex\b/i.test(line) ||
+    /^tokens used$/i.test(line) ||
+    /^[\d,]+$/.test(line) ||
+    /^(user|codex|exec)$/i.test(line)
+  ) {
+    return true;
+  }
+
+  if (
+    /^(workdir|model|provider|approval|sandbox|reasoning effort|reasoning summaries|session id):/i.test(
+      line,
+    ) ||
+    /^\/.+\s-lc\s/.test(line) ||
+    /\s+in\s+\/Users\/.+$/i.test(line) ||
+    /\s+(succeeded|exited)\s+(in|with code)\s+/i.test(line)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function scoreStreamSummaryLine(line: string): number {
+  let score = 0;
+  if (
+    /(실패|중단|불가|오류|에러|경고|없습니다|failed|failure|error|warning|cannot|could not|unable|invalid|denied|aborted|blocked)/i.test(
+      line,
+    )
+  ) {
+    score += 100;
+  }
+  if (/[가-힣]/.test(line)) score += 30;
+  if (/`[^`]+`/.test(line)) score += 20;
+  if (/[.!?。]$|다\.?$|요\.?$/.test(line)) score += 10;
+  if (line.length >= 20) score += 5;
+  return score;
+}
+
+function joinStreamText(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): string {
+  return events
+    .map((ev) => ev.text)
+    .reduce((joined, text) => {
+      if (joined.length === 0 || joined.endsWith("\n") || text.length === 0) {
+        return `${joined}${text}`;
+      }
+      return `${joined}\n${text}`;
+    }, "");
 }
 
 function formatPayload(ev: AgentRunEvent): string {
@@ -437,4 +704,10 @@ function formatRunLogForClipboard(
 
 function shortId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength
+    ? `${value.slice(0, Math.max(0, maxLength - 3))}...`
+    : value;
 }

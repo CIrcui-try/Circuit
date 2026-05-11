@@ -185,13 +185,15 @@ export function Workspace() {
   );
 
   const toolbarStatus =
-    runStatusText({
-      status: runStatus,
-      isRunningHere: isRunHere,
-      repositoryName: runRepositoryName,
-      workflowName: runWorkflowName,
-      elapsedLabel: runElapsed,
-    }) ?? saveStatus;
+    runStatus === "running"
+      ? saveStatus
+      : runStatusText({
+          status: runStatus,
+          isRunningHere: isRunHere,
+          repositoryName: runRepositoryName,
+          workflowName: runWorkflowName,
+          elapsedLabel: runElapsed,
+        }) ?? saveStatus;
 
   if (repoId && hydrated && !repo) {
     return (

@@ -1,13 +1,20 @@
 import { useState } from "react";
 import type { PendingApproval } from "../../runner/runLogStore";
+import type { WorkflowSkillProvider } from "../../workflow/schema";
 
 export interface ApprovalPromptProps {
   request: PendingApproval;
+  provider?: WorkflowSkillProvider;
   onRespond: (text: string) => void | Promise<void>;
   onDismiss?: () => void;
 }
 
-export function ApprovalPrompt({ request, onRespond, onDismiss }: ApprovalPromptProps) {
+export function ApprovalPrompt({
+  request,
+  provider,
+  onRespond,
+  onDismiss,
+}: ApprovalPromptProps) {
   const [freeform, setFreeform] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -27,7 +34,16 @@ export function ApprovalPrompt({ request, onRespond, onDismiss }: ApprovalPrompt
       data-testid="approval-prompt"
       data-request-id={request.requestId}
     >
-      <span className="run-log__node">{request.nodeId}</span>
+      {provider ? (
+        <span
+          className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
+          data-testid="run-log-provider"
+        >
+          {provider}
+        </span>
+      ) : (
+        <span className="run-log__node">{request.nodeId}</span>
+      )}
       <span className="run-log__type">approval</span>
       <span className="run-log__payload run-log__payload--approval">
         <span className="approval__prompt">{request.prompt}</span>
