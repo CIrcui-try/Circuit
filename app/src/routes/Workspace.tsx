@@ -412,11 +412,11 @@ export function Workspace() {
             <code>{repo.path}</code>.
           </p>
           <label className="starter-flow-empty__field">
-            <span>어떤 기능을 개발해보고 싶으신가요?</span>
+            <span>What would you like to build?</span>
             <input
               value={starterGoal}
               data-testid="starter-flow-goal-input"
-              placeholder="예: settings 화면에 theme toggle 추가"
+              placeholder="Example: add a theme toggle to settings"
               onChange={(event) => setStarterGoal(event.target.value)}
             />
           </label>

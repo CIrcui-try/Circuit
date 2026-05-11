@@ -223,7 +223,7 @@ describe("Workspace", () => {
       "/Users/me/alpha",
     );
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
-      "어떤 기능을 개발해보고 싶으신가요?",
+      "What would you like to build?",
     );
     expect(screen.getByTestId("starter-flow-add")).not.toBeDisabled();
 
