@@ -63,6 +63,8 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [pendingCycleRun, setPendingCycleRun] =
+    useState<WorkflowRunSnapshot | null>(null);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -138,24 +140,15 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleStart = useCallback(async () => {
-    if (!repo) return;
-    const snapshot = buildRunSnapshot(repo);
-    const hasCycle = topoSort(
-      snapshot.nodes.map((node) => node.id),
-      snapshot.edges,
-    ).cycle;
-    if (hasCycle) {
-      const shouldContinue = window.confirm(
-        "워크플로에 루프가 있어 무한히 돌 수 있습니다.\n그래도 진행하시겠습니까?",
-      );
-      if (!shouldContinue) return;
-    }
+  const startSnapshot = useCallback(async (
+    snapshot: WorkflowRunSnapshot,
+    allowCycles = false,
+  ) => {
     setLogCollapsed(false);
     try {
       const outcome = await startWorkflowRun({
         snapshot,
-        allowCycles: hasCycle,
+        allowCycles,
       });
       if (outcome.kind === "rejected") {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
@@ -170,7 +163,21 @@ export function Workspace() {
     } catch (err) {
       notifyAppError(err, "Start Circuit failed");
     }
-  }, [repo, setLogCollapsed]);
+  }, [setLogCollapsed]);
+
+  const handleStart = useCallback(async () => {
+    if (!repo) return;
+    const snapshot = buildRunSnapshot(repo);
+    const hasCycle = topoSort(
+      snapshot.nodes.map((node) => node.id),
+      snapshot.edges,
+    ).cycle;
+    if (hasCycle) {
+      setPendingCycleRun(snapshot);
+      return;
+    }
+    await startSnapshot(snapshot);
+  }, [repo, startSnapshot]);
 
   const handleCancel = useCallback(() => {
     setCancelling(true);
@@ -306,6 +313,46 @@ export function Workspace() {
           </span>
         ) : null}
       </header>
+      {pendingCycleRun ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cycle-run-title"
+            data-testid="cycle-run-confirm"
+          >
+            <h2 id="cycle-run-title" className="modal__title">
+              워크플로 루프 경고
+            </h2>
+            <p className="modal__message">
+              워크플로에 루프가 있어 무한히 돌 수 있습니다.
+            </p>
+            <p className="modal__message">그래도 진행하시겠습니까?</p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingCycleRun(null)}
+                data-testid="cycle-run-cancel"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => {
+                  const snapshot = pendingCycleRun;
+                  setPendingCycleRun(null);
+                  void startSnapshot(snapshot, true);
+                }}
+                data-testid="cycle-run-confirm-proceed"
+              >
+                예, 진행
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {sidebarCollapsed ? (
         <button
           type="button"

@@ -301,7 +301,6 @@ describe("Workspace", () => {
   });
 
   it("W9b: clicking Start on a loop asks before running", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -339,9 +338,18 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    expect(confirm).toHaveBeenCalledWith(
-      "워크플로에 루프가 있어 무한히 돌 수 있습니다.\n그래도 진행하시겠습니까?",
+    expect(
+      screen.getByRole("dialog", { name: "워크플로 루프 경고" }),
+    ).toHaveTextContent(
+      "워크플로에 루프가 있어 무한히 돌 수 있습니다.",
     );
+    expect(screen.getByTestId("cycle-run-confirm")).toHaveTextContent(
+      "그래도 진행하시겠습니까?",
+    );
+    expect(useRunStore.getState().status).toBe("idle");
+
+    fireEvent.click(screen.getByTestId("cycle-run-confirm-proceed"));
+
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
     });
@@ -352,7 +360,6 @@ describe("Workspace", () => {
   });
 
   it("W9c: cancelling the loop confirmation does not start a run", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
     useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: true });
 
@@ -391,7 +398,10 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("cycle-run-confirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("cycle-run-cancel"));
+
+    expect(screen.queryByTestId("cycle-run-confirm")).not.toBeInTheDocument();
     expect(useRunStore.getState().status).toBe("idle");
     expect(screen.getByTestId("workspace-root")).toHaveClass(
       "workspace--log-collapsed",
