@@ -1278,7 +1278,7 @@ a:hover {
 
 .skill-node__description-wrap:hover .skill-node__description-tooltip {
   opacity: 1;
-  transition-delay: 1s, 1s;
+  transition-delay: 0.5s, 0.5s;
   visibility: visible;
 }
 
