@@ -1240,6 +1240,28 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-list__desc-wrap:hover .skill-list__desc {
+  color: #b8b8c2;
+}
+
+.hover-tooltip {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 8px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #24242a;
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  white-space: normal;
+}
+
 .skill-list__error {
   margin: 8px 12px;
   padding: 6px 8px;
@@ -1388,6 +1410,7 @@ a:hover {
 .skill-node__description-wrap {
   position: relative;
   margin-top: 3px;
+  display: block;
 }
 
 .skill-node__description {
@@ -1401,35 +1424,6 @@ a:hover {
 
 .skill-node__description-wrap:hover .skill-node__description {
   color: #b8b8c2;
-}
-
-.skill-node__description-tooltip {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 20;
-  width: max-content;
-  max-width: 300px;
-  padding: 6px 8px;
-  border: 1px solid #3a3a42;
-  border-radius: 6px;
-  background: #24242a;
-  color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
-  font-size: 11px;
-  line-height: 1.35;
-  opacity: 0;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-  transition: opacity 80ms ease, visibility 0s linear 80ms;
-  visibility: hidden;
-  white-space: normal;
-}
-
-.skill-node__description-wrap:hover .skill-node__description-tooltip {
-  opacity: 1;
-  transition-delay: 0.5s, 0.5s;
-  visibility: visible;
 }
 
 .skill-node__input {

@@ -483,7 +483,7 @@ describe("Layout shell", () => {
     );
   });
 
-  it("SkillNode shows a skill description when configured", () => {
+  it("SkillNode shows a viewport-fixed description tooltip when hovered", () => {
     renderSkillNode({
       id: "node-1",
       selected: false,
@@ -499,7 +499,16 @@ describe("Layout shell", () => {
 
     const description = screen.getByTestId("skill-node-description");
     expect(description).toHaveClass("skill-node__description");
-    expect(screen.getByTestId("skill-node-description-tooltip")).toHaveTextContent(
+    expect(
+      screen.queryByTestId("skill-node-description-tooltip"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(description);
+
+    const tooltip = screen.getByTestId("skill-node-description-tooltip");
+    expect(tooltip).toHaveClass("hover-tooltip");
+    expect(tooltip).toHaveStyle({ position: "fixed" });
+    expect(tooltip).toHaveTextContent(
       "plan.md 따라 워크트리에서 구현 및 중간 커밋",
     );
     expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");

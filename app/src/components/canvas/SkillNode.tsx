@@ -7,6 +7,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { HoverTooltip } from "../HoverTooltip";
 import { useNodeRunState } from "../../runner/runStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
@@ -111,20 +112,18 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         </span>
       </div>
       {description ? (
-        <div className="skill-node__description-wrap">
+        <HoverTooltip
+          className="skill-node__description-wrap"
+          content={description}
+          testId="skill-node-description-tooltip"
+        >
           <div
             className="skill-node__description"
             data-testid="skill-node-description"
           >
             {description}
           </div>
-          <div
-            className="skill-node__description-tooltip"
-            data-testid="skill-node-description-tooltip"
-          >
-            {description}
-          </div>
-        </div>
+        </HoverTooltip>
       ) : null}
       <div className="skill-node__input" data-testid="skill-node-input-summary">
         {inputSummary.state === "present" ? (

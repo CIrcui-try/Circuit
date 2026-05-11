@@ -84,6 +84,35 @@ describe("Sidebar", () => {
     expect(screen.getByText("codex")).toBeInTheDocument();
   });
 
+  it("SB4b: shows sidebar skill descriptions in a hover tooltip", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo Skill",
+            description: "Foo does foo",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+        ],
+      },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    expect(screen.queryByTestId("skill-list-description-tooltip")).not.toBeInTheDocument();
+
+    await userEvent.hover(screen.getByText("Foo does foo"));
+
+    const tooltip = screen.getByTestId("skill-list-description-tooltip");
+    expect(tooltip).toHaveClass("hover-tooltip");
+    expect(tooltip).toHaveTextContent("Foo does foo");
+  });
+
   it("SB5: shows error footer when scan failed", () => {
     useSkillStore.setState({
       byRepo: {},

@@ -3,6 +3,7 @@ import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
+import { HoverTooltip } from "../HoverTooltip";
 import { SKILL_DRAG_MIME } from "./Canvas";
 import {
   SkillNodeMenu,
@@ -173,7 +174,13 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                       </button>
                     </div>
                     {skill.description && (
-                      <div className="skill-list__desc">{skill.description}</div>
+                      <HoverTooltip
+                        className="skill-list__desc-wrap"
+                        content={skill.description}
+                        testId="skill-list-description-tooltip"
+                      >
+                        <div className="skill-list__desc">{skill.description}</div>
+                      </HoverTooltip>
                     )}
                   </li>
                 ))
@@ -231,7 +238,13 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                 </button>
               </div>
               {skill.description && (
-                <div className="skill-list__desc">{skill.description}</div>
+                <HoverTooltip
+                  className="skill-list__desc-wrap"
+                  content={skill.description}
+                  testId="skill-list-description-tooltip"
+                >
+                  <div className="skill-list__desc">{skill.description}</div>
+                </HoverTooltip>
               )}
             </li>
           ))}

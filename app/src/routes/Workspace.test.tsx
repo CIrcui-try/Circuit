@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import type { RawSystemSkill } from "../host/bridge";
 
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(async () => []),
-  scanSystemSkills: vi.fn(async () => []),
+  scanSystemSkills: vi.fn(async (): Promise<RawSystemSkill[]> => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
