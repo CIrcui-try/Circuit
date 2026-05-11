@@ -16,6 +16,7 @@ import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft"
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunElapsedLabel } from "../runner/runElapsed";
 import { useRunStore } from "../runner/runStore";
+import { topoSort } from "../runner/topoSort";
 import {
   cancelWorkflowRun,
   startWorkflowRun,
@@ -139,9 +140,23 @@ export function Workspace() {
 
   const handleStart = useCallback(async () => {
     if (!repo) return;
+    const snapshot = buildRunSnapshot(repo);
+    const hasCycle = topoSort(
+      snapshot.nodes.map((node) => node.id),
+      snapshot.edges,
+    ).cycle;
+    if (hasCycle) {
+      const shouldContinue = window.confirm(
+        "워크플로에 루프가 있어 무한히 돌 수 있습니다.\n그래도 진행하시겠습니까?",
+      );
+      if (!shouldContinue) return;
+    }
     setLogCollapsed(false);
     try {
-      const outcome = await startWorkflowRun({ snapshot: buildRunSnapshot(repo) });
+      const outcome = await startWorkflowRun({
+        snapshot,
+        allowCycles: hasCycle,
+      });
       if (outcome.kind === "rejected") {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
         return;

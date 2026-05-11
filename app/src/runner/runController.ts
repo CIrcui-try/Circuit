@@ -31,6 +31,7 @@ export type StartWorkflowRunOptions = {
   snapshot: WorkflowRunSnapshot;
   now?: () => string;
   newRunId?: () => string;
+  allowCycles?: boolean;
   bridge?: RuntimeBridge;
   createRunner?: (args: CreateRunnerArgs) => CancellableWorkflowRunner;
 };
@@ -76,6 +77,7 @@ export async function startWorkflowRun(
       store: useRunStore,
       now: opts.now,
       newRunId: opts.newRunId,
+      allowCycles: opts.allowCycles,
     });
   } finally {
     if (activeRunner === runner && useRunStore.getState().status !== "running") {
