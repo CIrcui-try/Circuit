@@ -32,12 +32,44 @@ struct SystemSkillCatalogEntry {
 
 const PROVIDERS: [&str; 2] = ["claude", "codex"];
 const MAX_CONTENT_BYTES: usize = 16 * 1024;
-const SYSTEM_SKILL_CATALOG: [SystemSkillCatalogEntry; 1] = [SystemSkillCatalogEntry {
-    provider: "codex",
-    id: "codex:imagegen",
-    dir_name: "imagegen",
-    content: include_str!("../system-skills/codex/imagegen/SKILL.md"),
-}];
+const SYSTEM_SKILL_CATALOG: [SystemSkillCatalogEntry; 6] = [
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:imagegen",
+        dir_name: "imagegen",
+        content: include_str!("../system-skills/codex/imagegen/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/boarding",
+        dir_name: "boarding",
+        content: include_str!("../system-skills/codex/starter/boarding/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/door-closing",
+        dir_name: "door-closing",
+        content: include_str!("../system-skills/codex/starter/door-closing/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/landing",
+        dir_name: "landing",
+        content: include_str!("../system-skills/codex/starter/landing/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/takeoff",
+        dir_name: "takeoff",
+        content: include_str!("../system-skills/codex/starter/takeoff/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "codex",
+        id: "codex:starter/taxiing",
+        dir_name: "taxiing",
+        content: include_str!("../system-skills/codex/starter/taxiing/SKILL.md"),
+    },
+];
 
 #[tauri::command]
 pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
@@ -254,14 +286,21 @@ mod tests {
     fn scan_system_skills_returns_internal_catalog_metadata() {
         let skills = scan_system_skills().expect("scan failed");
 
-        assert_eq!(skills.len(), 1);
-        assert_eq!(skills[0].id, "codex:imagegen");
-        assert_eq!(skills[0].provider, "codex");
-        assert_eq!(skills[0].name, "imagegen");
+        assert_eq!(skills.len(), 6);
+        let imagegen = skills.iter().find(|s| s.id == "codex:imagegen").unwrap();
+        assert_eq!(imagegen.provider, "codex");
+        assert_eq!(imagegen.name, "imagegen");
         assert_eq!(
-            skills[0].description,
+            imagegen.description,
             "Generate or edit raster images from prompt or reference assets."
         );
-        assert_eq!(skills[0].source, "system");
+        assert_eq!(imagegen.source, "system");
+
+        let boarding = skills
+            .iter()
+            .find(|s| s.id == "codex:starter/boarding")
+            .unwrap();
+        assert_eq!(boarding.name, "boarding");
+        assert_eq!(boarding.source, "system");
     }
 }
