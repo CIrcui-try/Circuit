@@ -143,6 +143,78 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel groups consecutive stdout and stderr entries behind summaries", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: "first stdout\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t2",
+      text: "second stdout\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t3",
+      text: "first stderr\n",
+    });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t4",
+      text: "second stderr\n",
+    });
+
+    render(<LogPanel />);
+
+    const groups = screen.getAllByTestId("run-log-stream-group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveTextContent("node-a");
+    expect(groups[0]).toHaveTextContent("stdout");
+    expect(groups[0]).toHaveTextContent("2 lines - first stdout");
+    expect(groups[1]).toHaveTextContent("stderr");
+    expect(groups[1]).toHaveTextContent("2 lines - first stderr");
+    expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
+  });
+
+  it("LogPanel keeps approval prompts actionable instead of folding them into the summary", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "approval_required",
+      timestamp: "t1",
+      requestId: "approval-1",
+      prompt: "Allow this command?",
+      approvalKind: "command",
+    });
+
+    render(<LogPanel runtimeBridgeOverride={{ sendInput: vi.fn() }} />);
+
+    expect(screen.getByTestId("approval-prompt")).toHaveTextContent(
+      "Allow this command?",
+    );
+    expect(screen.getByTestId("approval-allow")).toBeEnabled();
+    expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
+  });
+
+  it("LogPanel highlights failed node results in the summary timeline", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "failed",
+      exitCode: 2,
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    const result = screen.getByTestId("run-log-result");
+    expect(result).toHaveTextContent("node-a");
+    expect(result).toHaveTextContent("failed (exit 2)");
+    expect(result).toHaveClass("run-log__line--result-failed");
+  });
+
   it("LogPanel clears visible run log entries when the run is idle", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {

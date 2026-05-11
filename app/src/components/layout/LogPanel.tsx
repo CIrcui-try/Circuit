@@ -13,6 +13,19 @@ import { getRuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
 import { ApprovalPrompt } from "./ApprovalPrompt";
 
+type RunLogDisplayItem =
+  | {
+      kind: "event";
+      nodeId: string;
+      event: AgentRunEvent;
+    }
+  | {
+      kind: "stream";
+      nodeId: string;
+      stream: "stdout" | "stderr";
+      events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[];
+    };
+
 export interface LogPanelProps {
   /** Override the runtime bridge — used by tests / Storybook. */
   runtimeBridgeOverride?: { sendInput: (runId: string, text: string) => Promise<void> };
@@ -255,6 +268,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     events.length > 0 || Object.keys(nodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
   const canClearLog = hasLogContent && !isRunning;
+  const displayItems = buildRunLogDisplayItems(
+    events,
+    new Set(approvals.map((a) => a.requestId)),
+  );
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -359,19 +376,23 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         />
       ) : null}
       <ul className="run-log" data-testid="run-log">
-        {events.map((entry, i) => (
-          <li
-            key={`ev-${i}`}
-            className={`run-log__line run-log__line--${entry.event.type}`}
-            data-testid="run-log-line"
-          >
-            <span className="run-log__node">{entry.nodeId}</span>
-            <span className="run-log__type">{entry.event.type}</span>
-            <span className="run-log__payload">
-              {formatPayload(entry.event)}
-            </span>
-          </li>
-        ))}
+        {displayItems.map((item, i) =>
+          item.kind === "stream" ? (
+            <StreamLogGroup key={`ev-${i}`} item={item} />
+          ) : (
+            <li
+              key={`ev-${i}`}
+              className={`run-log__line run-log__line--${item.event.type}`}
+              data-testid="run-log-line"
+            >
+              <span className="run-log__node">{item.nodeId}</span>
+              <span className="run-log__type">{formatEventType(item.event)}</span>
+              <span className="run-log__payload">
+                {formatSummaryPayload(item.event)}
+              </span>
+            </li>
+          ),
+        )}
         {approvals.map((approval) => (
           <ApprovalPrompt
             key={`approval-${approval.requestId}`}
@@ -397,6 +418,143 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       </ul>
     </footer>
   );
+}
+
+function StreamLogGroup({ item }: { item: Extract<RunLogDisplayItem, { kind: "stream" }> }) {
+  const lineCount = countStreamLines(item.events);
+  const preview = summarizeStreamGroup(item.events);
+  const rawText = joinStreamText(item.events);
+
+  return (
+    <li
+      className={`run-log__line run-log__line--stream run-log__line--${item.stream}`}
+      data-testid="run-log-stream-group"
+    >
+      <details className="run-log__details">
+        <summary className="run-log__summary-row">
+          <span className="run-log__node">{item.nodeId}</span>
+          <span className="run-log__type">{item.stream}</span>
+          <span className="run-log__payload">
+            {lineCount} {lineCount === 1 ? "line" : "lines"}
+            {preview ? ` - ${preview}` : ""}
+          </span>
+        </summary>
+        <pre className="run-log__raw" data-testid="run-log-stream-raw">
+          {rawText}
+        </pre>
+      </details>
+    </li>
+  );
+}
+
+function buildRunLogDisplayItems(
+  events: { nodeId: string; event: AgentRunEvent }[],
+  pendingApprovalIds: Set<string>,
+): RunLogDisplayItem[] {
+  const items: RunLogDisplayItem[] = [];
+
+  for (const entry of events) {
+    if (
+      entry.event.type === "approval_required" &&
+      pendingApprovalIds.has(entry.event.requestId)
+    ) {
+      continue;
+    }
+
+    if (entry.event.type === "stdout" || entry.event.type === "stderr") {
+      const prior = items[items.length - 1];
+      if (
+        prior?.kind === "stream" &&
+        prior.nodeId === entry.nodeId &&
+        prior.stream === entry.event.type
+      ) {
+        prior.events.push(entry.event);
+      } else {
+        items.push({
+          kind: "stream",
+          nodeId: entry.nodeId,
+          stream: entry.event.type,
+          events: [entry.event],
+        });
+      }
+      continue;
+    }
+
+    items.push({
+      kind: "event",
+      nodeId: entry.nodeId,
+      event: entry.event,
+    });
+  }
+
+  return items;
+}
+
+function formatEventType(ev: AgentRunEvent): string {
+  if (ev.type === "approval_required") return "approval";
+  return ev.type;
+}
+
+function formatSummaryPayload(ev: AgentRunEvent): string {
+  switch (ev.type) {
+    case "start":
+      return ev.command ? `started ${ev.command}` : ev.message;
+    case "finish":
+      return ev.exitCode != null
+        ? ev.exitCode === 0
+          ? `completed successfully (exit ${ev.exitCode})`
+          : `failed (exit ${ev.exitCode})`
+        : "finished";
+    case "status":
+      return ev.status;
+    case "error":
+      return ev.message;
+    case "approval_required":
+      return ev.prompt;
+    case "stdout":
+    case "stderr":
+      return ev.text;
+    default:
+      return "";
+  }
+}
+
+function countStreamLines(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): number {
+  let count = 0;
+  for (const ev of events) {
+    const trimmed = ev.text.replace(/\n$/, "");
+    if (trimmed.length === 0) continue;
+    count += trimmed.split(/\r?\n/).length;
+  }
+  return Math.max(count, events.length);
+}
+
+function summarizeStreamGroup(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): string {
+  for (const ev of events) {
+    const firstLine = ev.text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+    if (firstLine) return truncate(firstLine, 96);
+  }
+  return "";
+}
+
+function joinStreamText(
+  events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
+): string {
+  return events
+    .map((ev) => ev.text)
+    .reduce((joined, text) => {
+      if (joined.length === 0 || joined.endsWith("\n") || text.length === 0) {
+        return `${joined}${text}`;
+      }
+      return `${joined}\n${text}`;
+    }, "");
 }
 
 function formatPayload(ev: AgentRunEvent): string {
@@ -437,4 +595,10 @@ function formatRunLogForClipboard(
 
 function shortId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength
+    ? `${value.slice(0, Math.max(0, maxLength - 3))}...`
+    : value;
 }
