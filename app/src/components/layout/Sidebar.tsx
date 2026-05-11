@@ -137,14 +137,14 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
             <span className="skill-list__section-icon" aria-hidden="true">
               {systemCollapsed ? ">" : "v"}
             </span>
-            <span>System</span>
+            <span>Common</span>
           </button>
           {systemCollapsed ? null : (
             <ul className="skill-list" data-testid="system-skill-list">
               {systemLoading && starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">Scanning system skills...</li>
+                <li className="skill-list__hint">Scanning common skills...</li>
               ) : starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">No starter skills available.</li>
+                <li className="skill-list__hint">No common skills available.</li>
               ) : (
                 starterSystemSkills.map((skill) => (
                   <li

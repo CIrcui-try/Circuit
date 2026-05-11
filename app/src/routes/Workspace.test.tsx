@@ -314,7 +314,7 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
-  it("W8f: adds a starter system skill node from the system section", async () => {
+  it("W8f: adds a starter system skill node from the common section", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");

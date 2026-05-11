@@ -136,7 +136,7 @@ describe("Sidebar", () => {
     expect(onCollapse).toHaveBeenCalledTimes(1);
   });
 
-  it("SB8: renders foldable starter skills in the system section", async () => {
+  it("SB8: renders foldable starter skills in the common section", async () => {
     useSkillStore.setState({
       byRepo: { r1: [] },
       systemSkills: [
@@ -168,6 +168,7 @@ describe("Sidebar", () => {
     render(<Sidebar repoId="r1" />);
 
     expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
+    expect(screen.getByText("Common")).toBeInTheDocument();
     expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(2);
     expect(screen.getByText("boarding")).toBeInTheDocument();
     expect(screen.getByText("taxiing")).toBeInTheDocument();
@@ -189,7 +190,7 @@ describe("Sidebar", () => {
     });
   });
 
-  it("SB9: places the system section above repository skills", () => {
+  it("SB9: places the common section above repository skills", () => {
     useSkillStore.setState({
       byRepo: {
         r1: [
