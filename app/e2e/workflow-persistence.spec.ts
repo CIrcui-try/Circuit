@@ -45,6 +45,11 @@ async function connectFirstTwoNodes(page: Page) {
   });
 }
 
+async function confirmRunPreview(page: Page) {
+  await expect(page.getByTestId("run-preview-modal")).toBeVisible();
+  await page.getByTestId("run-preview-confirm").click();
+}
+
 test("F6: save workflow, reload page, restore the last edited graph and input", async ({ page }) => {
   await openWorkspace(page);
 
@@ -151,6 +156,7 @@ test("F6: save workflow, reload page, restore the last edited graph and input", 
   expect(after.edges).toEqual(before.edges);
 
   await page.getByTestId("workflow-start").click();
+  await confirmRunPreview(page);
   await expect(page.locator('[data-testid="workflow-node"][data-run-state="success"]')).toHaveCount(2);
   const prompts = await page.evaluate(() => {
     const w = window as unknown as {
