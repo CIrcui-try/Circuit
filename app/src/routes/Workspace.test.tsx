@@ -339,12 +339,12 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByTestId("workflow-start"));
 
     expect(
-      screen.getByRole("dialog", { name: "워크플로 루프 경고" }),
+      screen.getByRole("dialog", { name: "Workflow loop warning" }),
     ).toHaveTextContent(
-      "워크플로에 루프가 있어 무한히 돌 수 있습니다.",
+      "This workflow contains a loop and may run indefinitely.",
     );
     expect(screen.getByTestId("cycle-run-confirm")).toHaveTextContent(
-      "그래도 진행하시겠습니까?",
+      "Do you want to continue?",
     );
     expect(useRunStore.getState().status).toBe("idle");
 

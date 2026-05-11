@@ -65,7 +65,8 @@ type WorkflowState = {
 };
 
 export const DEFAULT_WORKFLOW_NAME = "Untitled workflow";
-export const WORKFLOW_CYCLE_WARNING_MESSAGE = "무한히 돌 수 있습니다.";
+export const WORKFLOW_CYCLE_WARNING_MESSAGE =
+  "This workflow may run indefinitely.";
 
 function nextNodeId(): string {
   return crypto.randomUUID();

@@ -323,19 +323,19 @@ export function Workspace() {
             data-testid="cycle-run-confirm"
           >
             <h2 id="cycle-run-title" className="modal__title">
-              워크플로 루프 경고
+              Workflow loop warning
             </h2>
             <p className="modal__message">
-              워크플로에 루프가 있어 무한히 돌 수 있습니다.
+              This workflow contains a loop and may run indefinitely.
             </p>
-            <p className="modal__message">그래도 진행하시겠습니까?</p>
+            <p className="modal__message">Do you want to continue?</p>
             <div className="modal__footer">
               <button
                 type="button"
                 onClick={() => setPendingCycleRun(null)}
                 data-testid="cycle-run-cancel"
               >
-                취소
+                Cancel
               </button>
               <button
                 type="button"
@@ -347,7 +347,7 @@ export function Workspace() {
                 }}
                 data-testid="cycle-run-confirm-proceed"
               >
-                예, 진행
+                Continue
               </button>
             </div>
           </div>
