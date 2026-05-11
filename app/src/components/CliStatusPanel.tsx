@@ -12,26 +12,26 @@ const CLI_LABELS: Record<CliId, string> = {
 };
 
 const STATUS_LABEL: Record<CliStatus, string> = {
-  idle: "확인 전",
-  checking: "점검 중…",
-  ok: "사용 가능",
-  missing: "설치되지 않음",
-  error: "오류",
+  idle: "Not checked",
+  checking: "Checking...",
+  ok: "Available",
+  missing: "Not installed",
+  error: "Error",
 };
 
 function describe(entry: CliEntry): string {
   switch (entry.status) {
     case "ok":
-      return entry.version ?? "사용 가능";
+      return entry.version ?? "Available";
     case "missing":
-      return entry.errorMessage ?? "PATH에서 찾을 수 없음";
+      return entry.errorMessage ?? "Not found in PATH";
     case "error":
-      return entry.errorMessage ?? "오류";
+      return entry.errorMessage ?? "Error";
     case "checking":
-      return entry.progressLabel ?? "점검 중…";
+      return entry.progressLabel ?? "Checking...";
     case "idle":
     default:
-      return "확인 전";
+      return "Not checked";
   }
 }
 
@@ -49,7 +49,7 @@ export function CliStatusPanel() {
   return (
     <section className="cli-status-panel" data-testid="cli-status-panel">
       <header className="cli-status-panel__header">
-        <span className="cli-status-panel__title">CLI 상태</span>
+        <span className="cli-status-panel__title">CLI Status</span>
         <button
           type="button"
           className="cli-status-panel__refresh"
@@ -64,7 +64,7 @@ export function CliStatusPanel() {
                 aria-hidden="true"
                 role="presentation"
               />
-              점검 중…
+              Checking...
             </>
           ) : (
             "refresh"

@@ -27,10 +27,10 @@ export interface CliEntry {
 }
 
 const STAGE_LABELS: Record<CliProbeStage, string> = {
-  subscribing: "리스너 준비 중…",
-  "awaiting-listener": "리스너 등록 중…",
-  spawning: "프로세스 실행 중…",
-  "awaiting-output": "응답 대기 중…",
+  subscribing: "Preparing listener...",
+  "awaiting-listener": "Registering listener...",
+  spawning: "Starting process...",
+  "awaiting-output": "Waiting for output...",
 };
 
 const PROBE_COMMANDS: Record<CliId, { command: string; args: string[] }> = {
