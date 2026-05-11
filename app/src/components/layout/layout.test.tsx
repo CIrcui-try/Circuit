@@ -22,12 +22,14 @@ import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
+import { useSkillStore } from "../../stores/skillStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunLogStore.getState().reset();
   useRunStore.getState().reset();
+  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
 });
 
 describe("Layout shell", () => {
@@ -463,6 +465,39 @@ describe("Layout shell", () => {
       screen.getByText("plan.md 따라 워크트리에서 구현 및 중간 커밋"),
     ).toHaveClass("skill-node__description");
     expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");
+  });
+
+  it("SkillNode falls back to scanned skill metadata for saved nodes", () => {
+    useSkillStore.setState({
+      byRepo: {
+        repo: [
+          {
+            id: "claude:.claude/skills/taxiing",
+            provider: "claude",
+            name: "taxiing",
+            description: "항공기 이륙 3단계 — plan.md 따라 구현",
+            rootDir: ".claude/skills/taxiing",
+            skillFile: ".claude/skills/taxiing/SKILL.md",
+          },
+        ],
+      },
+    });
+
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "taxiing",
+        skillRef: {
+          provider: "claude",
+          skillFile: ".claude/skills/taxiing/SKILL.md",
+        },
+      },
+    });
+
+    expect(
+      screen.getByText("항공기 이륙 3단계 — plan.md 따라 구현"),
+    ).toHaveClass("skill-node__description");
   });
 
   it("SkillNode hides empty skill descriptions", () => {

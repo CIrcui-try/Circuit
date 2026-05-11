@@ -8,13 +8,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useNodeRunState } from "../../runner/runStore";
+import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
-  const description =
+  const storedDescription =
     typeof data.description === "string" ? data.description.trim() : "";
+  const scannedDescription = useSkillStore((state) =>
+    findSkillDescription(state.byRepo, provider, data.skillRef.skillFile),
+  );
+  const description = storedDescription || scannedDescription;
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
   const inputMode = getInputMode(data.label, data.skillRef.skillFile);
@@ -314,6 +319,20 @@ function readBoardingArguments(input: unknown): { issueId: string; force: boolea
 function readPrompt(input: unknown): string {
   if (!isRecord(input)) return "";
   return typeof input.prompt === "string" ? input.prompt : "";
+}
+
+function findSkillDescription(
+  byRepo: ReturnType<typeof useSkillStore.getState>["byRepo"],
+  provider: SkillNodeType["data"]["skillRef"]["provider"],
+  skillFile: string,
+): string {
+  for (const skills of Object.values(byRepo)) {
+    const match = skills.find(
+      (skill) => skill.provider === provider && skill.skillFile === skillFile,
+    );
+    if (match?.description.trim()) return match.description.trim();
+  }
+  return "";
 }
 
 export const nodeTypes = { skill: SkillNode };
