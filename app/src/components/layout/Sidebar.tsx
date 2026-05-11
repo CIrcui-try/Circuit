@@ -192,7 +192,10 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           className="empty-state skill-list__empty"
           data-testid="skill-list-empty"
         >
-          No skills found in <code>.claude/skills</code> or <code>.codex/skills</code>.
+          <span className="skill-list__empty-text">
+            No skills found in <code>.claude/skills</code> or{" "}
+            <code>.codex/skills</code>.
+          </span>
         </div>
       ) : (
         <ul className="skill-list" data-testid="skill-list">

@@ -1133,6 +1133,12 @@ a:hover {
   min-height: 96px;
 }
 
+.skill-list__empty-text {
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .skill-list__section {
   border-top: 1px solid #34343b;
   border-bottom: 1px solid #34343b;
