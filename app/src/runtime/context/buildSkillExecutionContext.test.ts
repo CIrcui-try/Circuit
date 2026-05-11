@@ -108,6 +108,57 @@ describe("buildSkillExecutionContext", () => {
     expect(ctx.skill.rootDir).toBe("/repo/.codex/skills/review");
   });
 
+  it("builds a system skill context without reading from the repository", async () => {
+    const reader = vi.fn(async () => skillContent);
+    const ctx = await buildSkillExecutionContext(
+      {
+        runId: "r",
+        workflowId: "w",
+        node: makeNode({
+          skillRef: {
+            source: "system",
+            provider: "codex",
+            systemSkillId: "codex:starter/boarding",
+          },
+          input: { arguments: "CIR-63" },
+        }),
+        repository: { ...baseRepo, path: "/repo" },
+        previousOutputs: {},
+      },
+      { readSkillFile: async () => "should not read", readSystemSkill: reader },
+    );
+
+    expect(reader).toHaveBeenCalledWith("codex:starter/boarding");
+    expect(ctx.skill.source).toBe("system");
+    expect(ctx.skill.provider).toBe("codex");
+    expect(ctx.skill.systemSkillId).toBe("codex:starter/boarding");
+    expect(ctx.skill.skillFile).toBe("codex:starter/boarding");
+    expect(ctx.skill.rootDir).toBe("system://codex:starter/boarding");
+    expect(ctx.skill.skillFileAbsPath).toBe(
+      "system://codex:starter/boarding/SKILL.md",
+    );
+    expect(ctx.skill.name).toBe("implement-feature");
+    expect(ctx.input).toEqual({ arguments: "CIR-63" });
+    expect(ctx.execution.cwd).toBe("/repo");
+  });
+
+  it("rejects a system skill node without a systemSkillId", async () => {
+    await expect(
+      buildSkillExecutionContext(
+        {
+          runId: "r",
+          workflowId: "w",
+          node: makeNode({
+            skillRef: { source: "system", provider: "codex" },
+          }),
+          repository: baseRepo,
+          previousOutputs: {},
+        },
+        { readSkillFile: async () => "", readSystemSkill: async () => "" },
+      ),
+    ).rejects.toThrow(/systemSkillId/);
+  });
+
   it("B3 keeps an already-absolute skillFile (still validated against repo root)", async () => {
     const ctx = await buildSkillExecutionContext(
       {

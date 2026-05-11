@@ -16,6 +16,7 @@ export type SpawnScenario = (options: SpawnOptions) => ScenarioStep[];
 
 export interface MockRuntimeBridgeOptions {
   files?: Record<string, string>;
+  systemSkills?: Record<string, string>;
   scenario?: SpawnScenario;
   now?: () => string;
 }
@@ -62,6 +63,9 @@ export function createMockRuntimeBridge(
   initial: MockRuntimeBridgeOptions = {},
 ): MockRuntimeBridge {
   const files = new Map<string, string>(Object.entries(initial.files ?? {}));
+  const systemSkills = new Map<string, string>(
+    Object.entries(initial.systemSkills ?? {}),
+  );
   const runs = new Map<string, ActiveRun>();
   const listeners = new Map<string, Set<RuntimeProcessListener>>();
   const inputs: { runId: string; text: string }[] = [];
@@ -112,6 +116,13 @@ export function createMockRuntimeBridge(
       const content = files.get(absPath);
       if (content === undefined) {
         throw new Error(`mock: file not found ${absPath}`);
+      }
+      return content;
+    },
+    async readSystemSkill(systemSkillId) {
+      const content = systemSkills.get(systemSkillId);
+      if (content === undefined) {
+        throw new Error(`mock: system skill not found ${systemSkillId}`);
       }
       return content;
     },

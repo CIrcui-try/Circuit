@@ -159,4 +159,39 @@ describe("runController", () => {
 
     await expect(cancelWorkflowRun()).resolves.toBe(false);
   });
+
+  it("allows system skill nodes to reach the workflow runner", async () => {
+    const source = snapshot();
+    source.nodes = [
+      {
+        id: "starter_boarding",
+        type: "skill",
+        skillRef: {
+          source: "system",
+          provider: "codex",
+          systemSkillId: "codex:starter/boarding",
+        },
+        label: "boarding",
+        position: { x: 0, y: 0 },
+        input: { arguments: "CIR-63" },
+      },
+    ];
+    source.edges = [];
+    const seen: string[] = [];
+
+    await expect(
+      startWorkflowRun({
+        snapshot: source,
+        bridge: createMockRuntimeBridge(),
+        createRunner: () => ({
+          async runNode(node): Promise<RunResult> {
+            seen.push(node.id);
+            return { ok: true };
+          },
+        }),
+      }),
+    ).resolves.toEqual({ kind: "started", status: "success" });
+
+    expect(seen).toEqual(["starter_boarding"]);
+  });
 });

@@ -15,6 +15,7 @@ export type ReadSkillFile = (
 
 export interface BuildSkillExecutionContextDeps {
   readSkillFile: ReadSkillFile;
+  readSystemSkill?: (systemSkillId: string) => Promise<string>;
 }
 
 export interface BuildSkillExecutionContextInput {
@@ -52,11 +53,11 @@ export async function buildSkillExecutionContext(
   }
   assertInsideRepoRoot(normalizedRoot, normalizedRoot);
 
-  if ((node.skillRef.source ?? "repository") !== "repository") {
-    throw new Error(
-      `system skill ${node.skillRef.systemSkillId} cannot be resolved from repository files`,
-    );
+  const source = node.skillRef.source ?? "repository";
+  if (source === "system") {
+    return await buildSystemSkillContext(input, deps, normalizedRoot);
   }
+
   const skillFile = node.skillRef.skillFile;
   if (!skillFile) {
     throw new Error(`node ${node.id} is missing skillRef.skillFile`);
@@ -78,6 +79,7 @@ export async function buildSkillExecutionContext(
       path: repository.path,
     },
     skill: {
+      source,
       provider: node.skillRef.provider,
       name: meta.name,
       rootDir,
@@ -90,6 +92,61 @@ export async function buildSkillExecutionContext(
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: repository.path,
+      ...(env ? { env } : {}),
+    },
+  };
+}
+
+async function buildSystemSkillContext(
+  input: BuildSkillExecutionContextInput,
+  deps: BuildSkillExecutionContextDeps,
+  normalizedRoot: string,
+): Promise<SkillExecutionContext> {
+  const {
+    runId,
+    workflowId,
+    node,
+    repository,
+    previousOutputs,
+    timeoutMs,
+    env,
+  } = input;
+  const systemSkillId = node.skillRef.systemSkillId;
+  if (!systemSkillId) {
+    throw new Error(`node ${node.id} is missing skillRef.systemSkillId`);
+  }
+  if (!deps.readSystemSkill) {
+    throw new Error("system skill reader is not available");
+  }
+
+  const content = await deps.readSystemSkill(systemSkillId);
+  const meta = parseSkillMeta(content, systemSkillBasename(systemSkillId));
+  const virtualRoot = `system://${systemSkillId}`;
+
+  return {
+    runId,
+    workflowId,
+    nodeId: node.id,
+    repository: {
+      id: repository.id,
+      name: repository.name,
+      path: repository.path,
+    },
+    skill: {
+      source: "system",
+      provider: node.skillRef.provider,
+      name: meta.name,
+      rootDir: virtualRoot,
+      skillFile: systemSkillId,
+      skillFileAbsPath: `${virtualRoot}/SKILL.md`,
+      systemSkillId,
+      content,
+    },
+    input: node.input ?? {},
+    previousOutputs,
+    execution: {
+      timeoutMs: resolveTimeoutMs(timeoutMs),
+      cwd: normalizedRoot,
       ...(env ? { env } : {}),
     },
   };
@@ -144,4 +201,9 @@ function dirname(absPath: string): string {
 function basename(path: string): string {
   const idx = path.lastIndexOf("/");
   return idx === -1 ? path : path.slice(idx + 1);
+}
+
+function systemSkillBasename(systemSkillId: string): string {
+  const parts = systemSkillId.split(/[/:]/).filter(Boolean);
+  return parts[parts.length - 1] ?? systemSkillId;
 }

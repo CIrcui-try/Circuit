@@ -15,6 +15,7 @@ describe("getRuntimeBridge / dispatcher", () => {
 
   it("returns a fallback bridge object when no override is injected", () => {
     expect(typeof getRuntimeBridge().readFile).toBe("function");
+    expect(typeof getRuntimeBridge().readSystemSkill).toBe("function");
     expect(typeof getRuntimeBridge().spawn).toBe("function");
     expect(typeof getRuntimeBridge().cancel).toBe("function");
     expect(typeof getRuntimeBridge().closeInput).toBe("function");

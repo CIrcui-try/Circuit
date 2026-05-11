@@ -111,6 +111,9 @@ export class RealWorkflowRunner implements WorkflowRunner {
         },
         {
           readSkillFile: (abs, root) => this.opts.bridge.readFile(abs, root),
+          ...(this.opts.bridge.readSystemSkill
+            ? { readSystemSkill: (id) => this.opts.bridge.readSystemSkill!(id) }
+            : {}),
         },
       );
     } catch (err) {
