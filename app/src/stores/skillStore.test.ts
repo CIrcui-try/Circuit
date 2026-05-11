@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(),
+  scanDefaultSkills: vi.fn(),
   scanSystemSkills: vi.fn(),
   loadRepositories: vi.fn(),
   saveRepositories: vi.fn(),
@@ -16,8 +17,9 @@ import { useSkillStore } from "./skillStore";
 
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
+  bridgeMock.scanDefaultSkills.mockReset();
   bridgeMock.scanSystemSkills.mockReset();
-  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, defaultSkills: [], systemSkills: [], loading: {}, errors: {} });
 });
 
 describe("skillStore — scanRepository", () => {
@@ -56,6 +58,7 @@ describe("skillStore — scanRepository", () => {
           {
             kind: "command",
             key: "arguments",
+            label: "TASK",
             placeholder: "<TASK> [--force]",
           },
         ],
@@ -114,7 +117,47 @@ describe("skillStore — scanRepository", () => {
     expect(useSkillStore.getState().errors["repo-s"]).toBe("plain string error");
   });
 
-  it("S5: maps system catalog skills by stable systemSkillId", async () => {
+
+  it("S5: maps default catalog skills through the same SKILL.md parser", async () => {
+    bridgeMock.scanDefaultSkills.mockResolvedValueOnce([
+      {
+        provider: "codex",
+        source: "default",
+        dirName: "planning",
+        rootDir: ".codex/skills/planning",
+        skillFile: ".codex/skills/planning/SKILL.md",
+        skillFileAbsPath: "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
+        content:
+          "---\nname: planning\ndescription: Plan\nargument-hint: <feature request>\n---\n",
+      },
+    ]);
+
+    await useSkillStore.getState().scanDefaultCatalog();
+
+    expect(useSkillStore.getState().defaultSkills).toEqual([
+      {
+        id: "codex:.codex/skills/planning",
+        provider: "codex",
+        source: "default",
+        name: "planning",
+        description: "Plan",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "feature request",
+            placeholder: "<feature request>",
+          },
+        ],
+        rootDir: ".codex/skills/planning",
+        skillFile: ".codex/skills/planning/SKILL.md",
+        skillFileAbsPath:
+          "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
+      },
+    ]);
+  });
+
+  it("S6: maps system catalog skills by stable systemSkillId", async () => {
     bridgeMock.scanSystemSkills.mockResolvedValueOnce([
       {
         id: "codex:imagegen",

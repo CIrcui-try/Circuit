@@ -138,6 +138,14 @@ function toWorkflowSkillRef(ref: SkillNode["data"]["skillRef"]): WorkflowSkillRe
     };
   }
 
+  if (ref.source === "default") {
+    return {
+      source: "default",
+      provider: ref.provider,
+      skillFile: ref.skillFile,
+    };
+  }
+
   return {
     source: "repository",
     provider: ref.provider,
@@ -167,7 +175,7 @@ function fromWorkflowSkillRef(
     throw new Error(`Node ${nodeId} is missing skillRef.skillFile`);
   }
   return {
-    source: "repository",
+    source,
     provider: toUiProvider(ref.provider),
     skillFile: ref.skillFile,
   };

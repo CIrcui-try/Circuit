@@ -16,7 +16,7 @@ import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
-  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, defaultSkills: [], loading: {}, errors: {} });
   useWorkflowStore.getState().resetWorkflow();
 });
 
@@ -168,56 +168,51 @@ describe("Sidebar", () => {
   it("SB8: renders foldable starter skills in the common section", async () => {
     useSkillStore.setState({
       byRepo: { r1: [] },
-      systemSkills: [
+      defaultSkills: [
         {
           id: "claude:starter/taxiing",
           provider: "claude",
-          source: "system",
+          source: "default",
           name: "implement-plan",
           description: "Implement the plan",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "claude:starter/taxiing",
+          skillFile: ".claude/skills/implement-plan/SKILL.md",
         },
         {
           id: "codex:starter/review-and-fix",
           provider: "codex",
-          source: "system",
+          source: "default",
           name: "review-changes",
           description: "Review the implementation",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "codex:starter/review-and-fix",
+          skillFile: ".codex/skills/review-changes/SKILL.md",
         },
         {
           id: "claude:starter/takeoff",
           provider: "claude",
-          source: "system",
+          source: "default",
           name: "publish-pr",
           description: "Push and open a PR",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "claude:starter/takeoff",
+          skillFile: ".claude/skills/publish-pr/SKILL.md",
         },
         {
           id: "claude:starter/landing",
           provider: "claude",
-          source: "system",
+          source: "default",
           name: "cleanup-merged-pr",
           description: "Clean up after merge",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "claude:starter/landing",
+          skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
         },
         {
           id: "codex:starter/boarding",
           provider: "codex",
-          source: "system",
+          source: "default",
           name: "planning",
           description: "Plan the feature",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "codex:starter/boarding",
+          skillFile: ".codex/skills/planning/SKILL.md",
         },
       ],
       loading: { r1: false },
@@ -226,29 +221,28 @@ describe("Sidebar", () => {
 
     render(<Sidebar repoId="r1" />);
 
-    expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
-    expect(screen.getByText("Common")).toBeInTheDocument();
-    expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(5);
+    expect(screen.getByTestId("default-skill-section")).toBeInTheDocument();
+    expect(screen.getByText("Default")).toBeInTheDocument();
+    expect(screen.getAllByTestId("default-skill-list__item")).toHaveLength(5);
     expect(screen.getByText("planning")).toBeInTheDocument();
     expect(screen.getByText("implement-plan")).toBeInTheDocument();
     expect(screen.getByText("review-changes")).toBeInTheDocument();
     expect(screen.getByText("publish-pr")).toBeInTheDocument();
     expect(screen.getByText("cleanup-merged-pr")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
+    await userEvent.click(screen.getByTestId("default-skill-section-toggle"));
     expect(screen.queryByText("planning")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
-    await userEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
+    await userEvent.click(screen.getByTestId("default-skill-section-toggle"));
+    await userEvent.click(screen.getByLabelText("Add planning to canvas"));
 
     const { nodes } = useWorkflowStore.getState();
     expect(nodes).toHaveLength(1);
     expect(nodes[0].data.label).toBe("planning");
     expect(nodes[0].data.skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      skillFile: "",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
   });
 
@@ -266,16 +260,15 @@ describe("Sidebar", () => {
           },
         ],
       },
-      systemSkills: [
+      defaultSkills: [
         {
           id: "codex:starter/boarding",
           provider: "codex",
-          source: "system",
+          source: "default",
           name: "planning",
           description: "Plan the feature",
           rootDir: "",
-          skillFile: "",
-          systemSkillId: "codex:starter/boarding",
+          skillFile: ".codex/skills/planning/SKILL.md",
         },
       ],
       loading: { r1: false },
@@ -284,7 +277,7 @@ describe("Sidebar", () => {
 
     render(<Sidebar repoId="r1" />);
 
-    const systemSection = screen.getByTestId("system-skill-section");
+    const systemSection = screen.getByTestId("default-skill-section");
     const repositoryList = screen.getByTestId("skill-list");
 
     expect(

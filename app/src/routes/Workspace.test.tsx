@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import type { RawSystemSkill } from "../host/bridge";
+import type { RawSkill } from "../host/bridge";
 
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(async () => []),
-  scanSystemSkills: vi.fn(async (): Promise<RawSystemSkill[]> => []),
+  scanDefaultSkills: vi.fn(async (): Promise<RawSkill[]> => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
@@ -52,42 +52,47 @@ function renderAt(route: string) {
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.scanSkills.mockResolvedValue([]);
-  bridgeMock.scanSystemSkills.mockReset();
-  bridgeMock.scanSystemSkills.mockResolvedValue([
+  bridgeMock.scanDefaultSkills.mockReset();
+  bridgeMock.scanDefaultSkills.mockResolvedValue([
     {
-      id: "codex:starter/boarding",
       provider: "codex",
-      name: "planning",
-      description: "Plan the feature",
-      source: "system",
+      source: "default",
+      dirName: "planning",
+      rootDir: ".codex/skills/planning",
+      skillFile: ".codex/skills/planning/SKILL.md",
+      content: "---\nname: planning\ndescription: Plan the feature\nargument-hint: <feature request or Linear issue>\n---\n",
     },
     {
-      id: "claude:starter/taxiing",
       provider: "claude",
-      name: "implement-plan",
-      description: "Implement the plan",
-      source: "system",
+      source: "default",
+      dirName: "implement-plan",
+      rootDir: ".claude/skills/implement-plan",
+      skillFile: ".claude/skills/implement-plan/SKILL.md",
+      content: "---\nname: implement-plan\ndescription: Implement the plan\n---\n",
     },
     {
-      id: "codex:starter/review-and-fix",
       provider: "codex",
-      name: "review-changes",
-      description: "Review the implementation",
-      source: "system",
+      source: "default",
+      dirName: "review-changes",
+      rootDir: ".codex/skills/review-changes",
+      skillFile: ".codex/skills/review-changes/SKILL.md",
+      content: "---\nname: review-changes\ndescription: Review the implementation\n---\n",
     },
     {
-      id: "claude:starter/takeoff",
       provider: "claude",
-      name: "publish-pr",
-      description: "Push and open a PR",
-      source: "system",
+      source: "default",
+      dirName: "publish-pr",
+      rootDir: ".claude/skills/publish-pr",
+      skillFile: ".claude/skills/publish-pr/SKILL.md",
+      content: "---\nname: publish-pr\ndescription: Push and open a PR\n---\n",
     },
     {
-      id: "claude:starter/landing",
       provider: "claude",
-      name: "cleanup-merged-pr",
-      description: "Clean up after merge",
-      source: "system",
+      source: "default",
+      dirName: "cleanup-merged-pr",
+      rootDir: ".claude/skills/cleanup-merged-pr",
+      skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
+      content: "---\nname: cleanup-merged-pr\ndescription: Clean up after merge\n---\n",
     },
   ]);
   bridgeMock.listWorkflows.mockReset();
@@ -117,7 +122,7 @@ beforeEach(() => {
     selectedId: null,
     hydrated: true,
   });
-  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, defaultSkills: [], loading: {}, errors: {} });
   useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: false });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
@@ -302,9 +307,9 @@ describe("Workspace", () => {
     expect(workflowId).toBe("codex-starter-issue-lifecycle");
     const parsed = JSON.parse(payload);
     expect(parsed.nodes[0].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
   });
 
@@ -318,7 +323,7 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
-  it("W8f: adds a starter system skill node from the common section", async () => {
+  it("W8f: adds a default skill node from the common section", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -326,15 +331,14 @@ describe("Workspace", () => {
     await vi.waitFor(() => {
       expect(screen.getByText("planning")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
+    fireEvent.click(screen.getAllByTestId("default-skill-list__add")[0]);
 
     expect(useWorkflowStore.getState().nodes).toHaveLength(1);
     expect(useWorkflowStore.getState().nodes[0].data.label).toBe("planning");
     expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      skillFile: "",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
   });
 
@@ -350,6 +354,14 @@ describe("Workspace", () => {
         description: "",
         rootDir: ".codex/skills/boarding",
         skillFile: ".codex/skills/boarding/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 10, y: 20 },
     );
@@ -358,10 +370,9 @@ describe("Workspace", () => {
     fireEvent.click(await screen.findByTestId("skill-node-input-edit"));
     expect(screen.getByTestId("skill-node-input-popover")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId("skill-node-input-issue"), {
-      target: { value: "CIR-15" },
+    fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
+      target: { value: "CIR-15 --force" },
     });
-    fireEvent.click(screen.getByTestId("skill-node-input-force"));
 
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "CIR-15 --force",

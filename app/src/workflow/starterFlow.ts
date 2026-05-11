@@ -12,7 +12,7 @@ export const CODEX_STARTER_FLOW_NAME = "Mixed starter flow";
 export const CODEX_STARTER_FLOW_BINDING_POLICY = {
   repository: "selected-repository",
   runCwd: "repository.path",
-  skillReference: "systemSkillId",
+  skillReference: "default-skill-file",
   saveLoadContract: "regular-workflow-json",
   actualRepoEffects: true,
 } as const;
@@ -35,7 +35,7 @@ type StarterStep = {
   label: string;
   description: string;
   provider: Extract<WorkflowSkillProvider, "claude" | "codex">;
-  systemSkillId: string;
+  skillFile: string;
   x: number;
   y: number;
 };
@@ -46,7 +46,7 @@ const STARTER_STEPS: StarterStep[] = [
     label: "planning",
     description: "Plan the feature to implement and capture scope, constraints, and context.",
     provider: "codex",
-    systemSkillId: "codex:starter/boarding",
+    skillFile: ".codex/skills/planning/SKILL.md",
     x: 240,
     y: 80,
   },
@@ -55,7 +55,7 @@ const STARTER_STEPS: StarterStep[] = [
     label: "implement-plan",
     description: "Implement the plan in the worktree, test it, and commit local changes.",
     provider: "claude",
-    systemSkillId: "claude:starter/taxiing",
+    skillFile: ".claude/skills/implement-plan/SKILL.md",
     x: 240,
     y: 260,
   },
@@ -64,7 +64,7 @@ const STARTER_STEPS: StarterStep[] = [
     label: "review-changes",
     description: "Review local changes, fix issues, and commit review fixes.",
     provider: "codex",
-    systemSkillId: "codex:starter/review-and-fix",
+    skillFile: ".codex/skills/review-changes/SKILL.md",
     x: 240,
     y: 440,
   },
@@ -73,7 +73,7 @@ const STARTER_STEPS: StarterStep[] = [
     label: "publish-pr",
     description: "Rebase on develop, push the branch, and open a PR.",
     provider: "claude",
-    systemSkillId: "claude:starter/takeoff",
+    skillFile: ".claude/skills/publish-pr/SKILL.md",
     x: 240,
     y: 620,
   },
@@ -82,7 +82,7 @@ const STARTER_STEPS: StarterStep[] = [
     label: "cleanup-merged-pr",
     description: "After merge, remove the temporary worktree and sync develop.",
     provider: "claude",
-    systemSkillId: "claude:starter/landing",
+    skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
     x: 240,
     y: 800,
   },
@@ -122,9 +122,9 @@ function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
     id: step.id,
     type: "skill",
     skillRef: {
-      source: "system",
+      source: "default",
       provider: step.provider,
-      systemSkillId: step.systemSkillId,
+      skillFile: step.skillFile,
     },
     label: step.label,
     description: step.description,

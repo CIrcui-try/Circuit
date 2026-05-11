@@ -3,9 +3,11 @@ import type { Repository } from "../stores/repositoryStore";
 
 export type RawSkill = {
   provider: "claude" | "codex";
+  source?: "repository" | "default";
   dirName: string;
   rootDir: string;
   skillFile: string;
+  skillFileAbsPath?: string;
   content: string;
 };
 
@@ -20,6 +22,7 @@ export type RawSystemSkill = {
 export type SkillInputHint = {
   kind: "command";
   key: "arguments";
+  label: string;
   placeholder: string;
 };
 
@@ -65,6 +68,7 @@ export interface WorkspaceBridge {
 export interface HostBridge extends Partial<WorkspaceBridge> {
   openRepositoryDialog(): Promise<string | null>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
+  scanDefaultSkills?(): Promise<RawSkill[]>;
   scanSystemSkills?(): Promise<RawSystemSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;
   saveRepositories(repos: Repository[]): Promise<void>;

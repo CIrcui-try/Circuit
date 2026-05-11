@@ -17,14 +17,6 @@ type SidebarProps = {
 
 type MenuState = { x: number; y: number; skill: Skill };
 
-const STARTER_SYSTEM_SKILL_IDS = [
-  "codex:starter/boarding",
-  "claude:starter/taxiing",
-  "codex:starter/review-and-fix",
-  "claude:starter/takeoff",
-  "claude:starter/landing",
-];
-
 function dropPosition(index: number) {
   return { x: 80 + 280 * index, y: 80 + 80 * index };
 }
@@ -35,22 +27,24 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
+function resolveSkillFilePath(skill: Skill, repoPath: string | null): string | null {
+  if (skill.source === "default") return skill.skillFileAbsPath ?? null;
+  return repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
+}
+
 export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const skills = useSkillStore((s) => (repoId ? s.byRepo[repoId] : undefined));
-  const systemSkills = useSkillStore((s) => s.systemSkills);
+  const defaultSkills = useSkillStore((s) => s.defaultSkills);
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
-  const systemLoading = useSkillStore((s) => s.loading.system ?? false);
+  const defaultLoading = useSkillStore((s) => s.loading.default ?? false);
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
-  const systemError = useSkillStore((s) => s.errors.system ?? null);
+  const defaultError = useSkillStore((s) => s.errors.default ?? null);
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const repoPath = useRepositoryStore((s) =>
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
   );
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [systemCollapsed, setSystemCollapsed] = useState(false);
-  const starterSystemSkills = STARTER_SYSTEM_SKILL_IDS.map((id) =>
-    systemSkills.find((skill) => skill.systemSkillId === id || skill.id === id),
-  ).filter((skill): skill is Skill => Boolean(skill));
+  const [defaultCollapsed, setDefaultCollapsed] = useState(false);
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -59,8 +53,11 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         provider: skill.provider,
         source: skill.source ?? "repository",
         skillFile: skill.skillFile,
+        skillFileAbsPath: skill.skillFileAbsPath,
         systemSkillId: skill.systemSkillId,
         name: skill.name,
+        description: skill.description,
+        inputHints: skill.inputHints ?? [],
       }),
     );
     event.dataTransfer.effectAllowed = "copy";
@@ -72,8 +69,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   };
 
   const buildMenuItems = (skill: Skill): SkillNodeMenuItem[] => {
-    const absSkillFile =
-      repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
+    const absSkillFile = resolveSkillFilePath(skill, repoPath);
     return [
       {
         label: "Show in Finder",
@@ -127,34 +123,39 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       </div>
 
       {repoId ? (
-        <section className="skill-list__section" data-testid="system-skill-section">
+        <section className="skill-list__section" data-testid="default-skill-section">
           <button
             type="button"
             className="skill-list__section-toggle"
-            data-testid="system-skill-section-toggle"
-            aria-expanded={!systemCollapsed}
-            onClick={() => setSystemCollapsed((collapsed) => !collapsed)}
+            data-testid="default-skill-section-toggle"
+            aria-expanded={!defaultCollapsed}
+            onClick={() => setDefaultCollapsed((collapsed) => !collapsed)}
           >
             <span className="skill-list__section-icon" aria-hidden="true">
-              {systemCollapsed ? ">" : "v"}
+              {defaultCollapsed ? ">" : "v"}
             </span>
-            <span>Common</span>
+            <span>Default</span>
           </button>
-          {systemCollapsed ? null : (
-            <ul className="skill-list" data-testid="system-skill-list">
-              {systemLoading && starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">Scanning common skills...</li>
-              ) : starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">No common skills available.</li>
+          {defaultCollapsed ? null : (
+            <ul className="skill-list" data-testid="default-skill-list">
+              {defaultLoading && defaultSkills.length === 0 ? (
+                <li className="skill-list__hint">Scanning default skills...</li>
+              ) : defaultSkills.length === 0 ? (
+                <li className="skill-list__hint">No default skills available.</li>
               ) : (
-                starterSystemSkills.map((skill) => (
+                defaultSkills.map((skill) => (
                   <li
                     key={skill.id}
                     className="skill-list__item"
-                    data-testid="system-skill-list__item"
+                    data-testid="default-skill-list__item"
                     data-skill-id={skill.id}
                     draggable
                     onDragStart={(event) => handleDragStart(event, skill)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMenu({ x: event.clientX, y: event.clientY, skill });
+                    }}
                   >
                     <div className="skill-list__row">
                       <span className="skill-list__name">{skill.name}</span>
@@ -166,7 +167,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                       <button
                         type="button"
                         className="skill-list__add"
-                        data-testid="system-skill-list__add"
+                        data-testid="default-skill-list__add"
                         aria-label={`Add ${skill.name} to canvas`}
                         onClick={() => handleAdd(skill)}
                       >
@@ -252,7 +253,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       )}
 
       {error && <div className="skill-list__error">{error}</div>}
-      {systemError && <div className="skill-list__error">{systemError}</div>}
+      {defaultError && <div className="skill-list__error">{defaultError}</div>}
 
       {menu && (
         <SkillNodeMenu

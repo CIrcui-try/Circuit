@@ -7,6 +7,7 @@ export type SkillMeta = {
 export type SkillInputHint = {
   kind: "command";
   key: "arguments";
+  label: string;
   placeholder: string;
 };
 
@@ -22,6 +23,7 @@ export function parseSkillMeta(content: string, dirName: string): SkillMeta {
 type Frontmatter = {
   name?: string;
   description?: string;
+  argumentHint?: string;
   matched: boolean;
 };
 
@@ -45,6 +47,7 @@ function extractFrontmatter(content: string): Frontmatter {
     const value = unquote(m[2]);
     if (key === "name") result.name = value;
     else if (key === "description") result.description = value;
+    else if (key === "argument-hint") result.argumentHint = value;
   }
   return result;
 }
@@ -81,13 +84,15 @@ function unquote(value: string): string {
 }
 
 function extractInputHints(content: string): SkillInputHint[] {
-  if (!/\$ARGUMENTS|Command Template/i.test(content)) return [];
+  const fm = extractFrontmatter(content);
+  const placeholder = fm.argumentHint ?? extractArgumentsFormat(content);
+  if (!placeholder) return [];
 
-  const placeholder = extractArgumentsFormat(content) ?? "$ARGUMENTS";
   return [
     {
       kind: "command",
       key: "arguments",
+      label: labelFromPlaceholder(placeholder),
       placeholder,
     },
   ];
@@ -108,4 +113,11 @@ function extractArgumentsFormat(content: string): string | null {
     }
   }
   return null;
+}
+
+function labelFromPlaceholder(placeholder: string): string {
+  const angle = placeholder.match(/<([^>]+)>/);
+  if (angle) return angle[1].trim();
+  const cleaned = placeholder.replace(/\[[^\]]+\]/g, "").trim();
+  return cleaned || "Arguments";
 }

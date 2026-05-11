@@ -64,6 +64,14 @@ describe("PropertiesPanel", () => {
         description: "",
         rootDir: ".codex/skills/foo",
         skillFile: ".codex/skills/foo/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -104,6 +112,14 @@ describe("PropertiesPanel", () => {
         description: "",
         rootDir: ".codex/skills/foo",
         skillFile: ".codex/skills/foo/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -128,6 +144,14 @@ describe("PropertiesPanel", () => {
         description: "",
         rootDir: ".codex/skills/foo",
         skillFile: ".codex/skills/foo/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -164,6 +188,14 @@ describe("PropertiesPanel", () => {
         description: "",
         rootDir: ".codex/skills/foo",
         skillFile: ".codex/skills/foo/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -196,6 +228,14 @@ describe("PropertiesPanel", () => {
         description: "",
         rootDir: ".codex/skills/foo",
         skillFile: ".codex/skills/foo/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );

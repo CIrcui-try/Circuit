@@ -12,25 +12,43 @@ import { useNodeRunState } from "../../runner/runStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
+import type { SkillInputHint } from "../../host/bridge";
+
+const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
   const storedDescription =
     typeof data.description === "string" ? data.description.trim() : "";
   const scannedDescription = useSkillStore((state) =>
-    findSkillDescription(state.byRepo, provider, data.skillRef.skillFile),
+    findSkillDescription(
+      state.byRepo,
+      state.defaultSkills,
+      provider,
+      data.skillRef.skillFile,
+      data.skillRef.source,
+    ),
+  );
+  const scannedInputHints = useSkillStore((state) =>
+    findSkillInputHints(
+      state.byRepo,
+      state.defaultSkills,
+      provider,
+      data.skillRef.skillFile,
+      data.skillRef.source,
+    ),
   );
   const description = storedDescription || scannedDescription;
+  const inputHints = readInputHints(data.inputHints) ?? scannedInputHints;
+  const argumentsHint = inputHints.find((hint) => hint.key === "arguments");
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
-  const inputMode = getInputMode(data.label, data.skillRef.skillFile);
+  const inputMode: InputMode = argumentsHint ? "arguments" : "prompt";
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const [draftArguments, setDraftArguments] = useState("");
   const [draftPrompt, setDraftPrompt] = useState("");
-  const [draftIssueId, setDraftIssueId] = useState("");
-  const [draftForce, setDraftForce] = useState(false);
 
   const handleEditInput = () => {
     useWorkflowStore.getState().selectNode(id);
@@ -38,9 +56,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       ?.data.input ?? data.input;
     setDraftArguments(readArguments(current));
     setDraftPrompt(readPrompt(current));
-    const boardingInput = readBoardingArguments(current);
-    setDraftIssueId(boardingInput.issueId);
-    setDraftForce(boardingInput.force);
     setIsEditingInput((open) => !open);
   };
 
@@ -71,12 +86,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const handlePromptChange = (value: string) => {
     setDraftPrompt(value);
     updateInputField(id, "prompt", value);
-  };
-
-  const handleBoardingChange = (issueId: string, force: boolean) => {
-    setDraftIssueId(issueId);
-    setDraftForce(force);
-    updateInputField(id, "arguments", formatBoardingArguments(issueId, force));
   };
 
   const dismissInputEditor = () => {
@@ -180,21 +189,14 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                   ×
                 </button>
               </div>
-              {inputMode === "boarding" ? (
-                <BoardingInputFields
-                  issueId={draftIssueId}
-                  force={draftForce}
-                  onChange={handleBoardingChange}
-                  onKeyDown={handleInputKeyDown}
-                />
-              ) : inputMode === "arguments" ? (
+              {inputMode === "arguments" ? (
                 <label className="skill-node-input-popover__field">
-                  <span>Arguments</span>
+                  <span>{argumentsHint?.label ?? "Arguments"}</span>
                   <textarea
                     className="skill-node-input-popover__textarea"
                     data-testid="skill-node-input-arguments"
                     value={draftArguments}
-                    placeholder="<ISSUE-ID> [--force]"
+                    placeholder={argumentsHint?.placeholder ?? "Arguments"}
                     onChange={(e) => handleArgumentsChange(e.target.value)}
                     onKeyDown={handleInputKeyDown}
                   />
@@ -231,43 +233,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   );
 }
 
-function BoardingInputFields({
-  issueId,
-  force,
-  onChange,
-  onKeyDown,
-}: {
-  issueId: string;
-  force: boolean;
-  onChange: (issueId: string, force: boolean) => void;
-  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <>
-      <label className="skill-node-input-popover__field">
-        <span>Issue ID</span>
-        <input
-          className="skill-node-input-popover__input"
-          data-testid="skill-node-input-issue"
-          value={issueId}
-          placeholder="CIR-15"
-          onChange={(e) => onChange(e.target.value, force)}
-          onKeyDown={onKeyDown}
-        />
-      </label>
-      <label className="skill-node-input-popover__checkbox">
-        <input
-          data-testid="skill-node-input-force"
-          type="checkbox"
-          checked={force}
-          onChange={(e) => onChange(issueId, e.target.checked)}
-        />
-        <span>--force</span>
-      </label>
-    </>
-  );
-}
-
 function updateInputField(
   nodeId: string,
   key: "arguments" | "prompt",
@@ -284,54 +249,7 @@ function updateInputField(
   store.setNodeInput(nodeId, Object.keys(next).length > 0 ? next : null);
 }
 
-const COMMAND_STYLE_SKILLS = new Set([
-  "autoland",
-  "boarding",
-  "cnp",
-  "door-closing",
-  "cleanup-merged-pr",
-  "implement-plan",
-  "landing",
-  "plan-work",
-  "publish-pr",
-  "rejoin",
-  "release",
-  "review-changes",
-  "review-and-fix",
-  "takeoff",
-  "taxiing",
-]);
-
-type InputMode = "arguments" | "boarding" | "prompt";
-
-function getInputMode(label: string, skillFile: string): InputMode {
-  const skillName = readSkillName(label, skillFile);
-  if (skillName === "boarding") {
-    return "boarding";
-  }
-  return COMMAND_STYLE_SKILLS.has(skillName) ? "arguments" : "prompt";
-}
-
-function readSkillName(label: string, skillFile: string): string {
-  const match = skillFile.match(/\/([^/]+)\/SKILL\.md$/);
-  return (match?.[1] ?? label).trim().toLowerCase();
-}
-
-function formatBoardingArguments(issueId: string, force: boolean): string {
-  const parts = [];
-  const trimmedIssue = issueId.trim();
-  if (trimmedIssue.length > 0) parts.push(trimmedIssue);
-  if (force) parts.push("--force");
-  return parts.join(" ");
-}
-
-function readBoardingArguments(input: unknown): { issueId: string; force: boolean } {
-  const argumentsValue = readArguments(input);
-  const parts = argumentsValue.split(/\s+/).filter(Boolean);
-  const force = parts.includes("--force");
-  const issueId = parts.filter((part) => part !== "--force").join(" ");
-  return { issueId, force };
-}
+type InputMode = "arguments" | "prompt";
 
 function readPrompt(input: unknown): string {
   if (!isRecord(input)) return "";
@@ -340,16 +258,53 @@ function readPrompt(input: unknown): string {
 
 function findSkillDescription(
   byRepo: ReturnType<typeof useSkillStore.getState>["byRepo"],
+  defaultSkills: ReturnType<typeof useSkillStore.getState>["defaultSkills"],
   provider: SkillNodeType["data"]["skillRef"]["provider"],
   skillFile: string,
+  source: SkillNodeType["data"]["skillRef"]["source"],
 ): string {
-  for (const skills of Object.values(byRepo)) {
+  const collections =
+    source === "default" ? [defaultSkills] : Object.values(byRepo);
+  for (const skills of collections) {
     const match = skills.find(
       (skill) => skill.provider === provider && skill.skillFile === skillFile,
     );
     if (match?.description.trim()) return match.description.trim();
   }
   return "";
+}
+
+function findSkillInputHints(
+  byRepo: ReturnType<typeof useSkillStore.getState>["byRepo"],
+  defaultSkills: ReturnType<typeof useSkillStore.getState>["defaultSkills"],
+  provider: SkillNodeType["data"]["skillRef"]["provider"],
+  skillFile: string,
+  source: SkillNodeType["data"]["skillRef"]["source"],
+): SkillInputHint[] {
+  const collections =
+    source === "default" ? [defaultSkills] : Object.values(byRepo);
+  for (const skills of collections) {
+    const match = skills.find(
+      (skill) => skill.provider === provider && skill.skillFile === skillFile,
+    );
+    if (match?.inputHints?.length) return match.inputHints;
+  }
+  return EMPTY_INPUT_HINTS;
+}
+
+function readInputHints(value: unknown): SkillInputHint[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter(isSkillInputHint);
+}
+
+function isSkillInputHint(value: unknown): value is SkillInputHint {
+  if (!isRecord(value)) return false;
+  return (
+    value.kind === "command" &&
+    value.key === "arguments" &&
+    typeof value.label === "string" &&
+    typeof value.placeholder === "string"
+  );
 }
 
 export const nodeTypes = { skill: SkillNode };

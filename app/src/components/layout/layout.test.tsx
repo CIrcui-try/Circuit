@@ -6,6 +6,7 @@ vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
     openRepositoryDialog: vi.fn(),
     scanSkills: vi.fn(async () => []),
+    scanDefaultSkills: vi.fn(async () => []),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
     listWorkflows: vi.fn(async () => []),
@@ -32,7 +33,7 @@ beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunLogStore.getState().reset();
   useRunStore.getState().reset();
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, defaultSkills: [], systemSkills: [], loading: {}, errors: {} });
 });
 
 describe("Layout shell", () => {
@@ -594,6 +595,14 @@ describe("Layout shell", () => {
         description: "",
         rootDir: ".codex/skills/takeoff",
         skillFile: ".codex/skills/takeoff/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -661,6 +670,14 @@ describe("Layout shell", () => {
         description: "",
         rootDir: ".codex/skills/takeoff",
         skillFile: ".codex/skills/takeoff/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );

@@ -43,6 +43,7 @@ export interface SpawnOptions {
 export interface RuntimeBridge {
   readFile(absPath: string, repoRoot: string): Promise<string>;
   readSystemSkill?(systemSkillId: string): Promise<string>;
+  readDefaultSkill?(skillFile: string): Promise<string>;
   spawn(options: SpawnOptions): Promise<{ runId: string }>;
   cancel(runId: string): Promise<void>;
   /**
@@ -86,6 +87,13 @@ const tauriRuntimeBridgeProxy: RuntimeBridge = {
         throw new Error("system skill reader is not available");
       }
       return b.readSystemSkill(systemSkillId);
+    }),
+  readDefaultSkill: (skillFile) =>
+    loadTauriBridge().then((b) => {
+      if (!b.readDefaultSkill) {
+        throw new Error("default skill reader is not available");
+      }
+      return b.readDefaultSkill(skillFile);
     }),
   spawn: (options) => loadTauriBridge().then((b) => b.spawn(options)),
   cancel: (runId) => loadTauriBridge().then((b) => b.cancel(runId)),
