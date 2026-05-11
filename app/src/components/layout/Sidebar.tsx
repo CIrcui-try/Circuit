@@ -12,10 +12,17 @@ import {
 type SidebarProps = {
   repoId?: string;
   onCollapse?: () => void;
-  onAddStarterFlow?: () => void;
 };
 
 type MenuState = { x: number; y: number; skill: Skill };
+
+const STARTER_SYSTEM_SKILL_IDS = [
+  "codex:starter/boarding",
+  "codex:starter/door-closing",
+  "codex:starter/taxiing",
+  "codex:starter/takeoff",
+  "codex:starter/landing",
+];
 
 function dropPosition(index: number) {
   return { x: 80 + 280 * index, y: 80 + 80 * index };
@@ -27,23 +34,31 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
-export function Sidebar({ repoId, onCollapse, onAddStarterFlow }: SidebarProps) {
+export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const skills = useSkillStore((s) => (repoId ? s.byRepo[repoId] : undefined));
+  const systemSkills = useSkillStore((s) => s.systemSkills);
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
+  const systemLoading = useSkillStore((s) => s.loading.system ?? false);
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
+  const systemError = useSkillStore((s) => s.errors.system ?? null);
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const repoPath = useRepositoryStore((s) =>
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
   );
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [systemCollapsed, setSystemCollapsed] = useState(false);
+  const starterSystemSkills = STARTER_SYSTEM_SKILL_IDS.map((id) =>
+    systemSkills.find((skill) => skill.systemSkillId === id || skill.id === id),
+  ).filter((skill): skill is Skill => Boolean(skill));
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
       SKILL_DRAG_MIME,
       JSON.stringify({
         provider: skill.provider,
+        source: skill.source ?? "repository",
         skillFile: skill.skillFile,
+        systemSkillId: skill.systemSkillId,
         name: skill.name,
       }),
     );
@@ -162,7 +177,7 @@ export function Sidebar({ repoId, onCollapse, onAddStarterFlow }: SidebarProps) 
         </ul>
       )}
 
-      {repoId && onAddStarterFlow ? (
+      {repoId ? (
         <section className="skill-list__section" data-testid="system-skill-section">
           <button
             type="button"
@@ -178,32 +193,50 @@ export function Sidebar({ repoId, onCollapse, onAddStarterFlow }: SidebarProps) 
           </button>
           {systemCollapsed ? null : (
             <ul className="skill-list" data-testid="system-skill-list">
-              <li className="skill-list__item skill-list__item--action">
-                <div className="skill-list__row">
-                  <span className="skill-list__name">Codex starter flow</span>
-                  <span className="skill-list__chip skill-list__chip--codex">
-                    codex
-                  </span>
-                  <button
-                    type="button"
-                    className="skill-list__add"
-                    data-testid="system-starter-flow-add"
-                    aria-label="Add Codex starter flow to canvas"
-                    onClick={onAddStarterFlow}
+              {systemLoading && starterSystemSkills.length === 0 ? (
+                <li className="skill-list__hint">Scanning system skills...</li>
+              ) : starterSystemSkills.length === 0 ? (
+                <li className="skill-list__hint">No starter skills available.</li>
+              ) : (
+                starterSystemSkills.map((skill) => (
+                  <li
+                    key={skill.id}
+                    className="skill-list__item"
+                    data-testid="system-skill-list__item"
+                    data-skill-id={skill.id}
+                    draggable
+                    onDragStart={(event) => handleDragStart(event, skill)}
                   >
-                    +
-                  </button>
-                </div>
-                <div className="skill-list__desc">
-                  Add the five-step repository workflow.
-                </div>
-              </li>
+                    <div className="skill-list__row">
+                      <span className="skill-list__name">{skill.name}</span>
+                      <span
+                        className={`skill-list__chip skill-list__chip--${skill.provider}`}
+                      >
+                        {skill.provider}
+                      </span>
+                      <button
+                        type="button"
+                        className="skill-list__add"
+                        data-testid="system-skill-list__add"
+                        aria-label={`Add ${skill.name} to canvas`}
+                        onClick={() => handleAdd(skill)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {skill.description && (
+                      <div className="skill-list__desc">{skill.description}</div>
+                    )}
+                  </li>
+                ))
+              )}
             </ul>
           )}
         </section>
       ) : null}
 
       {error && <div className="skill-list__error">{error}</div>}
+      {systemError && <div className="skill-list__error">{systemError}</div>}
 
       {menu && (
         <SkillNodeMenu

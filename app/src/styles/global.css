@@ -1163,6 +1163,12 @@ a:hover {
   font-size: 11px;
 }
 
+.skill-list__hint {
+  padding: 8px 10px;
+  color: #8a8a92;
+  font-size: 12px;
+}
+
 .skill-list__item {
   padding: 8px 10px;
   border: 1px solid #2f2f36;
@@ -1172,16 +1178,8 @@ a:hover {
   user-select: none;
 }
 
-.skill-list__item--action {
-  cursor: default;
-}
-
 .skill-list__item:active {
   cursor: grabbing;
-}
-
-.skill-list__item--action:active {
-  cursor: default;
 }
 
 .skill-list__item:hover {

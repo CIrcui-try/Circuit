@@ -16,7 +16,7 @@ import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
   useWorkflowStore.getState().resetWorkflow();
 });
 
@@ -136,25 +136,56 @@ describe("Sidebar", () => {
     expect(onCollapse).toHaveBeenCalledTimes(1);
   });
 
-  it("SB8: renders a foldable system section with the Codex starter flow", async () => {
-    const onAddStarterFlow = vi.fn();
+  it("SB8: renders foldable starter skills in the system section", async () => {
     useSkillStore.setState({
       byRepo: { r1: [] },
+      systemSkills: [
+        {
+          id: "codex:starter/taxiing",
+          provider: "codex",
+          source: "system",
+          name: "taxiing",
+          description: "Implement the plan",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/taxiing",
+        },
+        {
+          id: "codex:starter/boarding",
+          provider: "codex",
+          source: "system",
+          name: "boarding",
+          description: "Capture the request",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/boarding",
+        },
+      ],
       loading: { r1: false },
       errors: {},
     });
 
-    render(<Sidebar repoId="r1" onAddStarterFlow={onAddStarterFlow} />);
+    render(<Sidebar repoId="r1" />);
 
     expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
-    expect(screen.getByText("Codex starter flow")).toBeInTheDocument();
+    expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(2);
+    expect(screen.getByText("boarding")).toBeInTheDocument();
+    expect(screen.getByText("taxiing")).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
-    expect(screen.queryByText("Codex starter flow")).not.toBeInTheDocument();
+    expect(screen.queryByText("boarding")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
-    await userEvent.click(screen.getByTestId("system-starter-flow-add"));
+    await userEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
 
-    expect(onAddStarterFlow).toHaveBeenCalledTimes(1);
+    const { nodes } = useWorkflowStore.getState();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.label).toBe("boarding");
+    expect(nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:starter/boarding",
+    });
   });
 });

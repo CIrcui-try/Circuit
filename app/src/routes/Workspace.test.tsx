@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(async () => []),
+  scanSystemSkills: vi.fn(async () => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
@@ -50,6 +51,44 @@ function renderAt(route: string) {
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.scanSkills.mockResolvedValue([]);
+  bridgeMock.scanSystemSkills.mockReset();
+  bridgeMock.scanSystemSkills.mockResolvedValue([
+    {
+      id: "codex:starter/boarding",
+      provider: "codex",
+      name: "boarding",
+      description: "Capture the request",
+      source: "system",
+    },
+    {
+      id: "codex:starter/door-closing",
+      provider: "codex",
+      name: "door-closing",
+      description: "Create the implementation plan",
+      source: "system",
+    },
+    {
+      id: "codex:starter/taxiing",
+      provider: "codex",
+      name: "taxiing",
+      description: "Implement the plan",
+      source: "system",
+    },
+    {
+      id: "codex:starter/takeoff",
+      provider: "codex",
+      name: "takeoff",
+      description: "Push and open a PR",
+      source: "system",
+    },
+    {
+      id: "codex:starter/landing",
+      provider: "codex",
+      name: "landing",
+      description: "Clean up after merge",
+      source: "system",
+    },
+  ]);
   bridgeMock.listWorkflows.mockReset();
   bridgeMock.listWorkflows.mockResolvedValue([]);
   bridgeMock.saveWorkflow.mockReset();
@@ -77,7 +116,7 @@ beforeEach(() => {
     selectedId: null,
     hydrated: true,
   });
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
   useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: false });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
@@ -275,25 +314,23 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
-  it("W8f: adds the Codex starter flow from the system section", () => {
+  it("W8f: adds a starter system skill node from the system section", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
-    fireEvent.change(screen.getByTestId("starter-flow-goal-input"), {
-      target: { value: "Ship the starter sidebar entry" },
-    });
-    fireEvent.click(screen.getByTestId("system-starter-flow-add"));
 
-    expect(useWorkflowStore.getState().workflowName).toBe("Codex starter flow");
-    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
-      "starter_boarding",
-      "starter_door_closing",
-      "starter_taxiing",
-      "starter_takeoff",
-      "starter_landing",
-    ]);
-    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
-      arguments: "Ship the starter sidebar entry",
+    await vi.waitFor(() => {
+      expect(screen.getByText("boarding")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+    expect(useWorkflowStore.getState().nodes[0].data.label).toBe("boarding");
+    expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:starter/boarding",
     });
   });
 

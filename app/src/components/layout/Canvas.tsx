@@ -39,7 +39,9 @@ export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
 
 type SkillDragPayload = {
   provider: "claude" | "codex";
+  source?: "repository" | "system";
   skillFile: string;
+  systemSkillId?: string;
   name: string;
 };
 
@@ -148,12 +150,22 @@ function CanvasInner() {
       });
       addSkillNode(
         {
-          id: `${payload.provider}:${payload.skillFile.replace(/\/SKILL\.md$/, "")}`,
+          id:
+            payload.source === "system" && payload.systemSkillId
+              ? payload.systemSkillId
+              : `${payload.provider}:${payload.skillFile.replace(/\/SKILL\.md$/, "")}`,
           provider: payload.provider,
+          source: payload.source ?? "repository",
           name: payload.name,
           description: "",
-          rootDir: payload.skillFile.replace(/\/SKILL\.md$/, ""),
+          rootDir:
+            payload.source === "system" && payload.systemSkillId
+              ? `system://${payload.systemSkillId}`
+              : payload.skillFile.replace(/\/SKILL\.md$/, ""),
           skillFile: payload.skillFile,
+          ...(payload.source === "system" && payload.systemSkillId
+            ? { systemSkillId: payload.systemSkillId }
+            : {}),
         },
         position,
       );
