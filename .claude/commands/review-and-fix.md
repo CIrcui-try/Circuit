@@ -1,10 +1,10 @@
 ---
-description: PR diff를 직접 리뷰하고 문제점 수정 후 커밋·푸시
+description: 로컬 변경사항을 직접 리뷰하고 문제점 수정 후 커밋·푸시
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, AskUserQuestion
 argument-hint: <significance: critical | major | minor (기본: major)>
 ---
 
-현재 브랜치의 PR diff를 직접 읽고 코드 리뷰를 수행한 뒤, 발견된 문제를 수정·커밋·푸시하는 커맨드.
+현재 브랜치의 로컬 변경사항을 직접 읽고 코드 리뷰를 수행한 뒤, 발견된 문제를 수정·커밋·푸시하는 커맨드.
 
 `$ARGUMENTS`로 처리할 최소 심각도를 받는다. 예: `/review-and-fix minor`
 
@@ -14,18 +14,21 @@ argument-hint: <significance: critical | major | minor (기본: major)>
 
 ## 절차
 
-### 1단계: PR 확인
+### 1단계: 로컬 변경 범위 확인
 
 1. **현재 브랜치 확인**: `git branch --show-current`로 브랜치 이름을 가져온다.
 2. **`develop`/`main` 경고**: 현재 브랜치가 `develop` 또는 `main`이면 경고하고 중단한다.
-3. **PR 조회**: `gh pr list --head <브랜치> --json number,title,baseRefName`으로 PR을 찾는다.
-   - PR이 없으면 안내하고 중단한다.
-   - PR이 여러 개면 사용자에게 선택을 요청한다.
+3. **작업트리 상태 확인**: `git status --short`로 staged/unstaged/untracked 변경을 확인한다.
+4. **비교 기준 확인**: `origin/develop`이 있으면 기본 기준으로 사용하고, 없으면 `develop`을 사용한다.
+5. **공통 조상 확인**: `git merge-base HEAD <기준브랜치>`로 현재 브랜치의 로컬 변경 기준점을 찾는다.
 
 ### 2단계: diff 수집
 
-1. **PR diff 가져오기**: `gh pr diff <PR번호>`로 전체 diff를 수집한다.
-2. **변경 파일 목록 파악**: `gh pr diff <PR번호> --name-only`로 변경된 파일 목록을 확인한다.
+1. **브랜치 diff 수집**: `git diff <merge-base>...HEAD`로 기준 브랜치 이후의 커밋 변경사항을 수집한다.
+2. **작업트리 diff 수집**: staged 변경은 `git diff --cached`, unstaged 변경은 `git diff`로 수집한다.
+3. **변경 파일 목록 파악**: `git diff --name-only <merge-base>...HEAD`, `git diff --cached --name-only`, `git diff --name-only`, `git status --short`의 `??` 파일을 합쳐 중복 없이 확인한다.
+4. **untracked 파일 확인**: `??` 파일은 diff가 없더라도 파일 전체를 Read로 읽어 리뷰 대상에 포함한다.
+5. **변경 없음 처리**: 수집된 diff와 변경 파일이 모두 없으면 사용자에게 알리고 종료한다.
 
 ### 3단계: 코드 리뷰
 
@@ -93,5 +96,5 @@ argument-hint: <significance: critical | major | minor (기본: major)>
 - `.env`, `credentials.json` 등 민감한 파일은 절대 수정하지 않는다.
 - `develop`이나 `main` 브랜치에서 실행 시 즉시 중단한다.
 - 수정 항목이 0개인 경우(모두 스킵) 사용자에게 알리고 커밋 없이 종료한다.
-- 리뷰는 PR의 diff 범위 내 코드만 대상으로 한다. diff에 포함되지 않은 기존 코드의 문제는 지적하지 않는다.
+- 리뷰는 로컬 diff 범위 내 코드만 대상으로 한다. diff에 포함되지 않은 기존 코드의 문제는 지적하지 않는다.
 - 테스트 파일의 코드 품질(Minor)은 리뷰 대상에서 제외한다.
