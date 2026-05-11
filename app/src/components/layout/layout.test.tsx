@@ -461,9 +461,14 @@ describe("Layout shell", () => {
       },
     });
 
-    expect(
-      screen.getByText("plan.md 따라 워크트리에서 구현 및 중간 커밋"),
-    ).toHaveClass("skill-node__description");
+    const description = screen.getByText(
+      "plan.md 따라 워크트리에서 구현 및 중간 커밋",
+    );
+    expect(description).toHaveClass("skill-node__description");
+    expect(description).toHaveAttribute(
+      "data-full-text",
+      "plan.md 따라 워크트리에서 구현 및 중간 커밋",
+    );
     expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");
   });
 
