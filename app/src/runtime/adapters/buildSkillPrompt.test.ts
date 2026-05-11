@@ -47,4 +47,12 @@ describe("buildSkillPrompt", () => {
     expect(prompt).toContain('"arguments": "CIR-46 --force"');
     expect(prompt).toContain('"prompt": "Summarize the regression risk"');
   });
+
+  it("asks agents to emit a Circuit summary line for the run log", () => {
+    const prompt = buildSkillPrompt(makeContext({ arguments: "CIR-46" }));
+
+    expect(prompt).toContain("# Circuit Run Log Summary");
+    expect(prompt).toContain("CIRCUIT_SUMMARY: <one concise sentence about the outcome>");
+    expect(prompt).toContain("Do not include secrets.");
+  });
 });

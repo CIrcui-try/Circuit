@@ -540,6 +540,9 @@ function summarizeStreamGroup(
       .map((line) => line.trim())
       .filter((line) => line.length > 0),
   );
+  const circuitSummary = extractCircuitSummary(lines);
+  if (circuitSummary.length > 0) return truncate(circuitSummary, 96);
+
   const candidates = lines.filter((line) => !isStreamSummaryNoise(line));
   let bestLine = "";
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -558,6 +561,14 @@ function summarizeStreamGroup(
   });
 
   if (bestLine.length > 0) return truncate(bestLine, 96);
+  return "";
+}
+
+function extractCircuitSummary(lines: string[]): string {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const match = /^CIRCUIT_SUMMARY:\s*(.+)$/i.exec(lines[i]);
+    if (match?.[1]) return match[1].trim();
+  }
   return "";
 }
 

@@ -12,6 +12,8 @@ export function buildSkillPrompt(ctx: SkillExecutionContext): string {
     "",
     ctx.skill.content,
     "",
+    formatRunLogSummaryInstruction(),
+    "",
     formatInput(ctx.input),
   ];
 
@@ -21,6 +23,18 @@ export function buildSkillPrompt(ctx: SkillExecutionContext): string {
   }
 
   return sections.join("\n");
+}
+
+function formatRunLogSummaryInstruction(): string {
+  return [
+    "# Circuit Run Log Summary",
+    "",
+    "At the end of your visible response, include exactly one short line that summarizes the run for Circuit's log list:",
+    "",
+    "CIRCUIT_SUMMARY: <one concise sentence about the outcome>",
+    "",
+    "Keep it human-readable. Mention the main success, failure, blocker, or next action. Do not include secrets.",
+  ].join("\n");
 }
 
 function formatInput(input: Record<string, unknown> | undefined): string {

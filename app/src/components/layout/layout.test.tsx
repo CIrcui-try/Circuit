@@ -199,6 +199,27 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel prefers CIRCUIT_SUMMARY lines over heuristic stream summaries", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: [
+        "현재 상태를 확인합니다.",
+        "`taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+        "CIRCUIT_SUMMARY: taxiing 중단 - 이슈 ID 입력이 필요합니다.",
+      ].join("\n"),
+    });
+
+    const { container } = render(<LogPanel />);
+    const summary = container.querySelector(".run-log__summary-row");
+
+    expect(summary).toHaveTextContent(
+      "3 lines - taxiing 중단 - 이슈 ID 입력이 필요합니다.",
+    );
+    expect(summary).not.toHaveTextContent("CIRCUIT_SUMMARY:");
+  });
+
   it("LogPanel skips tokens used and token counts when picking a stream summary", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
