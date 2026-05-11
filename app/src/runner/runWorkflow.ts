@@ -22,6 +22,7 @@ export type RunWorkflowOptions = {
   store: typeof RunStore;
   now?: () => string;
   newRunId?: () => string;
+  allowCycles?: boolean;
 };
 
 export type RunWorkflowOutcome =
@@ -48,6 +49,7 @@ export async function runWorkflow(
     store,
     now = defaultNow,
     newRunId = defaultRunId,
+    allowCycles = false,
   } = opts;
 
   if (store.getState().status === "running") {
@@ -62,7 +64,7 @@ export async function runWorkflow(
   const sorted = topoSort(nodeIds, edges);
 
   // Initialize the run state up front so the UI can show every node as queued
-  // even when traversal will fail (cycle / immediate failure).
+  // even when traversal will fail immediately.
   store.getState().beginRun({
     runId: newRunId(),
     workflowId,
@@ -73,18 +75,19 @@ export async function runWorkflow(
     snapshot,
   });
 
-  if (sorted.cycle) {
+  if (sorted.cycle && !allowCycles) {
     for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
     store.getState().finishRun("failed", now());
     return { kind: "rejected", reason: "cycle" };
   }
 
+  const order = sorted.cycle ? nodeIds : sorted.order;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   let failureSeen = false;
   let finalStatus: RunTerminalStatus = "success";
 
-  for (let i = 0; i < sorted.order.length; i++) {
-    const id = sorted.order[i];
+  for (let i = 0; i < order.length; i++) {
+    const id = order[i];
     if (failureSeen) {
       store.getState().setNodeState(id, "skipped");
       continue;

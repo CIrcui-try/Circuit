@@ -12,6 +12,7 @@ import "@xyflow/react/dist/style.css";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -87,6 +88,10 @@ function CanvasInner() {
     );
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
+  const connectionWarning = useWorkflowStore((s) => s.connectionWarning);
+  const clearConnectionWarning = useWorkflowStore(
+    (s) => s.clearConnectionWarning,
+  );
   const activeRepoPath = useRepositoryStore((s) => {
     if (!s.selectedId) return null;
     return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
@@ -99,6 +104,14 @@ function CanvasInner() {
       })),
     [edges],
   );
+
+  useEffect(() => {
+    if (!connectionWarning) return;
+    const timer = window.setTimeout(() => {
+      clearConnectionWarning(connectionWarning.id);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [clearConnectionWarning, connectionWarning]);
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (event.dataTransfer.types.includes(SKILL_DRAG_MIME)) {
@@ -247,6 +260,16 @@ function CanvasInner() {
         <Background gap={16} />
         <Controls />
       </ReactFlow>
+      {connectionWarning ? (
+        <div
+          className="canvas-warning-toast"
+          role="status"
+          aria-live="polite"
+          data-testid="canvas-connection-warning"
+        >
+          {connectionWarning.message}
+        </div>
+      ) : null}
       <div
         ref={trashRef}
         className={`canvas-trash-dropzone${isNodeDragging ? " is-visible" : ""}${isTrashTarget ? " is-over" : ""}`}

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Skill } from "./skillStore";
 import {
   DEFAULT_WORKFLOW_NAME,
+  WORKFLOW_CYCLE_WARNING_MESSAGE,
   useWorkflowStore,
   type SkillNode,
 } from "./workflowStore";
@@ -77,6 +78,7 @@ describe("workflowStore", () => {
       source: a,
       target: b,
     });
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
   it("WS4: onConnect rejects self-loops", () => {
@@ -88,6 +90,7 @@ describe("workflowStore", () => {
       targetHandle: null,
     });
     expect(useWorkflowStore.getState().edges).toHaveLength(0);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
   it("WS5: onConnect rejects duplicate edges (same source+target)", () => {
@@ -100,6 +103,27 @@ describe("workflowStore", () => {
       source: a, target: b, sourceHandle: null, targetHandle: null,
     });
     expect(useWorkflowStore.getState().edges).toHaveLength(1);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5b: onConnect keeps a cycle edge and surfaces a warning", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: a, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(useWorkflowStore.getState().edges).toHaveLength(2);
+    expect(useWorkflowStore.getState().edges[1]).toMatchObject({
+      source: b,
+      target: a,
+    });
+    expect(useWorkflowStore.getState().connectionWarning).toMatchObject({
+      message: WORKFLOW_CYCLE_WARNING_MESSAGE,
+    });
   });
 
   it("WS6: deleteSelected removes selected node AND incident edges", () => {
@@ -203,6 +227,7 @@ describe("workflowStore", () => {
     const s = useWorkflowStore.getState();
     expect(s.workflowName).toBe(DEFAULT_WORKFLOW_NAME);
     expect(s.currentWorkflowId).toBeNull();
+    expect(s.connectionWarning).toBeNull();
   });
 
   it("WS14: replaceCanvas overwrites nodes/edges and clears prior selection", () => {

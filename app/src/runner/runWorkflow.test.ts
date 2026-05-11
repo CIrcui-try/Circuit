@@ -133,6 +133,34 @@ describe("runWorkflow", () => {
     expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
   });
 
+  it("RW4b: an allowed cycle runs nodes once in insertion order", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(order).toEqual(["a", "b"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "success",
+    });
+  });
+
   it("RW5: empty workflow is rejected without mutating store status", async () => {
     const runner: WorkflowRunner = {
       runNode: vi.fn(async () => ({ ok: true as const })),

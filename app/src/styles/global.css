@@ -393,6 +393,26 @@ a:hover {
   z-index: 5;
 }
 
+.canvas-warning-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 7;
+  max-width: min(360px, calc(100% - 32px));
+  padding: 8px 12px;
+  border: 1px solid rgba(216, 184, 106, 0.72);
+  border-radius: 6px;
+  background: rgba(42, 38, 24, 0.96);
+  color: #f2dda0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .canvas-trash-dropzone {
   position: absolute;
   left: 50%;

@@ -16,6 +16,7 @@ import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft"
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunElapsedLabel } from "../runner/runElapsed";
 import { useRunStore } from "../runner/runStore";
+import { topoSort } from "../runner/topoSort";
 import {
   cancelWorkflowRun,
   startWorkflowRun,
@@ -62,6 +63,8 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [pendingCycleRun, setPendingCycleRun] =
+    useState<WorkflowRunSnapshot | null>(null);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -137,11 +140,16 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleStart = useCallback(async () => {
-    if (!repo) return;
+  const startSnapshot = useCallback(async (
+    snapshot: WorkflowRunSnapshot,
+    allowCycles = false,
+  ) => {
     setLogCollapsed(false);
     try {
-      const outcome = await startWorkflowRun({ snapshot: buildRunSnapshot(repo) });
+      const outcome = await startWorkflowRun({
+        snapshot,
+        allowCycles,
+      });
       if (outcome.kind === "rejected") {
         notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
         return;
@@ -155,7 +163,21 @@ export function Workspace() {
     } catch (err) {
       notifyAppError(err, "Start Circuit failed");
     }
-  }, [repo, setLogCollapsed]);
+  }, [setLogCollapsed]);
+
+  const handleStart = useCallback(async () => {
+    if (!repo) return;
+    const snapshot = buildRunSnapshot(repo);
+    const hasCycle = topoSort(
+      snapshot.nodes.map((node) => node.id),
+      snapshot.edges,
+    ).cycle;
+    if (hasCycle) {
+      setPendingCycleRun(snapshot);
+      return;
+    }
+    await startSnapshot(snapshot);
+  }, [repo, startSnapshot]);
 
   const handleCancel = useCallback(() => {
     setCancelling(true);
@@ -291,6 +313,46 @@ export function Workspace() {
           </span>
         ) : null}
       </header>
+      {pendingCycleRun ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cycle-run-title"
+            data-testid="cycle-run-confirm"
+          >
+            <h2 id="cycle-run-title" className="modal__title">
+              Workflow loop warning
+            </h2>
+            <p className="modal__message">
+              This workflow contains a loop and may run indefinitely.
+            </p>
+            <p className="modal__message">Do you want to continue?</p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingCycleRun(null)}
+                data-testid="cycle-run-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => {
+                  const snapshot = pendingCycleRun;
+                  setPendingCycleRun(null);
+                  void startSnapshot(snapshot, true);
+                }}
+                data-testid="cycle-run-confirm-proceed"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {sidebarCollapsed ? (
         <button
           type="button"

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -83,6 +83,10 @@ beforeEach(() => {
   useRunStore.getState().reset();
   useRunLogStore.getState().reset();
   window.localStorage.clear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("Workspace", () => {
@@ -294,6 +298,114 @@ describe("Workspace", () => {
     });
     const fooNodeId = useWorkflowStore.getState().nodes[0].id;
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
+  });
+
+  it("W9b: clicking Start on a loop asks before running", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    const a = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+    const b = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 100, y: 20 },
+    );
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: a, sourceHandle: null, targetHandle: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(
+      screen.getByRole("dialog", { name: "Workflow loop warning" }),
+    ).toHaveTextContent(
+      "This workflow contains a loop and may run indefinitely.",
+    );
+    expect(screen.getByTestId("cycle-run-confirm")).toHaveTextContent(
+      "Do you want to continue?",
+    );
+    expect(useRunStore.getState().status).toBe("idle");
+
+    fireEvent.click(screen.getByTestId("cycle-run-confirm-proceed"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+    });
+    expect(useRunStore.getState().nodeStates).toMatchObject({
+      [a]: "success",
+      [b]: "success",
+    });
+  });
+
+  it("W9c: cancelling the loop confirmation does not start a run", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: true });
+
+    renderAt("/workspace/id-alpha");
+    const a = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+    const b = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 100, y: 20 },
+    );
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: a, sourceHandle: null, targetHandle: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByTestId("cycle-run-confirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("cycle-run-cancel"));
+
+    expect(screen.queryByTestId("cycle-run-confirm")).not.toBeInTheDocument();
+    expect(useRunStore.getState().status).toBe("idle");
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--log-collapsed",
+    );
   });
 
   it("W10: clicking Start surfaces runtime failure as an alert", async () => {
