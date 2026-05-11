@@ -211,6 +211,57 @@ describe("Workspace", () => {
     });
   });
 
+  it("W8d: adds the Codex starter flow to an empty selected repo and saves as a regular workflow", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Actual repository",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "/Users/me/alpha",
+    );
+    expect(screen.getByTestId("starter-flow-add")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("starter-flow-issue-input"), {
+      target: { value: "CIR-62" },
+    });
+    fireEvent.click(screen.getByTestId("starter-flow-add"));
+
+    expect(useWorkflowStore.getState().workflowName).toBe("Codex issue lifecycle");
+    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
+      "starter_boarding",
+      "starter_door_closing",
+      "starter_taxiing",
+      "starter_takeoff",
+      "starter_landing",
+    ]);
+    expect(useWorkflowStore.getState().edges).toHaveLength(4);
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-62",
+    });
+    expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workflow-save"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
+    });
+    const [, workflowId, payload] = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+    ];
+    expect(workflowId).toBe("codex-starter-issue-lifecycle");
+    const parsed = JSON.parse(payload);
+    expect(parsed.nodes[0].skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:starter/boarding",
+    });
+  });
+
   it("W8b: edits boarding card input as issue id plus force arguments", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
@@ -270,7 +321,7 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
   });
 
-  it("W9: clicking Start drives the run store to success without a confirmation modal", async () => {
+  it("W9: clicking Start previews the actual repo before running", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -292,7 +343,15 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    expect(screen.queryByTestId("run-preview-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
+      "Confirm actual repository run",
+    );
+    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
+      "/Users/me/alpha",
+    );
+    expect(useRunStore.getState().status).toBe("idle");
+
+    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
@@ -441,6 +500,7 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
+    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     const alert = await screen.findByTestId("app-error-alert");
     expect(alert).toHaveTextContent("Start Circuit failed");
@@ -552,6 +612,7 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
+    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("running");
@@ -722,6 +783,12 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--log-collapsed",
+    );
+    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     expect(screen.getByTestId("workspace-root")).not.toHaveClass(
       "workspace--log-collapsed",
