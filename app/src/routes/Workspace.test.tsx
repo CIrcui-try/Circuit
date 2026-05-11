@@ -508,9 +508,7 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes.map((n) => n.id)).toEqual([
       "run-node",
     ]);
-    expect(screen.getByTestId("workflow-save-status")).toHaveTextContent(
-      "Running: Active run",
-    );
+    expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-start")).toBeDisabled();
   });
 
