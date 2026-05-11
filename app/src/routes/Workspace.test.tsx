@@ -284,6 +284,9 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "Add a theme toggle",
     });
+    expect(useWorkflowStore.getState().nodes.slice(1).every((node) => !node.data.input)).toBe(
+      true,
+    );
     expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workflow-save"));

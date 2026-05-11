@@ -107,7 +107,9 @@ export function createCodexStarterWorkflow(
     id,
     repositoryId: args.repositoryId,
     name: CODEX_STARTER_FLOW_NAME,
-    nodes: STARTER_STEPS.map((step) => toNode(step, initialRequest)),
+    nodes: STARTER_STEPS.map((step, index) =>
+      toNode(step, index === 0 ? initialRequest : ""),
+    ),
     edges: toEdges(STARTER_STEPS),
     createdAt: now,
     updatedAt: now,

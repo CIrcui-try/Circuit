@@ -52,9 +52,13 @@ describe("workflow/starterFlow", () => {
       "claude",
       "claude",
     ]);
-    expect(
-      wf.nodes.every((node) => node.input?.arguments === "Add a theme toggle"),
-    ).toBe(true);
+    expect(wf.nodes.map((node) => node.input)).toEqual([
+      { arguments: "Add a theme toggle" },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
