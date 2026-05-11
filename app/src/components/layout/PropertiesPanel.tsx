@@ -81,9 +81,17 @@ export function PropertiesPanel() {
           <dd>{selectedNode.data.label}</dd>
           <dt>Provider</dt>
           <dd>{selectedNode.data.skillRef.provider}</dd>
-          <dt>Skill File</dt>
+          <dt>
+            {selectedNode.data.skillRef.source === "system"
+              ? "System Skill"
+              : "Skill File"}
+          </dt>
           <dd>
-            <code>{selectedNode.data.skillRef.skillFile}</code>
+            <code>
+              {selectedNode.data.skillRef.source === "system"
+                ? selectedNode.data.skillRef.systemSkillId
+                : selectedNode.data.skillRef.skillFile}
+            </code>
           </dd>
           <dt>Input</dt>
           <dd className="properties__field">

@@ -32,6 +32,9 @@ function workflowNode(id: string): WorkflowSkillNode {
 }
 
 function runnableFrom(n: WorkflowSkillNode): RunnableNode {
+  if (!n.skillRef.skillFile) {
+    throw new Error(`missing skillFile in test node ${n.id}`);
+  }
   return {
     id: n.id,
     label: n.label,

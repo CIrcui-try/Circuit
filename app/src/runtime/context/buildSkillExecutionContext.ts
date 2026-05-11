@@ -52,7 +52,15 @@ export async function buildSkillExecutionContext(
   }
   assertInsideRepoRoot(normalizedRoot, normalizedRoot);
 
+  if ((node.skillRef.source ?? "repository") !== "repository") {
+    throw new Error(
+      `system skill ${node.skillRef.systemSkillId} cannot be resolved from repository files`,
+    );
+  }
   const skillFile = node.skillRef.skillFile;
+  if (!skillFile) {
+    throw new Error(`node ${node.id} is missing skillRef.skillFile`);
+  }
   const skillFileAbsPath = resolveSkillFilePath(skillFile, repository.path);
   assertInsideRepoRoot(skillFileAbsPath, repository.path);
 

@@ -6,9 +6,15 @@ export const WORKFLOW_SKILL_PROVIDERS = ["claude", "codex", "shell", "git"] as c
 
 export type WorkflowSkillProvider = (typeof WORKFLOW_SKILL_PROVIDERS)[number];
 
+export const WORKFLOW_SKILL_SOURCES = ["repository", "system"] as const;
+
+export type WorkflowSkillSource = (typeof WORKFLOW_SKILL_SOURCES)[number];
+
 export type WorkflowSkillRef = {
+  source?: WorkflowSkillSource;
   provider: WorkflowSkillProvider;
-  skillFile: string;
+  skillFile?: string;
+  systemSkillId?: string;
 };
 
 export type WorkflowNodePosition = {

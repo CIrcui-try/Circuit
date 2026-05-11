@@ -121,6 +121,7 @@ describe("Sidebar", () => {
     expect(nodes).toHaveLength(1);
     expect(nodes[0].data.label).toBe("Foo Skill");
     expect(nodes[0].data.skillRef).toEqual({
+      source: "repository",
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
     });

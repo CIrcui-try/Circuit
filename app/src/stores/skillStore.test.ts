@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(),
+  scanSystemSkills: vi.fn(),
   loadRepositories: vi.fn(),
   saveRepositories: vi.fn(),
 }));
@@ -15,7 +16,8 @@ import { useSkillStore } from "./skillStore";
 
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  bridgeMock.scanSystemSkills.mockReset();
+  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
 });
 
 describe("skillStore — scanRepository", () => {
@@ -47,6 +49,7 @@ describe("skillStore — scanRepository", () => {
       {
         id: "claude:.claude/skills/implement-feature",
         provider: "claude",
+        source: "repository",
         name: "Implement Feature",
         description: "Adds features",
         inputHints: [
@@ -62,6 +65,7 @@ describe("skillStore — scanRepository", () => {
       {
         id: "codex:.codex/skills/lint",
         provider: "codex",
+        source: "repository",
         name: "Lint",
         description: "",
         inputHints: [],
@@ -108,5 +112,33 @@ describe("skillStore — scanRepository", () => {
     await useSkillStore.getState().scanRepository("repo-s", "/p");
 
     expect(useSkillStore.getState().errors["repo-s"]).toBe("plain string error");
+  });
+
+  it("S5: maps system catalog skills by stable systemSkillId", async () => {
+    bridgeMock.scanSystemSkills.mockResolvedValueOnce([
+      {
+        id: "codex:imagegen",
+        provider: "codex",
+        name: "imagegen",
+        description: "Generate images",
+        source: "system",
+      },
+    ]);
+
+    await useSkillStore.getState().scanSystemCatalog();
+
+    expect(useSkillStore.getState().systemSkills).toEqual([
+      {
+        id: "codex:imagegen",
+        provider: "codex",
+        source: "system",
+        name: "imagegen",
+        description: "Generate images",
+        inputHints: [],
+        rootDir: "",
+        skillFile: "",
+        systemSkillId: "codex:imagegen",
+      },
+    ]);
   });
 });

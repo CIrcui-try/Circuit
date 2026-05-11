@@ -417,8 +417,11 @@ function buildRunSnapshot(repo: {
       id: n.id,
       type: "skill",
       skillRef: {
+        source: n.data.skillRef.source ?? "repository",
         provider: n.data.skillRef.provider,
-        skillFile: n.data.skillRef.skillFile,
+        ...(n.data.skillRef.source === "system"
+          ? { systemSkillId: n.data.skillRef.systemSkillId }
+          : { skillFile: n.data.skillRef.skillFile }),
       },
       label: n.data.label,
       position: { x: n.position.x, y: n.position.y },
@@ -441,8 +444,12 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
     data: {
       label: node.label,
       skillRef: {
+        source: node.skillRef.source ?? "repository",
         provider: node.skillRef.provider as SkillNode["data"]["skillRef"]["provider"],
-        skillFile: node.skillRef.skillFile,
+        skillFile: node.skillRef.skillFile ?? "",
+        ...(node.skillRef.source === "system"
+          ? { systemSkillId: node.skillRef.systemSkillId }
+          : {}),
       },
       ...(node.input !== undefined ? { input: node.input } : {}),
     },

@@ -43,8 +43,32 @@ describe("workflowStore", () => {
     expect(node.data.label).toBe("Foo");
     expect(node.data.description).toBe("Foo does the important thing");
     expect(node.data.skillRef).toEqual({
+      source: "repository",
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
+    });
+  });
+
+  it("WS1c: addSkillNode stores system skill refs by id", () => {
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:imagegen",
+        provider: "codex",
+        source: "system",
+        name: "imagegen",
+        description: "",
+        rootDir: "",
+        skillFile: "",
+        systemSkillId: "codex:imagegen",
+      },
+      { x: 0, y: 0 },
+    );
+
+    expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:imagegen",
     });
   });
 
