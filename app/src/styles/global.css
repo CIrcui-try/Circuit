@@ -531,6 +531,13 @@ a:hover {
   height: 14px;
 }
 
+.panel-header__feedback {
+  color: #8fd69d;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .panel-header__running {
   display: inline-flex;
   align-items: center;
