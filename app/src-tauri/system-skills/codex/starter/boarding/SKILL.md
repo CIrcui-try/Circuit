@@ -1,8 +1,8 @@
 ---
-name: boarding
-description: Read a Linear issue and cache requirements plus code impact.
+name: planning
+description: Plan the feature to implement and capture scope, constraints, and context.
 ---
 
-# boarding
+# planning
 
-Starter workflow step that prepares issue context for the selected repository.
+Starter workflow step that turns the user's requested feature into clear implementation planning context for the selected repository.

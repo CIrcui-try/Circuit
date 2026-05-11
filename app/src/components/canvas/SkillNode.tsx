@@ -289,9 +289,14 @@ const COMMAND_STYLE_SKILLS = new Set([
   "boarding",
   "cnp",
   "door-closing",
+  "cleanup-merged-pr",
+  "implement-plan",
   "landing",
+  "plan-work",
+  "publish-pr",
   "rejoin",
   "release",
+  "review-changes",
   "review-and-fix",
   "takeoff",
   "taxiing",
@@ -301,7 +306,9 @@ type InputMode = "arguments" | "boarding" | "prompt";
 
 function getInputMode(label: string, skillFile: string): InputMode {
   const skillName = readSkillName(label, skillFile);
-  if (skillName === "boarding") return "boarding";
+  if (skillName === "boarding") {
+    return "boarding";
+  }
   return COMMAND_STYLE_SKILLS.has(skillName) ? "arguments" : "prompt";
 }
 
