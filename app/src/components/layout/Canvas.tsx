@@ -1,9 +1,11 @@
 import {
   Background,
   Controls,
+  MarkerType,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Edge as RFEdge,
   type Node as RFNode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -30,6 +32,9 @@ import {
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
+export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
+  type: MarkerType.ArrowClosed,
+};
 
 type SkillDragPayload = {
   provider: "claude" | "codex";
@@ -86,6 +91,14 @@ function CanvasInner() {
     if (!s.selectedId) return null;
     return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
   });
+  const renderedEdges = useMemo(
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        markerEnd: edge.markerEnd ?? CANVAS_EDGE_MARKER,
+      })),
+    [edges],
+  );
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (event.dataTransfer.types.includes(SKILL_DRAG_MIME)) {
@@ -216,7 +229,7 @@ function CanvasInner() {
     >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={renderedEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

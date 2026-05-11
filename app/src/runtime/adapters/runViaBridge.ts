@@ -9,6 +9,9 @@ import type {
 } from "./AgentAdapter";
 
 const STDIN_WAITING_RE = /Reading additional input from stdin/i;
+const CIRCUIT_SUMMARY_RE = /^CIRCUIT_SUMMARY:\s*(.+)$/i;
+const FAILURE_SUMMARY_RE =
+  /(실패|중단|차단|불가|오류|에러|failed|failure|blocked|aborted|stopped|cannot|could not|unable|invalid|error)/i;
 
 export interface BridgeCommand {
   command: string;
@@ -117,9 +120,14 @@ export function runViaBridge(
   const startedAt = new Date().toISOString();
 
   const logs: AgentRunEvent[] = [];
+  let summary: string | undefined;
   const emit = (ev: AgentRunEvent) => {
     logs.push(ev);
     sink(ev);
+  };
+  const recordSummary = (text: string) => {
+    const extracted = extractCircuitSummary(text);
+    if (extracted != null) summary = extracted;
   };
 
   return new Promise<SkillExecutionResult>((resolve) => {
@@ -133,6 +141,7 @@ export function runViaBridge(
       resolve({
         status: partial.status,
         exitCode: partial.exitCode,
+        summary,
         logs,
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -153,9 +162,11 @@ export function runViaBridge(
           return;
         case "stdout":
           emit({ type: "stdout", timestamp: ev.timestamp, text: ev.text });
+          recordSummary(ev.text);
           return;
         case "stderr": {
           emit({ type: "stderr", timestamp: ev.timestamp, text: ev.text });
+          recordSummary(ev.text);
           if (STDIN_WAITING_RE.test(ev.text)) {
             void bridge.closeInput(runId).catch((err: unknown) => {
               if (settled) return;
@@ -200,7 +211,10 @@ export function runViaBridge(
           const exitCode = ev.exitCode ?? undefined;
           emit({ type: "finish", timestamp: ev.timestamp, exitCode });
           finish({
-            status: ev.exitCode === 0 ? "success" : "failed",
+            status:
+              ev.exitCode === 0 && !isFailureSummary(summary)
+                ? "success"
+                : "failed",
             exitCode,
           });
           return;
@@ -244,4 +258,17 @@ export function runViaBridge(
         finish({ status: "failed" });
       });
   });
+}
+
+function extractCircuitSummary(text: string): string | undefined {
+  const lines = text.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const match = CIRCUIT_SUMMARY_RE.exec(lines[i].trim());
+    if (match?.[1]) return match[1].trim();
+  }
+  return undefined;
+}
+
+function isFailureSummary(summary: string | undefined): boolean {
+  return summary != null && FAILURE_SUMMARY_RE.test(summary);
 }

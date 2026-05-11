@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ReactFlowProvider, type NodeProps } from "@xyflow/react";
+import { MarkerType, ReactFlowProvider, type NodeProps } from "@xyflow/react";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -17,7 +17,7 @@ vi.mock("../../host/bridge", () => ({
 import { Sidebar } from "./Sidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
-import { CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
+import { CANVAS_EDGE_MARKER, CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
 import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
@@ -419,6 +419,12 @@ describe("Layout shell", () => {
 
   it("Canvas caps fitView zoom so a single node is not enlarged", () => {
     expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
+  });
+
+  it("Canvas uses an arrow marker for workflow edge ends", () => {
+    expect(CANVAS_EDGE_MARKER).toMatchObject({
+      type: MarkerType.ArrowClosed,
+    });
   });
 
   it("nodeTypes registers a 'skill' custom node", () => {

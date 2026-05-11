@@ -159,4 +159,90 @@ describe("runViaBridge approval forwarding", () => {
       }),
     );
   });
+
+  it("marks zero-exit runs failed when CIRCUIT_SUMMARY reports a blocker", async () => {
+    const sink: AgentRunEvent[] = [];
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stdout",
+            text: "CIRCUIT_SUMMARY: GitHub CLI token invalid로 review-and-fix를 중단했습니다.\n",
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-summary-failed",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: (ev) => sink.push(ev),
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.exitCode).toBe(0);
+    expect(result.summary).toBe(
+      "GitHub CLI token invalid로 review-and-fix를 중단했습니다.",
+    );
+    expect(sink).toContainEqual(
+      expect.objectContaining({ type: "finish", exitCode: 0 }),
+    );
+  });
+
+  it("keeps zero-exit runs successful when CIRCUIT_SUMMARY reports success", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stderr",
+            text: "CIRCUIT_SUMMARY: CIR-59 구현과 테스트를 완료했습니다.\n",
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-summary-success",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: () => {},
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.summary).toBe("CIR-59 구현과 테스트를 완료했습니다.");
+  });
+
+  it("keeps non-zero exits failed regardless of CIRCUIT_SUMMARY wording", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stdout",
+            text: "CIRCUIT_SUMMARY: 모든 작업을 완료했습니다.\n",
+          },
+        },
+        { event: { type: "exited", exitCode: 2 } },
+      ],
+    });
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-summary-nonzero",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: () => {},
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.exitCode).toBe(2);
+    expect(result.summary).toBe("모든 작업을 완료했습니다.");
+  });
 });
