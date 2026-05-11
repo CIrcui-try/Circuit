@@ -46,28 +46,28 @@ const SYSTEM_SKILL_CATALOG: [SystemSkillCatalogEntry; 6] = [
         content: include_str!("../system-skills/codex/starter/boarding/SKILL.md"),
     },
     SystemSkillCatalogEntry {
-        provider: "codex",
-        id: "codex:starter/door-closing",
-        dir_name: "door-closing",
-        content: include_str!("../system-skills/codex/starter/door-closing/SKILL.md"),
-    },
-    SystemSkillCatalogEntry {
-        provider: "codex",
-        id: "codex:starter/landing",
+        provider: "claude",
+        id: "claude:starter/landing",
         dir_name: "landing",
-        content: include_str!("../system-skills/codex/starter/landing/SKILL.md"),
+        content: include_str!("../system-skills/claude/starter/landing/SKILL.md"),
     },
     SystemSkillCatalogEntry {
-        provider: "codex",
-        id: "codex:starter/takeoff",
+        provider: "claude",
+        id: "claude:starter/takeoff",
         dir_name: "takeoff",
-        content: include_str!("../system-skills/codex/starter/takeoff/SKILL.md"),
+        content: include_str!("../system-skills/claude/starter/takeoff/SKILL.md"),
+    },
+    SystemSkillCatalogEntry {
+        provider: "claude",
+        id: "claude:starter/taxiing",
+        dir_name: "taxiing",
+        content: include_str!("../system-skills/claude/starter/taxiing/SKILL.md"),
     },
     SystemSkillCatalogEntry {
         provider: "codex",
-        id: "codex:starter/taxiing",
-        dir_name: "taxiing",
-        content: include_str!("../system-skills/codex/starter/taxiing/SKILL.md"),
+        id: "codex:starter/review-and-fix",
+        dir_name: "review-and-fix",
+        content: include_str!("../system-skills/codex/starter/review-and-fix/SKILL.md"),
     },
 ];
 
@@ -309,15 +309,43 @@ mod tests {
             .iter()
             .find(|s| s.id == "codex:starter/boarding")
             .unwrap();
-        assert_eq!(boarding.name, "boarding");
+        assert_eq!(boarding.name, "planning");
         assert_eq!(boarding.source, "system");
+
+        let taxiing = skills
+            .iter()
+            .find(|s| s.id == "claude:starter/taxiing")
+            .unwrap();
+        assert_eq!(taxiing.provider, "claude");
+        assert_eq!(taxiing.name, "implement-plan");
+
+        let review = skills
+            .iter()
+            .find(|s| s.id == "codex:starter/review-and-fix")
+            .unwrap();
+        assert_eq!(review.provider, "codex");
+        assert_eq!(review.name, "review-changes");
+
+        let takeoff = skills
+            .iter()
+            .find(|s| s.id == "claude:starter/takeoff")
+            .unwrap();
+        assert_eq!(takeoff.provider, "claude");
+        assert_eq!(takeoff.name, "publish-pr");
+
+        let landing = skills
+            .iter()
+            .find(|s| s.id == "claude:starter/landing")
+            .unwrap();
+        assert_eq!(landing.provider, "claude");
+        assert_eq!(landing.name, "cleanup-merged-pr");
     }
 
     #[test]
     fn runtime_read_system_skill_returns_bundled_content_by_id() {
         let content = runtime_read_system_skill("codex:starter/boarding".into())
             .expect("system skill should exist");
-        assert!(content.contains("# boarding"));
+        assert!(content.contains("# planning"));
 
         let missing = runtime_read_system_skill("codex:starter/missing".into());
         assert!(missing.is_err());

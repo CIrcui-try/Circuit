@@ -57,35 +57,35 @@ beforeEach(() => {
     {
       id: "codex:starter/boarding",
       provider: "codex",
-      name: "boarding",
-      description: "Capture the request",
+      name: "planning",
+      description: "Plan the feature",
       source: "system",
     },
     {
-      id: "codex:starter/door-closing",
-      provider: "codex",
-      name: "door-closing",
-      description: "Create the implementation plan",
-      source: "system",
-    },
-    {
-      id: "codex:starter/taxiing",
-      provider: "codex",
-      name: "taxiing",
+      id: "claude:starter/taxiing",
+      provider: "claude",
+      name: "implement-plan",
       description: "Implement the plan",
       source: "system",
     },
     {
-      id: "codex:starter/takeoff",
+      id: "codex:starter/review-and-fix",
       provider: "codex",
-      name: "takeoff",
+      name: "review-changes",
+      description: "Review the implementation",
+      source: "system",
+    },
+    {
+      id: "claude:starter/takeoff",
+      provider: "claude",
+      name: "publish-pr",
       description: "Push and open a PR",
       source: "system",
     },
     {
-      id: "codex:starter/landing",
-      provider: "codex",
-      name: "landing",
+      id: "claude:starter/landing",
+      provider: "claude",
+      name: "cleanup-merged-pr",
       description: "Clean up after merge",
       source: "system",
     },
@@ -251,7 +251,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W8d: adds the Codex starter flow to an empty selected repo and saves as a regular workflow", async () => {
+  it("W8d: adds the mixed starter flow to an empty selected repo and saves as a regular workflow", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -272,11 +272,11 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("starter-flow-add"));
 
-    expect(useWorkflowStore.getState().workflowName).toBe("Codex starter flow");
+    expect(useWorkflowStore.getState().workflowName).toBe("Mixed starter flow");
     expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
       "starter_boarding",
-      "starter_door_closing",
       "starter_taxiing",
+      "starter_review_and_fix",
       "starter_takeoff",
       "starter_landing",
     ]);
@@ -284,6 +284,9 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "Add a theme toggle",
     });
+    expect(useWorkflowStore.getState().nodes.slice(1).every((node) => !node.data.input)).toBe(
+      true,
+    );
     expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workflow-save"));
@@ -305,7 +308,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W8e: adds the Codex starter flow even when the feature prompt is blank", () => {
+  it("W8e: adds the mixed starter flow even when the feature prompt is blank", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -321,12 +324,12 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     await vi.waitFor(() => {
-      expect(screen.getByText("boarding")).toBeInTheDocument();
+      expect(screen.getByText("planning")).toBeInTheDocument();
     });
     fireEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
 
     expect(useWorkflowStore.getState().nodes).toHaveLength(1);
-    expect(useWorkflowStore.getState().nodes[0].data.label).toBe("boarding");
+    expect(useWorkflowStore.getState().nodes[0].data.label).toBe("planning");
     expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
       source: "system",
       provider: "codex",

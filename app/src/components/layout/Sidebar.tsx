@@ -19,10 +19,10 @@ type MenuState = { x: number; y: number; skill: Skill };
 
 const STARTER_SYSTEM_SKILL_IDS = [
   "codex:starter/boarding",
-  "codex:starter/door-closing",
-  "codex:starter/taxiing",
-  "codex:starter/takeoff",
-  "codex:starter/landing",
+  "claude:starter/taxiing",
+  "codex:starter/review-and-fix",
+  "claude:starter/takeoff",
+  "claude:starter/landing",
 ];
 
 function dropPosition(index: number) {

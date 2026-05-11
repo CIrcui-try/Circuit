@@ -416,7 +416,7 @@ export function Workspace() {
       {repo && nodeCount === 0 ? (
         <section className="starter-flow-empty" data-testid="starter-flow-empty">
           <div className="starter-flow-empty__eyebrow">Actual repository</div>
-          <h2 className="starter-flow-empty__title">Add Codex starter flow</h2>
+          <h2 className="starter-flow-empty__title">Add mixed starter flow</h2>
           <p className="starter-flow-empty__copy">
             This flow will run against <strong>{repo.name}</strong> at{" "}
             <code>{repo.path}</code>.

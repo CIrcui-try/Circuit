@@ -76,7 +76,7 @@ describe("CliStatusPanel", () => {
     expect(claudeRow.textContent).toContain("ENOENT");
   });
 
-  it("re-runs checks when '다시 점검' is clicked", async () => {
+  it("re-runs checks when 'refresh' is clicked", async () => {
     let probeCount = 0;
     installBridge((opts) => {
       if (opts.command === "claude") probeCount += 1;

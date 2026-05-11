@@ -170,21 +170,51 @@ describe("Sidebar", () => {
       byRepo: { r1: [] },
       systemSkills: [
         {
-          id: "codex:starter/taxiing",
-          provider: "codex",
+          id: "claude:starter/taxiing",
+          provider: "claude",
           source: "system",
-          name: "taxiing",
+          name: "implement-plan",
           description: "Implement the plan",
           rootDir: "",
           skillFile: "",
-          systemSkillId: "codex:starter/taxiing",
+          systemSkillId: "claude:starter/taxiing",
+        },
+        {
+          id: "codex:starter/review-and-fix",
+          provider: "codex",
+          source: "system",
+          name: "review-changes",
+          description: "Review the implementation",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/review-and-fix",
+        },
+        {
+          id: "claude:starter/takeoff",
+          provider: "claude",
+          source: "system",
+          name: "publish-pr",
+          description: "Push and open a PR",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "claude:starter/takeoff",
+        },
+        {
+          id: "claude:starter/landing",
+          provider: "claude",
+          source: "system",
+          name: "cleanup-merged-pr",
+          description: "Clean up after merge",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "claude:starter/landing",
         },
         {
           id: "codex:starter/boarding",
           provider: "codex",
           source: "system",
-          name: "boarding",
-          description: "Capture the request",
+          name: "planning",
+          description: "Plan the feature",
           rootDir: "",
           skillFile: "",
           systemSkillId: "codex:starter/boarding",
@@ -198,19 +228,22 @@ describe("Sidebar", () => {
 
     expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
     expect(screen.getByText("Common")).toBeInTheDocument();
-    expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(2);
-    expect(screen.getByText("boarding")).toBeInTheDocument();
-    expect(screen.getByText("taxiing")).toBeInTheDocument();
+    expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(5);
+    expect(screen.getByText("planning")).toBeInTheDocument();
+    expect(screen.getByText("implement-plan")).toBeInTheDocument();
+    expect(screen.getByText("review-changes")).toBeInTheDocument();
+    expect(screen.getByText("publish-pr")).toBeInTheDocument();
+    expect(screen.getByText("cleanup-merged-pr")).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
-    expect(screen.queryByText("boarding")).not.toBeInTheDocument();
+    expect(screen.queryByText("planning")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
     await userEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
 
     const { nodes } = useWorkflowStore.getState();
     expect(nodes).toHaveLength(1);
-    expect(nodes[0].data.label).toBe("boarding");
+    expect(nodes[0].data.label).toBe("planning");
     expect(nodes[0].data.skillRef).toEqual({
       source: "system",
       provider: "codex",
@@ -238,8 +271,8 @@ describe("Sidebar", () => {
           id: "codex:starter/boarding",
           provider: "codex",
           source: "system",
-          name: "boarding",
-          description: "Capture the request",
+          name: "planning",
+          description: "Plan the feature",
           rootDir: "",
           skillFile: "",
           systemSkillId: "codex:starter/boarding",

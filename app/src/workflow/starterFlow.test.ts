@@ -9,7 +9,7 @@ import {
 import { validateWorkflow } from "./validate";
 
 describe("workflow/starterFlow", () => {
-  it("SF1: defines the Codex starter flow as a regular workflow JSON", () => {
+  it("SF1: defines the mixed starter flow as a regular workflow JSON", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       initialRequest: "Add a theme toggle",
@@ -20,15 +20,22 @@ describe("workflow/starterFlow", () => {
     expect(wf.repositoryId).toBe("repo-1");
     expect(wf.nodes.map((node) => node.id)).toEqual([
       "starter_boarding",
-      "starter_door_closing",
       "starter_taxiing",
+      "starter_review_and_fix",
       "starter_takeoff",
       "starter_landing",
     ]);
+    expect(wf.nodes.map((node) => node.label)).toEqual([
+      "planning",
+      "implement-plan",
+      "review-changes",
+      "publish-pr",
+      "cleanup-merged-pr",
+    ]);
     expect(wf.edges.map((edge) => [edge.source, edge.target])).toEqual([
-      ["starter_boarding", "starter_door_closing"],
-      ["starter_door_closing", "starter_taxiing"],
-      ["starter_taxiing", "starter_takeoff"],
+      ["starter_boarding", "starter_taxiing"],
+      ["starter_taxiing", "starter_review_and_fix"],
+      ["starter_review_and_fix", "starter_takeoff"],
       ["starter_takeoff", "starter_landing"],
     ]);
     expect(wf.nodes.map((node) => node.position)).toEqual([
@@ -38,9 +45,20 @@ describe("workflow/starterFlow", () => {
       { x: 240, y: 620 },
       { x: 240, y: 800 },
     ]);
-    expect(
-      wf.nodes.every((node) => node.input?.arguments === "Add a theme toggle"),
-    ).toBe(true);
+    expect(wf.nodes.map((node) => node.skillRef.provider)).toEqual([
+      "codex",
+      "claude",
+      "codex",
+      "claude",
+      "claude",
+    ]);
+    expect(wf.nodes.map((node) => node.input)).toEqual([
+      { arguments: "Add a theme toggle" },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
@@ -101,5 +119,38 @@ describe("workflow/starterFlow", () => {
       systemSkillId: "codex:starter/boarding",
     });
     expect(validateWorkflow(saved)).toEqual({ ok: true });
+  });
+
+  it("SF4: assigns planning and review to Codex, and operations to Claude", () => {
+    const wf = createCodexStarterWorkflow({
+      repositoryId: "repo-1",
+      now: () => "2026-05-11T00:00:00.000Z",
+    });
+
+    expect(wf.nodes[0].skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:starter/boarding",
+    });
+    expect(wf.nodes[1].skillRef).toEqual({
+      source: "system",
+      provider: "claude",
+      systemSkillId: "claude:starter/taxiing",
+    });
+    expect(wf.nodes[2].skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:starter/review-and-fix",
+    });
+    expect(wf.nodes[3].skillRef).toEqual({
+      source: "system",
+      provider: "claude",
+      systemSkillId: "claude:starter/takeoff",
+    });
+    expect(wf.nodes[4].skillRef).toEqual({
+      source: "system",
+      provider: "claude",
+      systemSkillId: "claude:starter/landing",
+    });
   });
 });

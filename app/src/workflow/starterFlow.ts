@@ -1,7 +1,13 @@
-import { WORKFLOW_VERSION, type Workflow, type WorkflowEdge, type WorkflowSkillNode } from "./schema";
+import {
+  WORKFLOW_VERSION,
+  type Workflow,
+  type WorkflowEdge,
+  type WorkflowSkillNode,
+  type WorkflowSkillProvider,
+} from "./schema";
 
 export const CODEX_STARTER_FLOW_ID = "codex-starter-issue-lifecycle";
-export const CODEX_STARTER_FLOW_NAME = "Codex starter flow";
+export const CODEX_STARTER_FLOW_NAME = "Mixed starter flow";
 
 export const CODEX_STARTER_FLOW_BINDING_POLICY = {
   repository: "selected-repository",
@@ -28,6 +34,7 @@ type StarterStep = {
   id: string;
   label: string;
   description: string;
+  provider: Extract<WorkflowSkillProvider, "claude" | "codex">;
   systemSkillId: string;
   x: number;
   y: number;
@@ -36,41 +43,46 @@ type StarterStep = {
 const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_boarding",
-    label: "boarding",
-    description: "Capture the request and map requirements plus code impact.",
+    label: "planning",
+    description: "Plan the feature to implement and capture scope, constraints, and context.",
+    provider: "codex",
     systemSkillId: "codex:starter/boarding",
     x: 240,
     y: 80,
   },
   {
-    id: "starter_door_closing",
-    label: "door-closing",
-    description: "Refresh develop, create the worktree, and write the implementation plan.",
-    systemSkillId: "codex:starter/door-closing",
+    id: "starter_taxiing",
+    label: "implement-plan",
+    description: "Implement the plan in the worktree, test it, and commit local changes.",
+    provider: "claude",
+    systemSkillId: "claude:starter/taxiing",
     x: 240,
     y: 260,
   },
   {
-    id: "starter_taxiing",
-    label: "taxiing",
-    description: "Implement the plan in the worktree, test it, and commit local changes.",
-    systemSkillId: "codex:starter/taxiing",
+    id: "starter_review_and_fix",
+    label: "review-changes",
+    description: "Review local changes, fix issues, and commit review fixes.",
+    provider: "codex",
+    systemSkillId: "codex:starter/review-and-fix",
     x: 240,
     y: 440,
   },
   {
     id: "starter_takeoff",
-    label: "takeoff",
+    label: "publish-pr",
     description: "Rebase on develop, push the branch, and open a PR.",
-    systemSkillId: "codex:starter/takeoff",
+    provider: "claude",
+    systemSkillId: "claude:starter/takeoff",
     x: 240,
     y: 620,
   },
   {
     id: "starter_landing",
-    label: "landing",
+    label: "cleanup-merged-pr",
     description: "After merge, remove the temporary worktree and sync develop.",
-    systemSkillId: "codex:starter/landing",
+    provider: "claude",
+    systemSkillId: "claude:starter/landing",
     x: 240,
     y: 800,
   },
@@ -95,7 +107,9 @@ export function createCodexStarterWorkflow(
     id,
     repositoryId: args.repositoryId,
     name: CODEX_STARTER_FLOW_NAME,
-    nodes: STARTER_STEPS.map((step) => toNode(step, initialRequest)),
+    nodes: STARTER_STEPS.map((step, index) =>
+      toNode(step, index === 0 ? initialRequest : ""),
+    ),
     edges: toEdges(STARTER_STEPS),
     createdAt: now,
     updatedAt: now,
@@ -109,7 +123,7 @@ function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
     type: "skill",
     skillRef: {
       source: "system",
-      provider: "codex",
+      provider: step.provider,
       systemSkillId: step.systemSkillId,
     },
     label: step.label,
