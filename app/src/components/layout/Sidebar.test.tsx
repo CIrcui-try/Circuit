@@ -188,4 +188,45 @@ describe("Sidebar", () => {
       systemSkillId: "codex:starter/boarding",
     });
   });
+
+  it("SB9: places the system section above repository skills", () => {
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo Skill",
+            description: "",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+        ],
+      },
+      systemSkills: [
+        {
+          id: "codex:starter/boarding",
+          provider: "codex",
+          source: "system",
+          name: "boarding",
+          description: "Capture the request",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/boarding",
+        },
+      ],
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    const systemSection = screen.getByTestId("system-skill-section");
+    const repositoryList = screen.getByTestId("skill-list");
+
+    expect(
+      systemSection.compareDocumentPosition(repositoryList) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
