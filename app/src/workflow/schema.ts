@@ -21,6 +21,7 @@ export type WorkflowSkillNode = {
   type: "skill";
   skillRef: WorkflowSkillRef;
   label: string;
+  description?: string;
   position: WorkflowNodePosition;
   input?: Record<string, unknown>;
 };

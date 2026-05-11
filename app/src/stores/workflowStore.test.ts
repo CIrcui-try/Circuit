@@ -11,7 +11,7 @@ const claudeSkill: Skill = {
   id: "claude:.claude/skills/foo",
   provider: "claude",
   name: "Foo",
-  description: "",
+  description: "Foo does the important thing",
   rootDir: ".claude/skills/foo",
   skillFile: ".claude/skills/foo/SKILL.md",
 };
@@ -40,10 +40,16 @@ describe("workflowStore", () => {
     expect(node.type).toBe("skill");
     expect(node.position).toEqual({ x: 10, y: 20 });
     expect(node.data.label).toBe("Foo");
+    expect(node.data.description).toBe("Foo does the important thing");
     expect(node.data.skillRef).toEqual({
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
     });
+  });
+
+  it("WS1b: addSkillNode omits empty descriptions", () => {
+    useWorkflowStore.getState().addSkillNode(codexSkill, { x: 0, y: 0 });
+    expect(useWorkflowStore.getState().nodes[0].data.description).toBeUndefined();
   });
 
   it("WS2: onNodesChange position update preserves id and updates position", () => {

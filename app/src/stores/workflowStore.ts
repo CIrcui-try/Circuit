@@ -19,6 +19,7 @@ export type SkillRef = {
 
 export type SkillNodeData = {
   label: string;
+  description?: string;
   skillRef: SkillRef;
   [key: string]: unknown;
 };
@@ -122,6 +123,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       position: { x: Math.round(position.x), y: Math.round(position.y) },
       data: {
         label: skill.name,
+        ...(skill.description ? { description: skill.description } : {}),
         skillRef: {
           provider: skill.provider,
           skillFile: skill.skillFile,

@@ -22,12 +22,14 @@ import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
+import { useSkillStore } from "../../stores/skillStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunLogStore.getState().reset();
   useRunStore.getState().reset();
+  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
 });
 
 describe("Layout shell", () => {
@@ -443,6 +445,80 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
       "No input configured",
     );
+  });
+
+  it("SkillNode shows a skill description when configured", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "taxiing",
+        description: "plan.md 따라 워크트리에서 구현 및 중간 커밋",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/taxiing/SKILL.md",
+        },
+      },
+    });
+
+    const description = screen.getByTestId("skill-node-description");
+    expect(description).toHaveClass("skill-node__description");
+    expect(screen.getByTestId("skill-node-description-tooltip")).toHaveTextContent(
+      "plan.md 따라 워크트리에서 구현 및 중간 커밋",
+    );
+    expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");
+  });
+
+  it("SkillNode falls back to scanned skill metadata for saved nodes", () => {
+    useSkillStore.setState({
+      byRepo: {
+        repo: [
+          {
+            id: "claude:.claude/skills/taxiing",
+            provider: "claude",
+            name: "taxiing",
+            description: "항공기 이륙 3단계 — plan.md 따라 구현",
+            rootDir: ".claude/skills/taxiing",
+            skillFile: ".claude/skills/taxiing/SKILL.md",
+          },
+        ],
+      },
+    });
+
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "taxiing",
+        skillRef: {
+          provider: "claude",
+          skillFile: ".claude/skills/taxiing/SKILL.md",
+        },
+      },
+    });
+
+    expect(screen.getByTestId("skill-node-description")).toHaveTextContent(
+      "항공기 이륙 3단계 — plan.md 따라 구현",
+    );
+  });
+
+  it("SkillNode hides empty skill descriptions", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        description: "",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    expect(
+      document.querySelector(".skill-node__description"),
+    ).not.toBeInTheDocument();
   });
 
   it("SkillNode Edit selects the node for input editing", () => {
