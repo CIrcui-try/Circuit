@@ -461,12 +461,9 @@ describe("Layout shell", () => {
       },
     });
 
-    const description = screen.getByText(
-      "plan.md 따라 워크트리에서 구현 및 중간 커밋",
-    );
+    const description = screen.getByTestId("skill-node-description");
     expect(description).toHaveClass("skill-node__description");
-    expect(description).toHaveAttribute(
-      "data-full-text",
+    expect(screen.getByTestId("skill-node-description-tooltip")).toHaveTextContent(
       "plan.md 따라 워크트리에서 구현 및 중간 커밋",
     );
     expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");
@@ -500,9 +497,9 @@ describe("Layout shell", () => {
       },
     });
 
-    expect(
-      screen.getByText("항공기 이륙 3단계 — plan.md 따라 구현"),
-    ).toHaveClass("skill-node__description");
+    expect(screen.getByTestId("skill-node-description")).toHaveTextContent(
+      "항공기 이륙 3단계 — plan.md 따라 구현",
+    );
   });
 
   it("SkillNode hides empty skill descriptions", () => {

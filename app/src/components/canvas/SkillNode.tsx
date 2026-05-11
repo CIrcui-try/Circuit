@@ -111,12 +111,19 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         </span>
       </div>
       {description ? (
-        <div
-          className="skill-node__description"
-          title={description}
-          data-full-text={description}
-        >
-          {description}
+        <div className="skill-node__description-wrap">
+          <div
+            className="skill-node__description"
+            data-testid="skill-node-description"
+          >
+            {description}
+          </div>
+          <div
+            className="skill-node__description-tooltip"
+            data-testid="skill-node-description-tooltip"
+          >
+            {description}
+          </div>
         </div>
       ) : null}
       <div className="skill-node__input" data-testid="skill-node-input-summary">
