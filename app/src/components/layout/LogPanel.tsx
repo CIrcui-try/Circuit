@@ -534,14 +534,73 @@ function countStreamLines(
 function summarizeStreamGroup(
   events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[],
 ): string {
-  for (const ev of events) {
-    const firstLine = ev.text
+  const lines = events.flatMap((ev) =>
+    ev.text
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .find((line) => line.length > 0);
-    if (firstLine) return truncate(firstLine, 96);
-  }
+      .filter((line) => line.length > 0),
+  );
+  const candidates = lines.filter((line) => !isStreamSummaryNoise(line));
+  let bestLine = "";
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestIndex = -1;
+
+  candidates.forEach((line, index) => {
+    const score = scoreStreamSummaryLine(line);
+    if (
+      score > bestScore ||
+      (score === bestScore && score >= 100 && index > bestIndex)
+    ) {
+      bestLine = line;
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  if (bestLine.length > 0) return truncate(bestLine, 96);
   return "";
+}
+
+function isStreamSummaryNoise(line: string): boolean {
+  if (
+    /^[-=]{4,}$/.test(line) ||
+    /^Reading additional input from stdin/i.test(line) ||
+    /^OpenAI Codex\b/i.test(line) ||
+    /^tokens used$/i.test(line) ||
+    /^[\d,]+$/.test(line) ||
+    /^(user|codex|exec)$/i.test(line)
+  ) {
+    return true;
+  }
+
+  if (
+    /^(workdir|model|provider|approval|sandbox|reasoning effort|reasoning summaries|session id):/i.test(
+      line,
+    ) ||
+    /^\/.+\s-lc\s/.test(line) ||
+    /\s+in\s+\/Users\/.+$/i.test(line) ||
+    /\s+(succeeded|exited)\s+(in|with code)\s+/i.test(line)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function scoreStreamSummaryLine(line: string): number {
+  let score = 0;
+  if (
+    /(실패|중단|불가|오류|에러|경고|없습니다|failed|failure|error|warning|cannot|could not|unable|invalid|denied|aborted|blocked)/i.test(
+      line,
+    )
+  ) {
+    score += 100;
+  }
+  if (/[가-힣]/.test(line)) score += 30;
+  if (/`[^`]+`/.test(line)) score += 20;
+  if (/[.!?。]$|다\.?$|요\.?$/.test(line)) score += 10;
+  if (line.length >= 20) score += 5;
+  return score;
 }
 
 function joinStreamText(

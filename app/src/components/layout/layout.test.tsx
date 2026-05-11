@@ -178,6 +178,79 @@ describe("Layout shell", () => {
     expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
   });
 
+  it("LogPanel summarizes stderr with the user-facing line after Codex metadata", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: [
+        "Reading additional input from stdin...",
+        "OpenAI Codex v0.128.0 (research preview)",
+        "--------",
+        "workdir: /Users/kai.lee/Documents/Github/Others/Circuit",
+        "`landing`을 중단했습니다. PR 머지 확인이 불가능했습니다.",
+      ].join("\n"),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "5 lines - `landing`을 중단했습니다. PR 머지 확인이 불가능했습니다.",
+    );
+  });
+
+  it("LogPanel skips tokens used and token counts when picking a stream summary", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: ["tokens used", "22,708", "현재 상태: PR 머지 확인 불가"].join(
+        "\n",
+      ),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "3 lines - 현재 상태: PR 머지 확인 불가",
+    );
+  });
+
+  it("LogPanel prefers failure summaries over ordinary progress lines", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stdout",
+      timestamp: "t1",
+      text: [
+        "현재 상태를 확인합니다.",
+        "`taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+      ].join("\n"),
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-stream-group")).toHaveTextContent(
+      "2 lines - `taxiing` 실행을 중단했습니다. 입력에 이슈 ID가 없습니다.",
+    );
+  });
+
+  it("LogPanel falls back to only the line count when every stream line is noise", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: ["Reading additional input from stdin...", "tokens used", "22,708"].join(
+        "\n",
+      ),
+    });
+
+    render(<LogPanel />);
+
+    const group = screen.getByTestId("run-log-stream-group");
+    expect(group).toHaveTextContent("3 lines");
+    expect(group).not.toHaveTextContent(" - ");
+  });
+
   it("LogPanel keeps approval prompts actionable instead of folding them into the summary", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
