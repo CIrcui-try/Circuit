@@ -445,6 +445,45 @@ describe("Layout shell", () => {
     );
   });
 
+  it("SkillNode shows a skill description when configured", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "taxiing",
+        description: "plan.md 따라 워크트리에서 구현 및 중간 커밋",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/taxiing/SKILL.md",
+        },
+      },
+    });
+
+    expect(
+      screen.getByText("plan.md 따라 워크트리에서 구현 및 중간 커밋"),
+    ).toHaveClass("skill-node__description");
+    expect(screen.getByText("taxiing")).toHaveClass("skill-node__name");
+  });
+
+  it("SkillNode hides empty skill descriptions", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        description: "",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    expect(
+      document.querySelector(".skill-node__description"),
+    ).not.toBeInTheDocument();
+  });
+
   it("SkillNode Edit selects the node for input editing", () => {
     renderSkillNode({
       id: "node-1",

@@ -13,6 +13,8 @@ import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
+  const description =
+    typeof data.description === "string" ? data.description.trim() : "";
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
   const inputMode = getInputMode(data.label, data.skillRef.skillFile);
@@ -103,6 +105,11 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           {provider}
         </span>
       </div>
+      {description ? (
+        <div className="skill-node__description" title={description}>
+          {description}
+        </div>
+      ) : null}
       <div className="skill-node__input" data-testid="skill-node-input-summary">
         {inputSummary.state === "present" ? (
           <span

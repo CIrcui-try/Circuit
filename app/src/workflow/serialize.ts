@@ -39,6 +39,9 @@ export function toWorkflow(
       skillFile: n.data.skillRef.skillFile,
     },
     label: n.data.label,
+    ...(typeof n.data.description === "string" && n.data.description.length > 0
+      ? { description: n.data.description }
+      : {}),
     position: {
       x: Math.round(n.position.x),
       y: Math.round(n.position.y),
@@ -95,6 +98,7 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
       position: { x: n.position.x, y: n.position.y },
       data: {
         label: n.label,
+        ...(n.description ? { description: n.description } : {}),
         skillRef: {
           provider: n.skillRef.provider,
           skillFile: n.skillRef.skillFile,

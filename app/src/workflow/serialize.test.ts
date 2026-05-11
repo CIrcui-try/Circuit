@@ -11,6 +11,7 @@ const sampleNodes: SkillNode[] = [
     position: { x: 12, y: 34 },
     data: {
       label: "Implement Feature",
+      description: "Drive an end-to-end feature implementation.",
       skillRef: {
         provider: "claude",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
@@ -87,6 +88,9 @@ describe("workflow/serialize", () => {
       provider: "claude",
       skillFile: ".claude/skills/implement-feature/SKILL.md",
     });
+    expect(wf.nodes[0].description).toBe(
+      "Drive an end-to-end feature implementation.",
+    );
     expect(wf.edges[0].kind).toBe("dependency");
   });
 
