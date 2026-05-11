@@ -588,6 +588,35 @@ describe("Workspace", () => {
     expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
   });
 
+  it("W18b: opens the run log when starting Circuit", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("run-log-collapse"));
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByTestId("workspace-root")).not.toHaveClass(
+      "workspace--log-collapsed",
+    );
+    expect(screen.getByTestId("run-log-collapse")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
+  });
+
   it("W19: shows final elapsed time in the toolbar after a run completes", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
     useRunStore.setState({

@@ -139,6 +139,7 @@ export function Workspace() {
 
   const handleStart = useCallback(async () => {
     if (!repo) return;
+    setLogCollapsed(false);
     try {
       const outcome = await startWorkflowRun({ snapshot: buildRunSnapshot(repo) });
       if (outcome.kind === "rejected") {
@@ -154,7 +155,7 @@ export function Workspace() {
     } catch (err) {
       notifyAppError(err, "Start Circuit failed");
     }
-  }, [repo]);
+  }, [repo, setLogCollapsed]);
 
   const handleCancel = useCallback(() => {
     setCancelling(true);
