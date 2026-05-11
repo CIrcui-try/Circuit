@@ -67,7 +67,7 @@ export function CliStatusPanel() {
               점검 중…
             </>
           ) : (
-            "다시 점검"
+            "refresh"
           )}
         </button>
       </header>
