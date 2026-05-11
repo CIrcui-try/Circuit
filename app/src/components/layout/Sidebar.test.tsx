@@ -16,7 +16,7 @@ import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
   useWorkflowStore.getState().resetWorkflow();
 });
 
@@ -84,6 +84,35 @@ describe("Sidebar", () => {
     expect(screen.getByText("codex")).toBeInTheDocument();
   });
 
+  it("SB4b: shows sidebar skill descriptions in a hover tooltip", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo Skill",
+            description: "Foo does foo",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+        ],
+      },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    expect(screen.queryByTestId("skill-list-description-tooltip")).not.toBeInTheDocument();
+
+    await userEvent.hover(screen.getByText("Foo does foo"));
+
+    const tooltip = screen.getByTestId("skill-list-description-tooltip");
+    expect(tooltip).toHaveClass("hover-tooltip");
+    expect(tooltip).toHaveTextContent("Foo does foo");
+  });
+
   it("SB5: shows error footer when scan failed", () => {
     useSkillStore.setState({
       byRepo: {},
@@ -134,5 +163,100 @@ describe("Sidebar", () => {
     await userEvent.click(screen.getByRole("button", { name: /Hide skills sidebar/i }));
 
     expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it("SB8: renders foldable starter skills in the common section", async () => {
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      systemSkills: [
+        {
+          id: "codex:starter/taxiing",
+          provider: "codex",
+          source: "system",
+          name: "taxiing",
+          description: "Implement the plan",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/taxiing",
+        },
+        {
+          id: "codex:starter/boarding",
+          provider: "codex",
+          source: "system",
+          name: "boarding",
+          description: "Capture the request",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/boarding",
+        },
+      ],
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
+    expect(screen.getByText("Common")).toBeInTheDocument();
+    expect(screen.getAllByTestId("system-skill-list__item")).toHaveLength(2);
+    expect(screen.getByText("boarding")).toBeInTheDocument();
+    expect(screen.getByText("taxiing")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
+    expect(screen.queryByText("boarding")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
+    await userEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
+
+    const { nodes } = useWorkflowStore.getState();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.label).toBe("boarding");
+    expect(nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:starter/boarding",
+    });
+  });
+
+  it("SB9: places the common section above repository skills", () => {
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/foo",
+            provider: "claude",
+            name: "Foo Skill",
+            description: "",
+            rootDir: ".claude/skills/foo",
+            skillFile: ".claude/skills/foo/SKILL.md",
+          },
+        ],
+      },
+      systemSkills: [
+        {
+          id: "codex:starter/boarding",
+          provider: "codex",
+          source: "system",
+          name: "boarding",
+          description: "Capture the request",
+          rootDir: "",
+          skillFile: "",
+          systemSkillId: "codex:starter/boarding",
+        },
+      ],
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    const systemSection = screen.getByTestId("system-skill-section");
+    const repositoryList = screen.getByTestId("skill-list");
+
+    expect(
+      systemSection.compareDocumentPosition(repositoryList) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

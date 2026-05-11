@@ -31,6 +31,13 @@ describe("workflow/starterFlow", () => {
       ["starter_taxiing", "starter_takeoff"],
       ["starter_takeoff", "starter_landing"],
     ]);
+    expect(wf.nodes.map((node) => node.position)).toEqual([
+      { x: 240, y: 80 },
+      { x: 240, y: 260 },
+      { x: 240, y: 440 },
+      { x: 240, y: 620 },
+      { x: 240, y: 800 },
+    ]);
     expect(
       wf.nodes.every((node) => node.input?.arguments === "Add a theme toggle"),
     ).toBe(true);

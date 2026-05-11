@@ -1,4 +1,7 @@
-import type { WorkflowSkillProvider } from "../../workflow/schema";
+import type {
+  WorkflowSkillProvider,
+  WorkflowSkillSource,
+} from "../../workflow/schema";
 
 export type ApprovalKind = "trust" | "command" | "freeform";
 
@@ -44,11 +47,13 @@ export interface SkillExecutionContext {
     path: string;
   };
   skill: {
+    source?: WorkflowSkillSource;
     provider: WorkflowSkillProvider;
     name: string;
     rootDir: string;
     skillFile: string;
     skillFileAbsPath: string;
+    systemSkillId?: string;
     content: string;
   };
   input: Record<string, unknown>;

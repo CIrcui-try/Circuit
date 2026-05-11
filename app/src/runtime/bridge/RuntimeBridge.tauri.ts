@@ -73,6 +73,9 @@ export const tauriRuntimeBridge: RuntimeBridge = {
       repoRoot,
     });
   },
+  async readSystemSkill(systemSkillId) {
+    return await invoke<string>("runtime_read_system_skill", { systemSkillId });
+  },
   async spawn(options: SpawnOptions) {
     const binding = getOrCreateBinding(options.runId);
     binding.spawnSent = true;

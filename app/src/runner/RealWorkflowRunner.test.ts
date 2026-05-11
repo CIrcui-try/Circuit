@@ -29,6 +29,9 @@ const SKILL_PATH = ".claude/skills/example/SKILL.md";
 const SKILL_ABS_PATH = `${REPO.path}/${SKILL_PATH}`;
 const SKILL_CONTENT =
   "---\nname: example-skill\ndescription: example\n---\n\n# example\n\nDo the thing.\n";
+const SYSTEM_SKILL_ID = "codex:starter/boarding";
+const SYSTEM_SKILL_CONTENT =
+  "---\nname: boarding\ndescription: starter\n---\n\n# boarding\n\nStart here.\n";
 
 function workflowNode(
   id: string,
@@ -50,13 +53,13 @@ function runnable(node: WorkflowSkillNode): RunnableNode {
   if (provider !== "claude" && provider !== "codex") {
     throw new Error(`unsupported provider in test: ${provider}`);
   }
-  if (!node.skillRef.skillFile) {
+  if ((node.skillRef.source ?? "repository") === "repository" && !node.skillRef.skillFile) {
     throw new Error(`missing skillFile in test node ${node.id}`);
   }
   return {
     id: node.id,
     label: node.label,
-    skillRef: { provider, skillFile: node.skillRef.skillFile },
+    skillRef: { provider, skillFile: node.skillRef.skillFile ?? "" },
   };
 }
 
@@ -80,6 +83,7 @@ function makeHarness(
 
   const bridge = createMockRuntimeBridge({
     files: { [SKILL_ABS_PATH]: SKILL_CONTENT },
+    systemSkills: { [SYSTEM_SKILL_ID]: SYSTEM_SKILL_CONTENT },
   });
 
   const registry = new AdapterRegistry();
@@ -171,6 +175,52 @@ describe("RealWorkflowRunner", () => {
     expect(adapter.seenContexts[0].input).toEqual({
       arguments: "CIR-46 --force",
     });
+  });
+
+  it("runs a system starter skill through the real runner context", async () => {
+    const node = workflowNode("starter_boarding", "codex", {
+      arguments: "CIR-63",
+    });
+    node.skillRef = {
+      source: "system",
+      provider: "codex",
+      systemSkillId: SYSTEM_SKILL_ID,
+    };
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({ provider: "codex" });
+    harness.registry.register(adapter);
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result).toEqual({ ok: true });
+    const ctx = adapter.seenContexts[0];
+    expect(ctx.skill.source).toBe("system");
+    expect(ctx.skill.systemSkillId).toBe(SYSTEM_SKILL_ID);
+    expect(ctx.skill.content).toBe(SYSTEM_SKILL_CONTENT);
+    expect(ctx.execution.cwd).toBe(REPO.path);
+    expect(ctx.input).toEqual({ arguments: "CIR-63" });
+  });
+
+  it("records missing system skill failures in the run log", async () => {
+    const node = workflowNode("starter_missing", "codex");
+    node.skillRef = {
+      source: "system",
+      provider: "codex",
+      systemSkillId: "codex:starter/missing",
+    };
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({ provider: "codex" });
+    harness.registry.register(adapter);
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("system skill not found");
+    }
+    expect(useRunLogStore.getState().nodeResults.starter_missing.status).toBe(
+      "failed",
+    );
   });
 
   it("keeps prompt-only input working for existing workflows", async () => {

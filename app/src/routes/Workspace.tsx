@@ -40,6 +40,7 @@ export function Workspace() {
   );
   const selectRepository = useRepositoryStore((s) => s.selectRepository);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const scanSystemCatalog = useSkillStore((s) => s.scanSystemCatalog);
   const resetWorkflow = useWorkflowStore((s) => s.resetWorkflow);
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
@@ -119,6 +120,12 @@ export function Workspace() {
       scanRepository(repo.id, repo.path);
     }
   }, [repo, scanRepository]);
+
+  useEffect(() => {
+    if (repo) {
+      void scanSystemCatalog();
+    }
+  }, [repo, scanSystemCatalog]);
 
   const refreshWorkflows = useCallback(async () => {
     if (!repo) return;
@@ -400,7 +407,10 @@ export function Workspace() {
           Skills
         </button>
       ) : (
-        <Sidebar repoId={repo?.id} onCollapse={() => setSidebarCollapsed(true)} />
+        <Sidebar
+          repoId={repo?.id}
+          onCollapse={() => setSidebarCollapsed(true)}
+        />
       )}
       <Canvas />
       {repo && nodeCount === 0 ? (

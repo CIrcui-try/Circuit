@@ -159,6 +159,15 @@ pub fn scan_system_skills() -> Result<Vec<RawSystemSkill>, String> {
     Ok(out)
 }
 
+#[tauri::command]
+pub fn runtime_read_system_skill(system_skill_id: String) -> Result<String, String> {
+    SYSTEM_SKILL_CATALOG
+        .iter()
+        .find(|entry| entry.id == system_skill_id)
+        .map(|entry| entry.content.to_string())
+        .ok_or_else(|| format!("system skill not found: {system_skill_id}"))
+}
+
 fn resolve_skill_file(skill_dir: &Path) -> Option<(&'static str, PathBuf)> {
     for name in ["SKILL.md", "skill.md"] {
         let candidate = skill_dir.join(name);
@@ -302,5 +311,15 @@ mod tests {
             .unwrap();
         assert_eq!(boarding.name, "boarding");
         assert_eq!(boarding.source, "system");
+    }
+
+    #[test]
+    fn runtime_read_system_skill_returns_bundled_content_by_id() {
+        let content = runtime_read_system_skill("codex:starter/boarding".into())
+            .expect("system skill should exist");
+        assert!(content.contains("# boarding"));
+
+        let missing = runtime_read_system_skill("codex:starter/missing".into());
+        assert!(missing.is_err());
     }
 }

@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import type { RawSystemSkill } from "../host/bridge";
 
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(async () => []),
+  scanSystemSkills: vi.fn(async (): Promise<RawSystemSkill[]> => []),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
@@ -50,6 +52,44 @@ function renderAt(route: string) {
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.scanSkills.mockResolvedValue([]);
+  bridgeMock.scanSystemSkills.mockReset();
+  bridgeMock.scanSystemSkills.mockResolvedValue([
+    {
+      id: "codex:starter/boarding",
+      provider: "codex",
+      name: "boarding",
+      description: "Capture the request",
+      source: "system",
+    },
+    {
+      id: "codex:starter/door-closing",
+      provider: "codex",
+      name: "door-closing",
+      description: "Create the implementation plan",
+      source: "system",
+    },
+    {
+      id: "codex:starter/taxiing",
+      provider: "codex",
+      name: "taxiing",
+      description: "Implement the plan",
+      source: "system",
+    },
+    {
+      id: "codex:starter/takeoff",
+      provider: "codex",
+      name: "takeoff",
+      description: "Push and open a PR",
+      source: "system",
+    },
+    {
+      id: "codex:starter/landing",
+      provider: "codex",
+      name: "landing",
+      description: "Clean up after merge",
+      source: "system",
+    },
+  ]);
   bridgeMock.listWorkflows.mockReset();
   bridgeMock.listWorkflows.mockResolvedValue([]);
   bridgeMock.saveWorkflow.mockReset();
@@ -77,7 +117,7 @@ beforeEach(() => {
     selectedId: null,
     hydrated: true,
   });
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, systemSkills: [], loading: {}, errors: {} });
   useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: false });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
@@ -273,6 +313,26 @@ describe("Workspace", () => {
 
     expect(useWorkflowStore.getState().nodes).toHaveLength(5);
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
+  });
+
+  it("W8f: adds a starter system skill node from the common section", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    await vi.waitFor(() => {
+      expect(screen.getByText("boarding")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getAllByTestId("system-skill-list__add")[0]);
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+    expect(useWorkflowStore.getState().nodes[0].data.label).toBe("boarding");
+    expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
+      source: "system",
+      provider: "codex",
+      skillFile: "",
+      systemSkillId: "codex:starter/boarding",
+    });
   });
 
   it("W8b: edits boarding card input as issue id plus force arguments", async () => {
