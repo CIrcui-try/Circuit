@@ -1128,6 +1128,41 @@ a:hover {
   gap: 6px;
 }
 
+.skill-list__empty {
+  height: auto;
+  min-height: 96px;
+}
+
+.skill-list__section {
+  border-top: 1px solid #34343b;
+  padding-top: 4px;
+}
+
+.skill-list__section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: #c8c8d0;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.skill-list__section-toggle:hover {
+  background: #2d2d33;
+}
+
+.skill-list__section-icon {
+  width: 10px;
+  color: #8a8a92;
+  font-size: 11px;
+}
+
 .skill-list__item {
   padding: 8px 10px;
   border: 1px solid #2f2f36;
@@ -1137,8 +1172,16 @@ a:hover {
   user-select: none;
 }
 
+.skill-list__item--action {
+  cursor: default;
+}
+
 .skill-list__item:active {
   cursor: grabbing;
+}
+
+.skill-list__item--action:active {
+  cursor: default;
 }
 
 .skill-list__item:hover {

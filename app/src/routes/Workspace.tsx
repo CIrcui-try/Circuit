@@ -400,7 +400,11 @@ export function Workspace() {
           Skills
         </button>
       ) : (
-        <Sidebar repoId={repo?.id} onCollapse={() => setSidebarCollapsed(true)} />
+        <Sidebar
+          repoId={repo?.id}
+          onCollapse={() => setSidebarCollapsed(true)}
+          onAddStarterFlow={repo ? handleAddStarterFlow : undefined}
+        />
       )}
       <Canvas />
       {repo && nodeCount === 0 ? (

@@ -135,4 +135,26 @@ describe("Sidebar", () => {
 
     expect(onCollapse).toHaveBeenCalledTimes(1);
   });
+
+  it("SB8: renders a foldable system section with the Codex starter flow", async () => {
+    const onAddStarterFlow = vi.fn();
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" onAddStarterFlow={onAddStarterFlow} />);
+
+    expect(screen.getByTestId("system-skill-section")).toBeInTheDocument();
+    expect(screen.getByText("Codex starter flow")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
+    expect(screen.queryByText("Codex starter flow")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("system-skill-section-toggle"));
+    await userEvent.click(screen.getByTestId("system-starter-flow-add"));
+
+    expect(onAddStarterFlow).toHaveBeenCalledTimes(1);
+  });
 });

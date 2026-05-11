@@ -12,6 +12,7 @@ import {
 type SidebarProps = {
   repoId?: string;
   onCollapse?: () => void;
+  onAddStarterFlow?: () => void;
 };
 
 type MenuState = { x: number; y: number; skill: Skill };
@@ -26,7 +27,7 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
-export function Sidebar({ repoId, onCollapse }: SidebarProps) {
+export function Sidebar({ repoId, onCollapse, onAddStarterFlow }: SidebarProps) {
   const skills = useSkillStore((s) => (repoId ? s.byRepo[repoId] : undefined));
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
@@ -35,6 +36,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
   );
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [systemCollapsed, setSystemCollapsed] = useState(false);
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -113,7 +115,10 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       ) : loading && !skills ? (
         <div className="empty-state">Scanning repository…</div>
       ) : !skills || skills.length === 0 ? (
-        <div className="empty-state" data-testid="skill-list-empty">
+        <div
+          className="empty-state skill-list__empty"
+          data-testid="skill-list-empty"
+        >
           No skills found in <code>.claude/skills</code> or <code>.codex/skills</code>.
         </div>
       ) : (
@@ -156,6 +161,47 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           ))}
         </ul>
       )}
+
+      {repoId && onAddStarterFlow ? (
+        <section className="skill-list__section" data-testid="system-skill-section">
+          <button
+            type="button"
+            className="skill-list__section-toggle"
+            data-testid="system-skill-section-toggle"
+            aria-expanded={!systemCollapsed}
+            onClick={() => setSystemCollapsed((collapsed) => !collapsed)}
+          >
+            <span className="skill-list__section-icon" aria-hidden="true">
+              {systemCollapsed ? ">" : "v"}
+            </span>
+            <span>System</span>
+          </button>
+          {systemCollapsed ? null : (
+            <ul className="skill-list" data-testid="system-skill-list">
+              <li className="skill-list__item skill-list__item--action">
+                <div className="skill-list__row">
+                  <span className="skill-list__name">Codex starter flow</span>
+                  <span className="skill-list__chip skill-list__chip--codex">
+                    codex
+                  </span>
+                  <button
+                    type="button"
+                    className="skill-list__add"
+                    data-testid="system-starter-flow-add"
+                    aria-label="Add Codex starter flow to canvas"
+                    onClick={onAddStarterFlow}
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="skill-list__desc">
+                  Add the five-step repository workflow.
+                </div>
+              </li>
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {error && <div className="skill-list__error">{error}</div>}
 

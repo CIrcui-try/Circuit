@@ -275,6 +275,28 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
+  it("W8f: adds the Codex starter flow from the system section", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.change(screen.getByTestId("starter-flow-goal-input"), {
+      target: { value: "Ship the starter sidebar entry" },
+    });
+    fireEvent.click(screen.getByTestId("system-starter-flow-add"));
+
+    expect(useWorkflowStore.getState().workflowName).toBe("Codex starter flow");
+    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
+      "starter_boarding",
+      "starter_door_closing",
+      "starter_taxiing",
+      "starter_takeoff",
+      "starter_landing",
+    ]);
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "Ship the starter sidebar entry",
+    });
+  });
+
   it("W8b: edits boarding card input as issue id plus force arguments", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
