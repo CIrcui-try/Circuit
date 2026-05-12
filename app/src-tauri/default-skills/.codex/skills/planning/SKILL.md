@@ -1,9 +1,9 @@
 ---
 name: planning
-description: Plan the feature to implement and capture scope, constraints, and context.
+description: Plan a small safe tutorial task and capture the expected result.
 argument-hint: <task, request, or issue>
 ---
 
 # planning
 
-Starter workflow step that turns the user's requested feature into clear implementation planning context for the selected repository.
+Starter workflow step that turns the user's request into a small, safe plan for the selected folder. Keep the scope narrow, name the file to create or edit, and list how the result should be checked.

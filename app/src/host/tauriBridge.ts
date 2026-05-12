@@ -24,6 +24,14 @@ export const tauriHostBridge: HostBridge = {
     return typeof selected === "string" ? selected : null;
   },
 
+  async createTutorialRepository() {
+    return await invoke<string>("create_tutorial_repository");
+  },
+
+  async pathExists(path: string) {
+    return await invoke<boolean>("path_exists", { path });
+  },
+
   async scanSkills(repoPath: string) {
     return await invoke<RawSkill[]>("scan_skills", { repoPath });
   },

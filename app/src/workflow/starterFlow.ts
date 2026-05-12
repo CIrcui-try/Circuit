@@ -7,7 +7,7 @@ import {
 } from "./schema";
 
 export const CODEX_STARTER_FLOW_ID = "codex-starter-issue-lifecycle";
-export const CODEX_STARTER_FLOW_NAME = "Mixed starter flow";
+export const CODEX_STARTER_FLOW_NAME = "Tutorial starter flow";
 
 export const CODEX_STARTER_FLOW_BINDING_POLICY = {
   repository: "selected-repository",
@@ -18,16 +18,6 @@ export const CODEX_STARTER_FLOW_BINDING_POLICY = {
 } as const;
 
 export const CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES = [
-  {
-    nodeId: "starter_takeoff",
-    boundary: "remote",
-    description: "fetches/rebases, pushes the branch, and creates a PR",
-  },
-  {
-    nodeId: "starter_landing",
-    boundary: "post-merge-cleanup",
-    description: "runs only after the PR is merged and may remove the temporary worktree",
-  },
 ] as const;
 
 type StarterStep = {
@@ -39,6 +29,8 @@ type StarterStep = {
   x: number;
   y: number;
 };
+
+export type StarterNodePrompts = Partial<Record<string, string>>;
 
 const STARTER_STEPS: StarterStep[] = [
   {
@@ -53,7 +45,7 @@ const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_taxiing",
     label: "implement-plan",
-    description: "Implement the plan in the worktree, test it, and commit local changes.",
+    description: "Implement the planned change in the selected folder and verify it.",
     provider: "claude",
     skillFile: ".claude/skills/implement-plan/SKILL.md",
     x: 240,
@@ -61,30 +53,21 @@ const STARTER_STEPS: StarterStep[] = [
   },
   {
     id: "starter_review_and_fix",
-    label: "review-changes",
-    description: "Review local changes, fix issues, and commit review fixes.",
-    provider: "codex",
-    skillFile: ".codex/skills/review-changes/SKILL.md",
+    label: "review-and-fix",
+    description: "Review the tutorial result, fix obvious issues, and verify the page.",
+    provider: "claude",
+    skillFile: ".claude/skills/review-and-fix/SKILL.md",
     x: 240,
     y: 440,
   },
   {
-    id: "starter_takeoff",
-    label: "publish-pr",
-    description: "Rebase on develop, push the branch, and open a PR.",
+    id: "starter_wrap_up",
+    label: "wrap-up",
+    description: "Run the final tutorial check and summarize the result.",
     provider: "claude",
-    skillFile: ".claude/skills/publish-pr/SKILL.md",
+    skillFile: ".claude/skills/wrap-up/SKILL.md",
     x: 240,
     y: 620,
-  },
-  {
-    id: "starter_landing",
-    label: "cleanup-merged-pr",
-    description: "After merge, remove the temporary worktree and sync develop.",
-    provider: "claude",
-    skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
-    x: 240,
-    y: 800,
   },
 ];
 
@@ -92,6 +75,7 @@ export type CreateCodexStarterWorkflowArgs = {
   repositoryId: string;
   initialRequest?: string;
   issueId?: string;
+  nodePrompts?: StarterNodePrompts;
   workflowId?: string;
   now?: () => string;
 };
@@ -108,7 +92,11 @@ export function createCodexStarterWorkflow(
     repositoryId: args.repositoryId,
     name: CODEX_STARTER_FLOW_NAME,
     nodes: STARTER_STEPS.map((step, index) =>
-      toNode(step, index === 0 ? initialRequest : ""),
+      toNode({
+        step,
+        argumentsValue: index === 0 ? initialRequest : "",
+        promptValue: args.nodePrompts?.[step.id] ?? "",
+      }),
     ),
     edges: toEdges(STARTER_STEPS),
     createdAt: now,
@@ -116,8 +104,21 @@ export function createCodexStarterWorkflow(
   };
 }
 
-function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
-  const trimmedRequest = initialRequest.trim();
+function toNode({
+  step,
+  argumentsValue,
+  promptValue,
+}: {
+  step: StarterStep;
+  argumentsValue: string;
+  promptValue: string;
+}): WorkflowSkillNode {
+  const trimmedArguments = argumentsValue.trim();
+  const trimmedPrompt = promptValue.trim();
+  const input = {
+    ...(trimmedArguments ? { arguments: trimmedArguments } : {}),
+    ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
+  };
   return {
     id: step.id,
     type: "skill",
@@ -129,7 +130,7 @@ function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
     label: step.label,
     description: step.description,
     position: { x: step.x, y: step.y },
-    ...(trimmedRequest ? { input: { arguments: trimmedRequest } } : {}),
+    ...(Object.keys(input).length > 0 ? { input } : {}),
   };
 }
 

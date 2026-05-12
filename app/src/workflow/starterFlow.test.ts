@@ -9,7 +9,7 @@ import {
 import { validateWorkflow } from "./validate";
 
 describe("workflow/starterFlow", () => {
-  it("SF1: defines the mixed starter flow as a regular workflow JSON", () => {
+  it("SF1: defines the tutorial starter flow as a regular workflow JSON", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       initialRequest: "Add a theme toggle",
@@ -22,39 +22,33 @@ describe("workflow/starterFlow", () => {
       "starter_boarding",
       "starter_taxiing",
       "starter_review_and_fix",
-      "starter_takeoff",
-      "starter_landing",
+      "starter_wrap_up",
     ]);
     expect(wf.nodes.map((node) => node.label)).toEqual([
       "planning",
       "implement-plan",
-      "review-changes",
-      "publish-pr",
-      "cleanup-merged-pr",
+      "review-and-fix",
+      "wrap-up",
     ]);
     expect(wf.edges.map((edge) => [edge.source, edge.target])).toEqual([
       ["starter_boarding", "starter_taxiing"],
       ["starter_taxiing", "starter_review_and_fix"],
-      ["starter_review_and_fix", "starter_takeoff"],
-      ["starter_takeoff", "starter_landing"],
+      ["starter_review_and_fix", "starter_wrap_up"],
     ]);
     expect(wf.nodes.map((node) => node.position)).toEqual([
       { x: 240, y: 80 },
       { x: 240, y: 260 },
       { x: 240, y: 440 },
       { x: 240, y: 620 },
-      { x: 240, y: 800 },
     ]);
     expect(wf.nodes.map((node) => node.skillRef.provider)).toEqual([
       "codex",
       "claude",
-      "codex",
       "claude",
       "claude",
     ]);
     expect(wf.nodes.map((node) => node.input)).toEqual([
       { arguments: "Add a theme toggle" },
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -72,6 +66,30 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
+  it("SF1c: allows tutorial-specific node prompts without changing default skills", () => {
+    const wf = createCodexStarterWorkflow({
+      repositoryId: "repo-1",
+      initialRequest: "Create hello_world.html",
+      nodePrompts: {
+        starter_taxiing: "Do not open the page in this step.",
+        starter_wrap_up: "Open hello_world.html in the default browser.",
+      },
+      now: () => "2026-05-11T00:00:00.000Z",
+    });
+
+    expect(wf.nodes[1].input).toEqual({
+      prompt: "Do not open the page in this step.",
+    });
+    expect(wf.nodes[3].input).toEqual({
+      prompt: "Open hello_world.html in the default browser.",
+    });
+    expect(wf.nodes[1].skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/implement-plan/SKILL.md",
+    });
+  });
+
   it("SF2: binds starter execution to the selected repository and marks approval edges", () => {
     expect(CODEX_STARTER_FLOW_BINDING_POLICY).toEqual({
       repository: "selected-repository",
@@ -80,10 +98,7 @@ describe("workflow/starterFlow", () => {
       saveLoadContract: "regular-workflow-json",
       actualRepoEffects: true,
     });
-    expect(CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES.map((b) => b.nodeId)).toEqual([
-      "starter_takeoff",
-      "starter_landing",
-    ]);
+    expect(CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES).toEqual([]);
   });
 
   it("SF3: survives the existing load and save path without repository skill files", () => {
@@ -120,7 +135,7 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(saved)).toEqual({ ok: true });
   });
 
-  it("SF4: assigns planning and review to Codex, and operations to Claude", () => {
+  it("SF4: assigns planning to Codex, and mutating/documenting steps to Claude", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       now: () => "2026-05-11T00:00:00.000Z",
@@ -138,18 +153,13 @@ describe("workflow/starterFlow", () => {
     });
     expect(wf.nodes[2].skillRef).toEqual({
       source: "default",
-      provider: "codex",
-      skillFile: ".codex/skills/review-changes/SKILL.md",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
     });
     expect(wf.nodes[3].skillRef).toEqual({
       source: "default",
       provider: "claude",
-      skillFile: ".claude/skills/publish-pr/SKILL.md",
-    });
-    expect(wf.nodes[4].skillRef).toEqual({
-      source: "default",
-      provider: "claude",
-      skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
     });
   });
 });

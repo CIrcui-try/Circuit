@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
@@ -6,6 +6,29 @@ import { getHostBridge } from "../host/bridge";
 import { useRunStore } from "../runner/runStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
+import {
+  TUTORIAL_STARTER_PROMPT,
+  TUTORIAL_REPOSITORY_NAME,
+} from "../tutorial";
+import { fromWorkflow } from "../workflow/serialize";
+import {
+  CODEX_STARTER_FLOW_ID,
+  CODEX_STARTER_FLOW_NAME,
+  createCodexStarterWorkflow,
+  type StarterNodePrompts,
+} from "../workflow/starterFlow";
+import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
+
+const TUTORIAL_STARTER_NODE_PROMPTS: StarterNodePrompts = {
+  starter_taxiing:
+    "Create or update hello_world.html from the plan. Verify the file contents from disk, but do not open the page or launch a browser in this step.",
+  starter_review_and_fix:
+    "Review hello_world.html, fix only obvious issues, and verify the file contents from disk. Do not open the page or launch a browser in this step.",
+  starter_wrap_up:
+    "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
+};
+
+type ActiveCheck = () => boolean;
 
 export function RepositoryList() {
   const repositories = useRepositoryStore((s) => s.repositories);
@@ -23,6 +46,17 @@ export function RepositoryList() {
     id: string;
     name: string;
   } | null>(null);
+  const [isPreparingTutorial, setIsPreparingTutorial] = useState(false);
+  const mounted = useRef(true);
+  const tutorialSeedAttempted = useRef(false);
+  const tutorialRepairAttempted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -30,6 +64,38 @@ export function RepositoryList() {
       scanRepository(repo.id, repo.path);
     }
   }, [hydrated, repositories, scanRepository]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (repositories.length > 0) return;
+    if (tutorialSeedAttempted.current) return;
+
+    tutorialSeedAttempted.current = true;
+    tutorialRepairAttempted.current = true;
+    setIsPreparingTutorial(true);
+    void seedTutorialRepository(() => mounted.current)
+      .catch((err) => {
+        if (mounted.current) notifyAppError(err, "Prepare tutorial failed");
+      })
+      .finally(() => {
+        if (mounted.current) setIsPreparingTutorial(false);
+      });
+  }, [hydrated, repositories.length]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (tutorialRepairAttempted.current) return;
+    const tutorialRepo = repositories.find(
+      (repo) => repo.name === TUTORIAL_REPOSITORY_NAME,
+    );
+    if (!tutorialRepo) return;
+
+    tutorialRepairAttempted.current = true;
+    refreshTutorialStarterDraftIfNeeded(tutorialRepo.id);
+    void prepareTutorialRepository().catch((err) =>
+      notifyAppError(err, "Prepare tutorial failed"),
+    );
+  }, [hydrated, repositories]);
 
   async function handleAdd() {
     const selected = await getHostBridge().openRepositoryDialog();
@@ -94,7 +160,15 @@ export function RepositoryList() {
 
       {repositories.length === 0 ? (
         <p className="repository-list__hint">
-          No repositories yet. Click <strong>Add Repository</strong> to choose a local folder.
+          {isPreparingTutorial ? (
+            <>
+              Preparing <strong>{TUTORIAL_REPOSITORY_NAME}</strong>...
+            </>
+          ) : (
+            <>
+              No repositories yet. Click <strong>Add Repository</strong> to choose a local folder.
+            </>
+          )}
         </p>
       ) : (
         <ul className="repository-list__items" data-testid="repository-list">
@@ -102,10 +176,30 @@ export function RepositoryList() {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
             const isRunRepo = runStatus === "running" && runRepositoryId === repo.id;
+            const isTutorialRepo = repo.name === TUTORIAL_REPOSITORY_NAME;
             return (
               <li key={repo.id} className="repository-list__row">
-                <Link to={`/workspace/${repo.id}`} className="repository-list__item">
-                  <span className="repository-list__item-name">{repo.name}</span>
+                <Link
+                  to={`/workspace/${repo.id}`}
+                  className="repository-list__item"
+                  title={
+                    isTutorialRepo
+                      ? "Start here: open this tutorial repository and run the starter flow."
+                      : undefined
+                  }
+                >
+                  <span className="repository-list__item-name">
+                    {repo.name}
+                    {isTutorialRepo ? (
+                      <span
+                        className="repository-list__tutorial-badge"
+                        data-testid="tutorial-start-hint"
+                        title="Start here: open this tutorial repository and run the starter flow."
+                      >
+                        Start here
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="repository-list__item-path">{repo.path}</span>
                   <span className="repository-list__badges">
                     <SkillBadge
@@ -190,6 +284,92 @@ export function RepositoryList() {
       ) : null}
     </div>
   );
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\/+$/, "");
+}
+
+async function seedTutorialRepository(
+  isActive: ActiveCheck = () => true,
+): Promise<void> {
+  const path = await prepareTutorialRepository();
+  if (!isActive()) return;
+  if (useRepositoryStore.getState().repositories.length > 0) return;
+
+  const added = await useRepositoryStore.getState().addRepository(path);
+  if (!isActive()) return;
+  if (!added) return;
+
+  saveTutorialStarterDraft(added.id);
+  if (!isActive()) return;
+  await useSkillStore.getState().scanRepository(added.id, added.path);
+}
+
+async function prepareTutorialRepository(): Promise<string> {
+  const bridge = getHostBridge();
+  if (!bridge.createTutorialRepository) {
+    throw new Error("tutorial repository creation is not available");
+  }
+
+  return normalizePath(await bridge.createTutorialRepository());
+}
+
+function saveTutorialStarterDraft(repositoryId: string): void {
+  const workflow = createCodexStarterWorkflow({
+    repositoryId,
+    initialRequest: TUTORIAL_STARTER_PROMPT,
+    nodePrompts: TUTORIAL_STARTER_NODE_PROMPTS,
+  });
+  const restored = fromWorkflow(workflow);
+  saveWorkflowDraft(repositoryId, {
+    workflowId: restored.meta.id,
+    workflowName: restored.meta.name,
+    nodes: restored.nodes,
+    edges: restored.edges,
+  });
+}
+
+function refreshTutorialStarterDraftIfNeeded(repositoryId: string): void {
+  const draft = loadWorkflowDraft(repositoryId);
+  if (draft && !isOutdatedTutorialStarterDraft(draft)) return;
+  saveTutorialStarterDraft(repositoryId);
+}
+
+function isOutdatedTutorialStarterDraft(
+  draft: NonNullable<ReturnType<typeof loadWorkflowDraft>>,
+): boolean {
+  if (
+    draft.workflowId !== CODEX_STARTER_FLOW_ID ||
+    draft.workflowName !== CODEX_STARTER_FLOW_NAME
+  ) {
+    return false;
+  }
+
+  return draft.nodes.some((node) => {
+    const skillRef = node.data.skillRef;
+    if (
+      node.id === "starter_review_and_fix" &&
+      skillRef?.provider === "codex" &&
+      skillRef?.skillFile === ".codex/skills/review-changes/SKILL.md"
+    ) {
+      return true;
+    }
+
+    if (
+      node.id === "starter_wrap_up" &&
+      skillRef?.provider === "codex" &&
+      skillRef?.skillFile === ".codex/skills/wrap-up/SKILL.md"
+    ) {
+      return true;
+    }
+
+    const input = node.data.input as Record<string, unknown> | undefined;
+    return (
+      TUTORIAL_STARTER_NODE_PROMPTS[node.id] != null &&
+      input?.prompt !== TUTORIAL_STARTER_NODE_PROMPTS[node.id]
+    );
+  });
 }
 
 function SkillBadge({

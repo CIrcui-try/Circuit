@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
+  createTutorialRepository: vi.fn(),
   scanSkills: vi.fn(),
   loadRepositories: vi.fn(),
   saveRepositories: vi.fn(),
@@ -20,12 +21,15 @@ import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
 
 beforeEach(() => {
+  window.localStorage.clear();
   bridgeMock.openRepositoryDialog.mockReset();
+  bridgeMock.createTutorialRepository.mockReset();
   bridgeMock.scanSkills.mockReset();
   bridgeMock.loadRepositories.mockReset();
   bridgeMock.saveRepositories.mockReset();
 
   bridgeMock.openRepositoryDialog.mockResolvedValue(null);
+  bridgeMock.createTutorialRepository.mockResolvedValue("/Users/me/Circuit Tutorial");
   bridgeMock.scanSkills.mockResolvedValue([]);
   bridgeMock.loadRepositories.mockResolvedValue(null);
   bridgeMock.saveRepositories.mockResolvedValue(undefined);
@@ -39,17 +43,69 @@ beforeEach(() => {
   useRunStore.getState().reset();
 });
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe("RepositoryList", () => {
-  it("R1: shows empty hint and Add button when no repositories", () => {
+  it("R1: seeds the tutorial repository when no repositories exist", async () => {
     renderWithRouter(<RepositoryList />);
 
     expect(screen.getByRole("heading", { name: "Repositories" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Repository" })).toBeInTheDocument();
     expect(screen.getByTestId("add-repository-button")).toBeInTheDocument();
-    expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /Circuit Tutorial/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("tutorial-start-hint")).toHaveTextContent("Start here");
+    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toHaveAttribute(
+      "title",
+      "Start here: open this tutorial repository and run the starter flow.",
+    );
+  });
+
+  it("R1b: ignores an abandoned tutorial seed after unmount", async () => {
+    const pendingTutorial = createDeferred<string>();
+    bridgeMock.createTutorialRepository.mockReturnValueOnce(
+      pendingTutorial.promise,
+    );
+
+    const { unmount } = renderWithRouter(<RepositoryList />);
+    await waitFor(() =>
+      expect(bridgeMock.createTutorialRepository).toHaveBeenCalled(),
+    );
+
+    unmount();
+    useRepositoryStore.setState({
+      repositories: [],
+      selectedId: null,
+      hydrated: true,
+    });
+    pendingTutorial.resolve("/Users/me/Circuit Tutorial");
+    await pendingTutorial.promise;
+    await Promise.resolve();
+
+    expect(useRepositoryStore.getState().repositories).toEqual([]);
+    expect(bridgeMock.saveRepositories).not.toHaveBeenCalled();
   });
 
   it("R2: clicking Add invokes folder picker and renders selected folder", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-tutorial",
+          name: "Circuit Tutorial",
+          path: "/Users/me/Circuit Tutorial",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
     bridgeMock.openRepositoryDialog.mockResolvedValueOnce("/Users/me/projects/alpha");
     const user = userEvent.setup();
 
@@ -64,16 +120,134 @@ describe("RepositoryList", () => {
     expect(screen.getByTestId("repository-list")).toBeInTheDocument();
   });
 
-  it("R3: cancelling the picker (null) leaves the empty hint intact", async () => {
+  it("R3: cancelling the picker leaves the seeded tutorial repo intact", async () => {
     bridgeMock.openRepositoryDialog.mockResolvedValueOnce(null);
     const user = userEvent.setup();
 
     renderWithRouter(<RepositoryList />);
+    expect(
+      await screen.findByRole("link", { name: /Circuit Tutorial/ }),
+    ).toBeInTheDocument();
     await user.click(screen.getByTestId("add-repository-button"));
 
     await waitFor(() => expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled());
-    expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Circuit Tutorial/ })).toHaveLength(1);
+    expect(screen.getByTestId("repository-list-add-button")).toBeInTheDocument();
+  });
+
+  it("R3b: seeded tutorial repo saves a starter draft", async () => {
+    renderWithRouter(<RepositoryList />);
+
+    expect(bridgeMock.createTutorialRepository).toHaveBeenCalled();
+    const item = await screen.findByRole("link", { name: /Circuit Tutorial/ });
+    expect(item).toBeInTheDocument();
+    expect(screen.getByText("/Users/me/Circuit Tutorial")).toBeInTheDocument();
+
+    const repo = useRepositoryStore.getState().repositories[0];
+    const rawDraft = window.localStorage.getItem(`circuit.workflowDraft.${repo.id}`);
+    expect(rawDraft).toBeTruthy();
+    const draft = JSON.parse(rawDraft ?? "{}");
+    expect(draft.workflowName).toBe("Tutorial starter flow");
+    expect(draft.nodes[0].data.input).toEqual({
+      arguments: "Create hello_world.html with a friendly Hello from Circuit page.",
+    });
+    expect(draft.nodes[1].data.input).toEqual({
+      prompt:
+        "Create or update hello_world.html from the plan. Verify the file contents from disk, but do not open the page or launch a browser in this step.",
+    });
+    expect(draft.nodes[2].data.input).toEqual({
+      prompt:
+        "Review hello_world.html, fix only obvious issues, and verify the file contents from disk. Do not open the page or launch a browser in this step.",
+    });
+    expect(draft.nodes[3].data.input).toEqual({
+      prompt:
+        "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
+    });
+    expect(draft.nodes.map((node: { id: string }) => node.id)).toEqual([
+      "starter_boarding",
+      "starter_taxiing",
+      "starter_review_and_fix",
+      "starter_wrap_up",
+    ]);
+    expect(draft.nodes[2].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+    });
+    expect(draft.nodes[3].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
+    });
+    expect(draft.nodes[1].data.input.prompt).toContain("do not open");
+    expect(draft.nodes[3].data.input.prompt).toContain("open the completed page");
+  });
+
+  it("R3c: pre-seeded tutorial repo is prepared again and legacy starter draft is migrated", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-tutorial",
+          name: "Circuit Tutorial",
+          path: "/Users/me/Circuit Tutorial",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    window.localStorage.setItem(
+      "circuit.workflowDraft.id-tutorial",
+      JSON.stringify({
+        version: 1,
+        repositoryId: "id-tutorial",
+        workflowId: "codex-starter-issue-lifecycle",
+        workflowName: "Tutorial starter flow",
+        nodes: [
+          {
+            id: "starter_review_and_fix",
+            data: {
+              skillRef: {
+                source: "default",
+                provider: "codex",
+                skillFile: ".codex/skills/review-changes/SKILL.md",
+              },
+            },
+          },
+          {
+            id: "starter_wrap_up",
+            data: {
+              skillRef: {
+                source: "default",
+                provider: "codex",
+                skillFile: ".codex/skills/wrap-up/SKILL.md",
+              },
+            },
+          },
+        ],
+        edges: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    );
+
+    renderWithRouter(<RepositoryList />);
+
+    await waitFor(() =>
+      expect(bridgeMock.createTutorialRepository).toHaveBeenCalled(),
+    );
+    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toBeInTheDocument();
+    const rawDraft = window.localStorage.getItem("circuit.workflowDraft.id-tutorial");
+    const draft = JSON.parse(rawDraft ?? "{}");
+    expect(draft.nodes[2].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+    });
+    expect(draft.nodes[3].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
+    });
   });
 
   it("R4: pre-seeded repositories render as links to /workspace/<id>", () => {

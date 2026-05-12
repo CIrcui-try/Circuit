@@ -1,9 +1,16 @@
 import type { Page } from "@playwright/test";
 
 export const FIXTURE_REPO_PATH = "/fixtures/repos/sample-repo";
+export const TUTORIAL_REPO_PATH = "/fixtures/repos/Circuit Tutorial";
 
 export async function installMockBridge(page: Page) {
-  await page.addInitScript((repoPath: string) => {
+  await page.addInitScript(({
+    repoPath,
+    tutorialRepoPath,
+  }: {
+    repoPath: string;
+    tutorialRepoPath: string;
+  }) => {
     type RawSkill = {
       provider: "claude" | "codex";
       dirName: string;
@@ -89,6 +96,9 @@ export async function installMockBridge(page: Page) {
     (window as unknown as { __CIRCUIT_BRIDGE__: unknown }).__CIRCUIT_BRIDGE__ = {
       async openRepositoryDialog() {
         return repoPath;
+      },
+      async createTutorialRepository() {
+        return tutorialRepoPath;
       },
       async scanSkills(_path: string) {
         return fixtureSkills;
@@ -215,5 +225,5 @@ export async function installMockBridge(page: Page) {
         return Object.assign(unsub, { ready: Promise.resolve() });
       },
     };
-  }, FIXTURE_REPO_PATH);
+  }, { repoPath: FIXTURE_REPO_PATH, tutorialRepoPath: TUTORIAL_REPO_PATH });
 }

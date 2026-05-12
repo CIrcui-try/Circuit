@@ -7,6 +7,7 @@ const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(async () => []),
   scanDefaultSkills: vi.fn(async (): Promise<RawSkill[]> => []),
+  pathExists: vi.fn(async () => false),
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
@@ -90,20 +91,32 @@ beforeEach(() => {
     {
       provider: "claude",
       source: "default",
-      dirName: "publish-pr",
-      rootDir: ".claude/skills/publish-pr",
-      skillFile: ".claude/skills/publish-pr/SKILL.md",
-      content: "---\nname: publish-pr\ndescription: Push and open a PR\n---\n",
+      dirName: "review-and-fix",
+      rootDir: ".claude/skills/review-and-fix",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+      content: "---\nname: review-and-fix\ndescription: Review and fix the implementation\n---\n",
     },
     {
       provider: "claude",
       source: "default",
-      dirName: "cleanup-merged-pr",
-      rootDir: ".claude/skills/cleanup-merged-pr",
-      skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
-      content: "---\nname: cleanup-merged-pr\ndescription: Clean up after merge\n---\n",
+      dirName: "wrap-up",
+      rootDir: ".claude/skills/wrap-up",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
+      content: "---\nname: wrap-up\ndescription: Complete the workflow\n---\n",
+    },
+    {
+      provider: "codex",
+      source: "default",
+      dirName: "wrap-up",
+      rootDir: ".codex/skills/wrap-up",
+      skillFile: ".codex/skills/wrap-up/SKILL.md",
+      content: "---\nname: wrap-up\ndescription: Summarize the result\n---\n",
     },
   ]);
+  bridgeMock.pathExists.mockReset();
+  bridgeMock.pathExists.mockResolvedValue(false);
+  openerMock.openPath.mockReset();
+  openerMock.openPath.mockResolvedValue(undefined);
   bridgeMock.listWorkflows.mockReset();
   bridgeMock.listWorkflows.mockResolvedValue([]);
   bridgeMock.saveWorkflow.mockReset();
@@ -295,7 +308,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W8d: adds the mixed starter flow to an empty selected repo and saves as a regular workflow", async () => {
+  it("W8d: adds the tutorial starter flow to an empty selected repo and saves as a regular workflow", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -316,15 +329,14 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("starter-flow-add"));
 
-    expect(useWorkflowStore.getState().workflowName).toBe("Mixed starter flow");
+    expect(useWorkflowStore.getState().workflowName).toBe("Tutorial starter flow");
     expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
       "starter_boarding",
       "starter_taxiing",
       "starter_review_and_fix",
-      "starter_takeoff",
-      "starter_landing",
+      "starter_wrap_up",
     ]);
-    expect(useWorkflowStore.getState().edges).toHaveLength(4);
+    expect(useWorkflowStore.getState().edges).toHaveLength(3);
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "Add a theme toggle",
     });
@@ -358,7 +370,7 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("starter-flow-add"));
 
-    expect(useWorkflowStore.getState().nodes).toHaveLength(5);
+    expect(useWorkflowStore.getState().nodes).toHaveLength(4);
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
   });
 
@@ -476,6 +488,57 @@ describe("Workspace", () => {
     });
     const fooNodeId = useWorkflowStore.getState().nodes[0].id;
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
+  });
+
+  it("W9a: opens hello_world.html after a successful tutorial run", async () => {
+    const tutorialRepo: Repository = {
+      id: "id-tutorial",
+      name: "Circuit Tutorial",
+      path: "/Users/me/Circuit Tutorial",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    useRepositoryStore.setState({ repositories: [tutorialRepo], hydrated: true });
+    bridgeMock.pathExists.mockImplementation(async (...args: unknown[]) => {
+      const path = args[0] as string;
+      return path === "/Users/me/Circuit Tutorial/hello_world.html";
+    });
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/Circuit Tutorial/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: () => [
+          { event: { type: "started" } },
+          { event: { type: "exited", exitCode: 0 } },
+        ],
+      });
+
+    renderAt("/workspace/id-tutorial");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+      expect(openerMock.openPath).toHaveBeenCalledWith(
+        "/Users/me/Circuit Tutorial/hello_world.html",
+      );
+    });
   });
 
   it("W9b: clicking Start on a loop asks before running", async () => {

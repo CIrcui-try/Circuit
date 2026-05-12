@@ -1,6 +1,7 @@
 mod run_log_store;
 mod runtime_bridge;
 mod skill_scan;
+mod tutorial;
 mod workflow_store;
 pub mod workspace;
 mod workspace_commands;
@@ -68,6 +69,8 @@ pub fn run() {
             run_log_store::save_run_log,
             run_log_store::list_run_logs,
             run_log_store::load_run_log,
+            tutorial::create_tutorial_repository,
+            tutorial::path_exists,
             workspace_commands::acquire_workspace,
             workspace_commands::release_to_pool,
             workspace_commands::cleanup_workspace,
