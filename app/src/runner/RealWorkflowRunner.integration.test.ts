@@ -262,4 +262,62 @@ describe("RealWorkflowRunner + runWorkflow integration", () => {
     // Only the failing node was actually invoked.
     expect(adapter.seenContexts.map((c) => c.nodeId)).toEqual(["a"]);
   });
+
+  it("fails the workflow when a successful adapter result ends while input is pending", async () => {
+    const a = workflowNode("a");
+    const nodes = new Map([[a.id, a]]);
+
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      events: [
+        {
+          type: "approval_required",
+          timestamp: "t-approval",
+          requestId: "rq-1",
+          prompt: "Allow?",
+          approvalKind: "command",
+        },
+      ],
+      result: { status: "success", exitCode: 0 },
+    });
+    const registry = new AdapterRegistry();
+    registry.register(adapter);
+
+    const bridge = createMockRuntimeBridge({
+      files: { [SKILL_ABS_PATH]: SKILL_CONTENT },
+    });
+
+    const runner = new RealWorkflowRunner({
+      registry,
+      bridge,
+      logStore: useRunLogStore,
+      runStore: useRunStore,
+      getNode: (id) => nodes.get(id) ?? null,
+      getRepository: () => REPO,
+      getRunMeta: () => {
+        const s = useRunStore.getState();
+        return { runId: s.runId ?? "", workflowId: s.workflowId };
+      },
+    });
+
+    runner.reset();
+
+    const outcome = await runWorkflow({
+      nodes: [runnableFrom(a)],
+      edges: [],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_waiting",
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(useRunStore.getState().nodeStates).toEqual({ a: "failed" });
+    expect(useRunLogStore.getState().nodeResults.a).toMatchObject({
+      status: "failed",
+      exitCode: 0,
+      summary: "user input required but execution ended",
+    });
+  });
 });

@@ -644,7 +644,7 @@ describe("RealWorkflowRunner", () => {
     });
   });
 
-  it("marks a node waiting_input when stderr says stdin is being read", async () => {
+  it("fails a successful adapter result that ends while stdin input is pending", async () => {
     const node = workflowNode("a");
     const harness = makeHarness({ nodes: [node] });
     const adapter = new FakeAgentAdapter({
@@ -660,12 +660,21 @@ describe("RealWorkflowRunner", () => {
     });
     harness.registry.register(adapter);
 
-    await harness.runner.runNode(runnable(node));
+    const result = await harness.runner.runNode(runnable(node));
 
+    expect(result).toEqual({
+      ok: false,
+      status: "failed",
+      reason: "failed",
+    });
     expect(useRunStore.getState().nodeStates.a).toBe("waiting_input");
+    expect(useRunLogStore.getState().nodeResults.a).toMatchObject({
+      status: "failed",
+      summary: "user input required but execution ended",
+    });
   });
 
-  it("marks a node waiting_input when approval is required", async () => {
+  it("fails a successful adapter result that ends while approval is pending", async () => {
     const node = workflowNode("a");
     const harness = makeHarness({ nodes: [node] });
     const adapter = new FakeAgentAdapter({
@@ -683,9 +692,18 @@ describe("RealWorkflowRunner", () => {
     });
     harness.registry.register(adapter);
 
-    await harness.runner.runNode(runnable(node));
+    const result = await harness.runner.runNode(runnable(node));
 
+    expect(result).toEqual({
+      ok: false,
+      status: "failed",
+      reason: "failed",
+    });
     expect(useRunStore.getState().nodeStates.a).toBe("waiting_input");
+    expect(useRunLogStore.getState().nodeResults.a).toMatchObject({
+      status: "failed",
+      summary: "user input required but execution ended",
+    });
   });
 
   it("returns a waiting_input node to running when adapter output resumes", async () => {
