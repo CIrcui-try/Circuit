@@ -1070,6 +1070,7 @@ describe("Workspace", () => {
     expect(spawnedRunIds[0]).toMatch(/::second$/);
     expect(spawnedPrompts[0]).toContain("# Rerun With Previous Failure Context");
     expect(spawnedPrompts[0]).toContain("- previous status: failed");
+    expect(screen.getByText("rerun from failed started (previous status: failed)")).toBeInTheDocument();
     expect(useRunStore.getState().nodeStates).toEqual({
       first: "skipped",
       second: "success",
