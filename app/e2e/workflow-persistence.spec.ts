@@ -73,11 +73,8 @@ test("F6: save workflow, reload page, restore the last edited graph and input", 
     .getByTestId("skill-node-input-edit")
     .click();
   await page
-    .getByTestId("skill-node-input-issue")
-    .fill("CIR-46");
-  await page
-    .getByTestId("skill-node-input-force")
-    .check();
+    .getByTestId("skill-node-input-arguments")
+    .fill("CIR-46 --force");
   await page
     .getByLabel("Close input editor")
     .click();
