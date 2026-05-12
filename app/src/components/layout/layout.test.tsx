@@ -184,7 +184,7 @@ describe("Layout shell", () => {
     expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
   });
 
-  it("LogPanel shows provider chips instead of workflow node ids when available", () => {
+  it("LogPanel shows skill names instead of workflow node ids when available", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
         id: "codex:.codex/skills/foo",
@@ -212,10 +212,11 @@ describe("Layout shell", () => {
 
     render(<LogPanel />);
 
-    const providers = screen.getAllByTestId("run-log-provider");
-    expect(providers).toHaveLength(2);
-    expect(providers[0]).toHaveTextContent("codex");
-    expect(providers[0]).toHaveClass("skill-list__chip--codex");
+    const skills = screen.getAllByTestId("run-log-skill");
+    expect(skills).toHaveLength(2);
+    expect(skills[0]).toHaveTextContent("Foo");
+    expect(skills[0]).toHaveClass("skill-list__chip--codex");
+    expect(skills[0]).toHaveAttribute("title", id);
     expect(screen.getByTestId("run-log")).not.toHaveTextContent(id);
   });
 

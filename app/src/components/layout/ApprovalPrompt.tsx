@@ -4,14 +4,17 @@ import type { WorkflowSkillProvider } from "../../workflow/schema";
 
 export interface ApprovalPromptProps {
   request: PendingApproval;
-  provider?: WorkflowSkillProvider;
+  nodeMeta?: {
+    label: string;
+    provider?: WorkflowSkillProvider;
+  };
   onRespond: (text: string) => void | Promise<void>;
   onDismiss?: () => void;
 }
 
 export function ApprovalPrompt({
   request,
-  provider,
+  nodeMeta,
   onRespond,
   onDismiss,
 }: ApprovalPromptProps) {
@@ -34,16 +37,15 @@ export function ApprovalPrompt({
       data-testid="approval-prompt"
       data-request-id={request.requestId}
     >
-      {provider ? (
-        <span
-          className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
-          data-testid="run-log-provider"
-        >
-          {provider}
-        </span>
-      ) : (
-        <span className="run-log__node">{request.nodeId}</span>
-      )}
+      <span
+        className={`run-log__node run-log__skill skill-list__chip${
+          nodeMeta?.provider ? ` skill-list__chip--${nodeMeta.provider}` : ""
+        }`}
+        data-testid="run-log-skill"
+        title={request.nodeId}
+      >
+        {nodeMeta?.label ?? request.nodeId}
+      </span>
       <span className="run-log__type">approval</span>
       <span className="run-log__payload run-log__payload--approval">
         <span className="approval__prompt">{request.prompt}</span>
