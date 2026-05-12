@@ -8,6 +8,12 @@ Circuit gives those routines a visible control surface. Instead of keeping autom
 
 The canvas is intentionally block-like: put review before commit, commit before review, add a token check between two expensive steps, or insert a new routine block when the workflow changes. If the dependency between skills changes, reconnect the nodes instead of rewriting the whole process from memory.
 
+## Visual Workflow Overview
+
+![Circuit workspace showing Claude and Codex skills in the sidebar, a connected workflow canvas, and a running Run Log.](docs/assets/readme/circuit-workflow-overview.png)
+
+The Circuit workspace brings mixed Claude and Codex skills into one visual workflow, with execution progress visible in the Run Log while the canvas remains editable.
+
 ## What Circuit Does
 
 - Registers local repositories so each project can have its own skill catalog and saved workflows.
