@@ -46,6 +46,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const argumentsHint = inputHints.find((hint) => hint.key === "arguments");
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
+  const stackInputSummary = shouldStackInputSummary(inputSummary.items);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
@@ -139,12 +140,14 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       <div className="skill-node__input" data-testid="skill-node-input-summary">
         {inputSummary.state === "present" ? (
           <span
-            className="skill-node__input-summary"
+            className={`skill-node__input-summary${stackInputSummary ? " skill-node__input-summary--stacked" : ""}`}
             title={inputSummary.summary}
           >
             {inputSummary.items.map((item, index) => (
               <span key={item.key} className="skill-node__input-token">
-                {index > 0 ? <span className="skill-node__input-separator">, </span> : null}
+                {index > 0 && !stackInputSummary ? (
+                  <span className="skill-node__input-separator">, </span>
+                ) : null}
                 <span className="skill-node__input-key">{item.key}</span>
                 <span className="skill-node__input-separator">: </span>
                 <span>{item.value}</span>
@@ -338,6 +341,11 @@ type InputSummaryItem = {
   key: string;
   value: string;
 };
+
+function shouldStackInputSummary(items: InputSummaryItem[]): boolean {
+  const keys = new Set(items.map((item) => item.key));
+  return keys.has("arguments") && keys.has("prompt");
+}
 
 function summarizeInput(input: unknown): InputSummary {
   if (input === undefined) {

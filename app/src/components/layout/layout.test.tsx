@@ -825,6 +825,34 @@ describe("Layout shell", () => {
     );
   });
 
+  it("SkillNode stacks arguments and prompt input summaries", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "planning",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/planning/SKILL.md",
+        },
+        input: {
+          arguments: "Hello_world.md 적용하기",
+          prompt: "한국어로 작성할 것",
+        },
+      },
+    });
+
+    const summary = screen.getByTestId("skill-node-input-summary");
+    const innerSummary = summary.querySelector(".skill-node__input-summary");
+    const tokens = summary.querySelectorAll(".skill-node__input-token");
+
+    expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toHaveTextContent("arguments: Hello_world.md 적용하기");
+    expect(tokens[1]).toHaveTextContent("prompt: 한국어로 작성할 것");
+    expect(summary).not.toHaveTextContent(", prompt");
+  });
+
   it("SkillNode marks non-object input as invalid", () => {
     renderSkillNode({
       id: "node-1",

@@ -1468,6 +1468,19 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node__input-summary--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+
+.skill-node__input-token {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .skill-node__input-key {
   color: #8ee48e;
   font-weight: 600;
