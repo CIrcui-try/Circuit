@@ -402,25 +402,14 @@ export function Workspace() {
       <Canvas />
       {repo && nodeCount === 0 ? (
         <section className="starter-flow-empty" data-testid="starter-flow-empty">
-          <div className="starter-flow-empty__eyebrow">First workflow</div>
-          <h2 className="starter-flow-empty__title">Build your first Circuit</h2>
+          <div className="starter-flow-empty__eyebrow">Actual repository</div>
+          <h2 className="starter-flow-empty__title">Add mixed starter flow</h2>
           <p className="starter-flow-empty__copy">
-            This workspace runs against <strong>{repo.name}</strong> at{" "}
+            This flow will run against <strong>{repo.name}</strong> at{" "}
             <code>{repo.path}</code>.
           </p>
-          <ol className="starter-flow-empty__steps">
-            <li>
-              Repository skills are scanned from{" "}
-              <code>.claude/skills/*/SKILL.md</code> and{" "}
-              <code>.codex/skills/*/SKILL.md</code>.
-            </li>
-            <li>Add one Claude skill and one Codex skill from the Skills panel.</li>
-            <li>Connect the nodes with a dependency edge on the canvas.</li>
-            <li>Name and save the workflow, then run it with <strong>Start Circuit</strong>.</li>
-            <li>Inspect status and output in <strong>Run Log</strong>.</li>
-          </ol>
           <label className="starter-flow-empty__field">
-            <span>Optional starter request</span>
+            <span>What would you like to build?</span>
             <input
               value={starterGoal}
               data-testid="starter-flow-goal-input"
@@ -434,7 +423,7 @@ export function Workspace() {
             data-testid="starter-flow-add"
             onClick={handleAddStarterFlow}
           >
-            Add mixed starter flow
+            Add Starter Flow
           </button>
         </section>
       ) : null}
