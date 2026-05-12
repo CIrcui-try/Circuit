@@ -3,6 +3,7 @@ import type { SkillInputHint } from "../../host/bridge";
 
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 import { useRunStore } from "../../runner/runStore";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
@@ -34,6 +35,7 @@ export function PropertiesPanel() {
           selectedNode.data.skillRef.provider,
           selectedNode.data.skillRef.skillFile,
           selectedNode.data.skillRef.source,
+          selectedNode.data.skillRef.systemSkillId,
         )
       : EMPTY_INPUT_HINTS,
   );
@@ -46,6 +48,7 @@ export function PropertiesPanel() {
     typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
   const promptValue =
     typeof selectedInput?.prompt === "string" ? selectedInput.prompt : "";
+  const friendlyValue = argumentsHint ? argumentsValue || promptValue : promptValue;
 
   useEffect(() => {
     setInputMode("friendly");
@@ -68,6 +71,7 @@ export function PropertiesPanel() {
     } else {
       delete next[key];
     }
+    if (argumentsHint) delete next.prompt;
     setNodeInput(selectedNodeId, Object.keys(next).length > 0 ? next : null);
   };
 
@@ -159,7 +163,7 @@ export function PropertiesPanel() {
                       : "Node input prompt"
                   }
                   placeholder={argumentsHint?.placeholder ?? "Prompt"}
-                  value={argumentsHint ? argumentsValue : promptValue}
+                  value={friendlyValue}
                   onChange={(e) => handleArgumentsChange(e.target.value)}
                 />
               ) : (
@@ -260,12 +264,22 @@ function findSkillInputHints(
   provider: string,
   skillFile: string,
   source: string | undefined,
+  systemSkillId?: string,
 ): SkillInputHint[] {
+  const resolvedSkillFile =
+    source === "system"
+      ? defaultSkillFileForLegacySystemId(systemSkillId)
+      : skillFile;
+  if (!resolvedSkillFile) return EMPTY_INPUT_HINTS;
+
   const collections =
-    source === "default" ? [defaultSkills] : Object.values(byRepo);
+    source === "default" || source === "system"
+      ? [defaultSkills]
+      : Object.values(byRepo);
   for (const skills of collections) {
     const match = skills.find(
-      (skill) => skill.provider === provider && skill.skillFile === skillFile,
+      (skill) =>
+        skill.provider === provider && skill.skillFile === resolvedSkillFile,
     );
     if (match?.inputHints?.length) return match.inputHints;
   }

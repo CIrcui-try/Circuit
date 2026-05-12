@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRunStore } from "../../runner/runStore";
+import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
+  useSkillStore.setState({
+    byRepo: {},
+    defaultSkills: [],
+    systemSkills: [],
+    loading: {},
+    errors: {},
+  });
 });
 
 describe("PropertiesPanel", () => {
@@ -270,6 +278,55 @@ describe("PropertiesPanel", () => {
       arguments: "CIR-45 --force",
       timeoutMs: 5000,
       idleTimeoutMs: 1000,
+    });
+  });
+
+  it("PP9: edits legacy starter system skill input as arguments", () => {
+    useSkillStore.setState({
+      defaultSkills: [
+        {
+          id: "codex:.codex/skills/planning",
+          provider: "codex",
+          source: "default",
+          name: "planning",
+          description: "Plan the feature",
+          rootDir: ".codex/skills/planning",
+          skillFile: ".codex/skills/planning/SKILL.md",
+          inputHints: [
+            {
+              kind: "command",
+              key: "arguments",
+              label: "feature request or Linear issue",
+              placeholder: "<feature request or Linear issue>",
+            },
+          ],
+        },
+      ],
+    });
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:starter/boarding",
+        provider: "codex",
+        source: "system",
+        name: "planning",
+        description: "",
+        rootDir: "system://codex:starter/boarding",
+        skillFile: "",
+        systemSkillId: "codex:starter/boarding",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, { prompt: "legacy prompt" });
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    const input = screen.getByTestId("node-input-arguments");
+    expect(input).toHaveValue("legacy prompt");
+    fireEvent.change(input, { target: { value: "CIR-68" } });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-68",
     });
   });
 });

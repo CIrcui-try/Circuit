@@ -9,6 +9,7 @@ import {
 import { createPortal } from "react-dom";
 import { HoverTooltip } from "../HoverTooltip";
 import { useNodeRunState } from "../../runner/runStore";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
@@ -27,6 +28,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       provider,
       data.skillRef.skillFile,
       data.skillRef.source,
+      data.skillRef.systemSkillId,
     ),
   );
   const scannedInputHints = useSkillStore((state) =>
@@ -36,6 +38,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       provider,
       data.skillRef.skillFile,
       data.skillRef.source,
+      data.skillRef.systemSkillId,
     ),
   );
   const description = storedDescription || scannedDescription;
@@ -54,7 +57,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     useWorkflowStore.getState().selectNode(id);
     const current = useWorkflowStore.getState().nodes.find((n) => n.id === id)
       ?.data.input ?? data.input;
-    setDraftArguments(readArguments(current));
+    setDraftArguments(readArguments(current) || readPrompt(current));
     setDraftPrompt(readPrompt(current));
     setIsEditingInput((open) => !open);
   };
@@ -246,6 +249,7 @@ function updateInputField(
   } else {
     delete next[key];
   }
+  if (key === "arguments") delete next.prompt;
   store.setNodeInput(nodeId, Object.keys(next).length > 0 ? next : null);
 }
 
@@ -262,12 +266,22 @@ function findSkillDescription(
   provider: SkillNodeType["data"]["skillRef"]["provider"],
   skillFile: string,
   source: SkillNodeType["data"]["skillRef"]["source"],
+  systemSkillId?: string,
 ): string {
+  const resolvedSkillFile =
+    source === "system"
+      ? defaultSkillFileForLegacySystemId(systemSkillId)
+      : skillFile;
+  if (!resolvedSkillFile) return "";
+
   const collections =
-    source === "default" ? [defaultSkills] : Object.values(byRepo);
+    source === "default" || source === "system"
+      ? [defaultSkills]
+      : Object.values(byRepo);
   for (const skills of collections) {
     const match = skills.find(
-      (skill) => skill.provider === provider && skill.skillFile === skillFile,
+      (skill) =>
+        skill.provider === provider && skill.skillFile === resolvedSkillFile,
     );
     if (match?.description.trim()) return match.description.trim();
   }
@@ -280,12 +294,22 @@ function findSkillInputHints(
   provider: SkillNodeType["data"]["skillRef"]["provider"],
   skillFile: string,
   source: SkillNodeType["data"]["skillRef"]["source"],
+  systemSkillId?: string,
 ): SkillInputHint[] {
+  const resolvedSkillFile =
+    source === "system"
+      ? defaultSkillFileForLegacySystemId(systemSkillId)
+      : skillFile;
+  if (!resolvedSkillFile) return EMPTY_INPUT_HINTS;
+
   const collections =
-    source === "default" ? [defaultSkills] : Object.values(byRepo);
+    source === "default" || source === "system"
+      ? [defaultSkills]
+      : Object.values(byRepo);
   for (const skills of collections) {
     const match = skills.find(
-      (skill) => skill.provider === provider && skill.skillFile === skillFile,
+      (skill) =>
+        skill.provider === provider && skill.skillFile === resolvedSkillFile,
     );
     if (match?.inputHints?.length) return match.inputHints;
   }

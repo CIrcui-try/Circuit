@@ -623,6 +623,62 @@ describe("Layout shell", () => {
     });
   });
 
+  it("SkillNode input popover edits legacy starter system nodes as arguments", () => {
+    useSkillStore.setState({
+      defaultSkills: [
+        {
+          id: "codex:.codex/skills/planning",
+          provider: "codex",
+          source: "default",
+          name: "planning",
+          description: "Plan the feature",
+          rootDir: ".codex/skills/planning",
+          skillFile: ".codex/skills/planning/SKILL.md",
+          inputHints: [
+            {
+              kind: "command",
+              key: "arguments",
+              label: "feature request or Linear issue",
+              placeholder: "<feature request or Linear issue>",
+            },
+          ],
+        },
+      ],
+    });
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:starter/boarding",
+        provider: "codex",
+        source: "system",
+        name: "planning",
+        description: "",
+        rootDir: "system://codex:starter/boarding",
+        skillFile: "",
+        systemSkillId: "codex:starter/boarding",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, { prompt: "legacy prompt" });
+    const node = useWorkflowStore.getState().nodes[0];
+    renderSkillNode({
+      id,
+      selected: false,
+      data: node.data,
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    expect(screen.getByTestId("skill-node-input-arguments")).toHaveValue(
+      "legacy prompt",
+    );
+    fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
+      target: { value: "CIR-68" },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-68",
+    });
+  });
+
   it("SkillNode input popover closes from its close button", () => {
     renderSkillNode({
       id: "node-1",
