@@ -1,0 +1,98 @@
+name: Beta Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  macos-dmg:
+    name: Build Apple Silicon DMG
+    runs-on: macos-14
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release metadata
+        id: release
+        run: |
+          app_version="$(node -p "require('./package.json').version")"
+          tag="v${app_version}-beta.${GITHUB_RUN_NUMBER}"
+          asset_name="Circuit-${app_version}-beta.${GITHUB_RUN_NUMBER}-aarch64.dmg"
+
+          {
+            echo "app_version=${app_version}"
+            echo "tag=${tag}"
+            echo "asset_name=${asset_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        run: pnpm tauri build --target aarch64-apple-darwin --bundles dmg
+
+      - name: Prepare release asset
+        run: |
+          dmg_path="$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
+
+          if [ -z "$dmg_path" ]; then
+            echo "No DMG was produced."
+            exit 1
+          fi
+
+          mkdir -p release-assets
+          cp "$dmg_path" "release-assets/${{ steps.release.outputs.asset_name }}"
+
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<EOF
+          Beta build from main.
+
+          Commit: ${GITHUB_SHA}
+
+          This DMG is unsigned and not notarized. macOS Gatekeeper may show a warning during installation.
+          EOF
+
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            "release-assets/${{ steps.release.outputs.asset_name }}" \
+            --title "Circuit ${{ steps.release.outputs.tag }}" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --latest=false
