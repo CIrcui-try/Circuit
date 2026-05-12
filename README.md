@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/readme/circuit-graphic-logo.png" alt="Circuit" width="520">
+</p>
+
 # Circuit
 
 Circuit is a local-first desktop app for turning Claude and Codex skills into visual workflows.
