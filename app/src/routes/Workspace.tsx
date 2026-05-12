@@ -12,6 +12,11 @@ import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
+import { getHostBridge } from "../host/bridge";
+import {
+  isTutorialRepositoryPath,
+  tutorialResultPath,
+} from "../tutorial";
 import { fromWorkflow } from "../workflow/serialize";
 import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
@@ -185,6 +190,9 @@ export function Workspace() {
           describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
           options.errorTitle ?? "Start Circuit failed",
         );
+      }
+      if (outcome.status === "success") {
+        void openTutorialResult(snapshot.repository.path);
       }
     } catch (err) {
       notifyAppError(err, options.errorTitle ?? "Start Circuit failed");
@@ -477,6 +485,19 @@ export function Workspace() {
       {logCollapsed ? null : <ResizeHandle direction="log" />}
     </div>
   );
+}
+
+async function openTutorialResult(repoPath: string): Promise<void> {
+  if (!isTutorialRepositoryPath(repoPath)) return;
+
+  const htmlPath = tutorialResultPath(repoPath);
+  try {
+    const exists = await getHostBridge().pathExists?.(htmlPath);
+    if (!exists) return;
+    await openPath(htmlPath);
+  } catch (err) {
+    notifyAppError(err, "Open tutorial result failed");
+  }
 }
 
 type StartSnapshotOptions = {

@@ -9,7 +9,7 @@ import {
 import { validateWorkflow } from "./validate";
 
 describe("workflow/starterFlow", () => {
-  it("SF1: defines the mixed starter flow as a regular workflow JSON", () => {
+  it("SF1: defines the tutorial starter flow as a regular workflow JSON", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       initialRequest: "Add a theme toggle",
@@ -22,39 +22,33 @@ describe("workflow/starterFlow", () => {
       "starter_boarding",
       "starter_taxiing",
       "starter_review_and_fix",
-      "starter_takeoff",
-      "starter_landing",
+      "starter_wrap_up",
     ]);
     expect(wf.nodes.map((node) => node.label)).toEqual([
       "planning",
       "implement-plan",
       "review-changes",
-      "publish-pr",
-      "cleanup-merged-pr",
+      "wrap-up",
     ]);
     expect(wf.edges.map((edge) => [edge.source, edge.target])).toEqual([
       ["starter_boarding", "starter_taxiing"],
       ["starter_taxiing", "starter_review_and_fix"],
-      ["starter_review_and_fix", "starter_takeoff"],
-      ["starter_takeoff", "starter_landing"],
+      ["starter_review_and_fix", "starter_wrap_up"],
     ]);
     expect(wf.nodes.map((node) => node.position)).toEqual([
       { x: 240, y: 80 },
       { x: 240, y: 260 },
       { x: 240, y: 440 },
       { x: 240, y: 620 },
-      { x: 240, y: 800 },
     ]);
     expect(wf.nodes.map((node) => node.skillRef.provider)).toEqual([
       "codex",
       "claude",
       "codex",
-      "claude",
-      "claude",
+      "codex",
     ]);
     expect(wf.nodes.map((node) => node.input)).toEqual([
       { arguments: "Add a theme toggle" },
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -80,10 +74,7 @@ describe("workflow/starterFlow", () => {
       saveLoadContract: "regular-workflow-json",
       actualRepoEffects: true,
     });
-    expect(CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES.map((b) => b.nodeId)).toEqual([
-      "starter_takeoff",
-      "starter_landing",
-    ]);
+    expect(CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES).toEqual([]);
   });
 
   it("SF3: survives the existing load and save path without repository skill files", () => {
@@ -120,7 +111,7 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(saved)).toEqual({ ok: true });
   });
 
-  it("SF4: assigns planning and review to Codex, and operations to Claude", () => {
+  it("SF4: assigns planning, review, and wrap-up to Codex, and implementation to Claude", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       now: () => "2026-05-11T00:00:00.000Z",
@@ -143,13 +134,8 @@ describe("workflow/starterFlow", () => {
     });
     expect(wf.nodes[3].skillRef).toEqual({
       source: "default",
-      provider: "claude",
-      skillFile: ".claude/skills/publish-pr/SKILL.md",
-    });
-    expect(wf.nodes[4].skillRef).toEqual({
-      source: "default",
-      provider: "claude",
-      skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
+      provider: "codex",
+      skillFile: ".codex/skills/wrap-up/SKILL.md",
     });
   });
 });

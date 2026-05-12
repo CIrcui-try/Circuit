@@ -67,6 +67,8 @@ export interface WorkspaceBridge {
 
 export interface HostBridge extends Partial<WorkspaceBridge> {
   openRepositoryDialog(): Promise<string | null>;
+  createTutorialRepository?(): Promise<string>;
+  pathExists?(path: string): Promise<boolean>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
   scanDefaultSkills?(): Promise<RawSkill[]>;
   scanSystemSkills?(): Promise<RawSystemSkill[]>;

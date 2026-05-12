@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
+  createTutorialRepository: vi.fn(),
   scanSkills: vi.fn(),
   loadRepositories: vi.fn(),
   saveRepositories: vi.fn(),
@@ -21,11 +22,13 @@ import { renderWithRouter } from "../test/utils";
 
 beforeEach(() => {
   bridgeMock.openRepositoryDialog.mockReset();
+  bridgeMock.createTutorialRepository.mockReset();
   bridgeMock.scanSkills.mockReset();
   bridgeMock.loadRepositories.mockReset();
   bridgeMock.saveRepositories.mockReset();
 
   bridgeMock.openRepositoryDialog.mockResolvedValue(null);
+  bridgeMock.createTutorialRepository.mockResolvedValue("/Users/me/Circuit Tutorial");
   bridgeMock.scanSkills.mockResolvedValue([]);
   bridgeMock.loadRepositories.mockResolvedValue(null);
   bridgeMock.saveRepositories.mockResolvedValue(undefined);
@@ -45,7 +48,9 @@ describe("RepositoryList", () => {
 
     expect(screen.getByRole("heading", { name: "Repositories" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Repository" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try Tutorial" })).toBeInTheDocument();
     expect(screen.getByTestId("add-repository-button")).toBeInTheDocument();
+    expect(screen.getByTestId("try-tutorial-button")).toBeInTheDocument();
     expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
   });
 
@@ -74,6 +79,33 @@ describe("RepositoryList", () => {
     await waitFor(() => expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled());
     expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("R3b: Try Tutorial creates a tutorial repo and saves a starter draft", async () => {
+    const user = userEvent.setup();
+
+    renderWithRouter(<RepositoryList />);
+    await user.click(screen.getByTestId("try-tutorial-button"));
+
+    expect(bridgeMock.createTutorialRepository).toHaveBeenCalled();
+    const item = await screen.findByText("Circuit Tutorial");
+    expect(item).toBeInTheDocument();
+    expect(screen.getByText("/Users/me/Circuit Tutorial")).toBeInTheDocument();
+
+    const repo = useRepositoryStore.getState().repositories[0];
+    const rawDraft = window.localStorage.getItem(`circuit.workflowDraft.${repo.id}`);
+    expect(rawDraft).toBeTruthy();
+    const draft = JSON.parse(rawDraft ?? "{}");
+    expect(draft.workflowName).toBe("Tutorial starter flow");
+    expect(draft.nodes[0].data.input).toEqual({
+      arguments: "Create hello_world.html with a friendly Hello from Circuit page.",
+    });
+    expect(draft.nodes.map((node: { id: string }) => node.id)).toEqual([
+      "starter_boarding",
+      "starter_taxiing",
+      "starter_review_and_fix",
+      "starter_wrap_up",
+    ]);
   });
 
   it("R4: pre-seeded repositories render as links to /workspace/<id>", () => {

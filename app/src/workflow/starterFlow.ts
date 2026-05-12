@@ -7,7 +7,7 @@ import {
 } from "./schema";
 
 export const CODEX_STARTER_FLOW_ID = "codex-starter-issue-lifecycle";
-export const CODEX_STARTER_FLOW_NAME = "Mixed starter flow";
+export const CODEX_STARTER_FLOW_NAME = "Tutorial starter flow";
 
 export const CODEX_STARTER_FLOW_BINDING_POLICY = {
   repository: "selected-repository",
@@ -18,16 +18,6 @@ export const CODEX_STARTER_FLOW_BINDING_POLICY = {
 } as const;
 
 export const CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES = [
-  {
-    nodeId: "starter_takeoff",
-    boundary: "remote",
-    description: "fetches/rebases, pushes the branch, and creates a PR",
-  },
-  {
-    nodeId: "starter_landing",
-    boundary: "post-merge-cleanup",
-    description: "runs only after the PR is merged and may remove the temporary worktree",
-  },
 ] as const;
 
 type StarterStep = {
@@ -53,7 +43,7 @@ const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_taxiing",
     label: "implement-plan",
-    description: "Implement the plan in the worktree, test it, and commit local changes.",
+    description: "Implement the planned change in the selected folder and verify it.",
     provider: "claude",
     skillFile: ".claude/skills/implement-plan/SKILL.md",
     x: 240,
@@ -69,22 +59,13 @@ const STARTER_STEPS: StarterStep[] = [
     y: 440,
   },
   {
-    id: "starter_takeoff",
-    label: "publish-pr",
-    description: "Rebase on develop, push the branch, and open a PR.",
-    provider: "claude",
-    skillFile: ".claude/skills/publish-pr/SKILL.md",
+    id: "starter_wrap_up",
+    label: "wrap-up",
+    description: "Summarize the result and note what the user should inspect next.",
+    provider: "codex",
+    skillFile: ".codex/skills/wrap-up/SKILL.md",
     x: 240,
     y: 620,
-  },
-  {
-    id: "starter_landing",
-    label: "cleanup-merged-pr",
-    description: "After merge, remove the temporary worktree and sync develop.",
-    provider: "claude",
-    skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
-    x: 240,
-    y: 800,
   },
 ];
 
