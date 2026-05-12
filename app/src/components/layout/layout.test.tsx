@@ -261,6 +261,23 @@ describe("Layout shell", () => {
     expect(summary).not.toHaveTextContent("CIRCUIT_SUMMARY:");
   });
 
+  it("LogPanel shows the full one-line CIRCUIT_SUMMARY in stream summaries", () => {
+    const summaryText =
+      "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet";
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: `CIRCUIT_SUMMARY: ${summaryText}\n`,
+    });
+
+    render(<LogPanel />);
+
+    const group = screen.getByTestId("run-log-stream-group");
+    expect(group).toHaveTextContent(`1 line - ${summaryText}`);
+    expect(group).not.toHaveTextContent("implementable fe...");
+  });
+
   it("LogPanel skips tokens used and token counts when picking a stream summary", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
@@ -348,6 +365,25 @@ describe("Layout shell", () => {
     expect(result).toHaveTextContent("node-a");
     expect(result).toHaveTextContent("failed (exit 2)");
     expect(result).toHaveClass("run-log__line--result-failed");
+  });
+
+  it("LogPanel includes node result summaries in the result row", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "failed",
+      exitCode: 0,
+      summary:
+        "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-result")).toHaveTextContent(
+      "failed (exit 0) - Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+    );
   });
 
   it("LogPanel clears visible run log entries when the run is idle", () => {

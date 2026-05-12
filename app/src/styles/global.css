@@ -721,6 +721,11 @@ a:hover {
   word-break: break-word;
 }
 
+.run-log__payload {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .run-log__line--stream {
   display: block;
   padding: 0;
