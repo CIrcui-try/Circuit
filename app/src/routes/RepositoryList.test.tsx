@@ -128,7 +128,7 @@ describe("RepositoryList", () => {
     });
     expect(draft.nodes[3].data.input).toEqual({
       prompt:
-        "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly. Do not create extra summary files.",
+        "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
     });
     expect(draft.nodes.map((node: { id: string }) => node.id)).toEqual([
       "starter_boarding",

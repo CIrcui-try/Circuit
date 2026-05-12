@@ -25,7 +25,7 @@ const TUTORIAL_STARTER_NODE_PROMPTS: StarterNodePrompts = {
   starter_review_and_fix:
     "Review hello_world.html, fix only obvious issues, and verify the file contents from disk. Do not open the page or launch a browser in this step.",
   starter_wrap_up:
-    "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly. Do not create extra summary files.",
+    "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
 };
 
 export function RepositoryList() {
