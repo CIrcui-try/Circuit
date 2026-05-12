@@ -1111,6 +1111,21 @@ a:hover {
 
 .repository-list__item-name {
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.repository-list__tutorial-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid #7a6333;
+  border-radius: 999px;
+  color: #f2cf78;
+  background: rgba(107, 82, 35, 0.28);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .repository-list__item-path {

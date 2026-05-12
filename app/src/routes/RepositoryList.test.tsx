@@ -43,18 +43,35 @@ beforeEach(() => {
 });
 
 describe("RepositoryList", () => {
-  it("R1: shows empty hint and Add button when no repositories", () => {
+  it("R1: seeds the tutorial repository when no repositories exist", async () => {
     renderWithRouter(<RepositoryList />);
 
     expect(screen.getByRole("heading", { name: "Repositories" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Repository" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try Tutorial" })).toBeInTheDocument();
     expect(screen.getByTestId("add-repository-button")).toBeInTheDocument();
-    expect(screen.getByTestId("try-tutorial-button")).toBeInTheDocument();
-    expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /Circuit Tutorial/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("tutorial-start-hint")).toHaveTextContent("Start here");
+    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toHaveAttribute(
+      "title",
+      "Start here: open this tutorial repository and run the starter flow.",
+    );
   });
 
   it("R2: clicking Add invokes folder picker and renders selected folder", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-tutorial",
+          name: "Circuit Tutorial",
+          path: "/Users/me/Circuit Tutorial",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
     bridgeMock.openRepositoryDialog.mockResolvedValueOnce("/Users/me/projects/alpha");
     const user = userEvent.setup();
 
@@ -69,26 +86,26 @@ describe("RepositoryList", () => {
     expect(screen.getByTestId("repository-list")).toBeInTheDocument();
   });
 
-  it("R3: cancelling the picker (null) leaves the empty hint intact", async () => {
+  it("R3: cancelling the picker leaves the seeded tutorial repo intact", async () => {
     bridgeMock.openRepositoryDialog.mockResolvedValueOnce(null);
     const user = userEvent.setup();
 
     renderWithRouter(<RepositoryList />);
+    expect(
+      await screen.findByRole("link", { name: /Circuit Tutorial/ }),
+    ).toBeInTheDocument();
     await user.click(screen.getByTestId("add-repository-button"));
 
     await waitFor(() => expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled());
-    expect(screen.getByText(/No repositories yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toBeInTheDocument();
   });
 
-  it("R3b: Try Tutorial creates a tutorial repo and saves a starter draft", async () => {
-    const user = userEvent.setup();
-
+  it("R3b: seeded tutorial repo saves a starter draft", async () => {
     renderWithRouter(<RepositoryList />);
-    await user.click(screen.getByTestId("try-tutorial-button"));
 
     expect(bridgeMock.createTutorialRepository).toHaveBeenCalled();
-    const item = await screen.findByText("Circuit Tutorial");
+    const item = await screen.findByRole("link", { name: /Circuit Tutorial/ });
     expect(item).toBeInTheDocument();
     expect(screen.getByText("/Users/me/Circuit Tutorial")).toBeInTheDocument();
 

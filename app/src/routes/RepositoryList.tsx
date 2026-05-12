@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
 import { getHostBridge } from "../host/bridge";
@@ -15,7 +15,6 @@ import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import { saveWorkflowDraft } from "../workflow/workflowDraft";
 
 export function RepositoryList() {
-  const navigate = useNavigate();
   const repositories = useRepositoryStore((s) => s.repositories);
   const hydrated = useRepositoryStore((s) => s.hydrated);
   const addRepository = useRepositoryStore((s) => s.addRepository);
@@ -31,6 +30,8 @@ export function RepositoryList() {
     id: string;
     name: string;
   } | null>(null);
+  const [isPreparingTutorial, setIsPreparingTutorial] = useState(false);
+  const tutorialSeedAttempted = useRef(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -39,6 +40,18 @@ export function RepositoryList() {
     }
   }, [hydrated, repositories, scanRepository]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    if (repositories.length > 0) return;
+    if (tutorialSeedAttempted.current) return;
+
+    tutorialSeedAttempted.current = true;
+    setIsPreparingTutorial(true);
+    void seedTutorialRepository()
+      .catch((err) => notifyAppError(err, "Prepare tutorial failed"))
+      .finally(() => setIsPreparingTutorial(false));
+  }, [hydrated, repositories.length]);
+
   async function handleAdd() {
     const selected = await getHostBridge().openRepositoryDialog();
     if (selected) {
@@ -46,39 +59,6 @@ export function RepositoryList() {
       if (added) {
         scanRepository(added.id, added.path);
       }
-    }
-  }
-
-  async function handleTryTutorial() {
-    try {
-      const bridge = getHostBridge();
-      if (!bridge.createTutorialRepository) {
-        throw new Error("tutorial repository creation is not available");
-      }
-      const path = normalizePath(await bridge.createTutorialRepository());
-      const existing = useRepositoryStore
-        .getState()
-        .repositories.find((repo) => normalizePath(repo.path) === path);
-      const repo = existing ?? (await addRepository(path));
-      if (!repo) {
-        throw new Error("failed to register tutorial repository");
-      }
-
-      const workflow = createCodexStarterWorkflow({
-        repositoryId: repo.id,
-        initialRequest: TUTORIAL_STARTER_PROMPT,
-      });
-      const restored = fromWorkflow(workflow);
-      saveWorkflowDraft(repo.id, {
-        workflowId: restored.meta.id,
-        workflowName: restored.meta.name,
-        nodes: restored.nodes,
-        edges: restored.edges,
-      });
-      scanRepository(repo.id, repo.path);
-      navigate(`/workspace/${repo.id}`);
-    } catch (err) {
-      notifyAppError(err, "Start tutorial failed");
     }
   }
 
@@ -115,13 +95,6 @@ export function RepositoryList() {
         >
           Add Repository
         </button>
-        <button
-          type="button"
-          onClick={() => void handleTryTutorial()}
-          data-testid="try-tutorial-button"
-        >
-          Try Tutorial
-        </button>
         {repositories.length > 0 && (
           <button type="button" onClick={handleRefreshAll}>Refresh</button>
         )}
@@ -142,8 +115,15 @@ export function RepositoryList() {
 
       {repositories.length === 0 ? (
         <p className="repository-list__hint">
-          No repositories yet. Click <strong>Add Repository</strong> to choose a local folder,
-          or try the safe <strong>{TUTORIAL_REPOSITORY_NAME}</strong>.
+          {isPreparingTutorial ? (
+            <>
+              Preparing <strong>{TUTORIAL_REPOSITORY_NAME}</strong>...
+            </>
+          ) : (
+            <>
+              No repositories yet. Click <strong>Add Repository</strong> to choose a local folder.
+            </>
+          )}
         </p>
       ) : (
         <ul className="repository-list__items" data-testid="repository-list">
@@ -151,10 +131,30 @@ export function RepositoryList() {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
             const isRunRepo = runStatus === "running" && runRepositoryId === repo.id;
+            const isTutorialRepo = repo.name === TUTORIAL_REPOSITORY_NAME;
             return (
               <li key={repo.id} className="repository-list__row">
-                <Link to={`/workspace/${repo.id}`} className="repository-list__item">
-                  <span className="repository-list__item-name">{repo.name}</span>
+                <Link
+                  to={`/workspace/${repo.id}`}
+                  className="repository-list__item"
+                  title={
+                    isTutorialRepo
+                      ? "Start here: open this tutorial repository and run the starter flow."
+                      : undefined
+                  }
+                >
+                  <span className="repository-list__item-name">
+                    {repo.name}
+                    {isTutorialRepo ? (
+                      <span
+                        className="repository-list__tutorial-badge"
+                        data-testid="tutorial-start-hint"
+                        title="Start here: open this tutorial repository and run the starter flow."
+                      >
+                        Start here
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="repository-list__item-path">{repo.path}</span>
                   <span className="repository-list__badges">
                     <SkillBadge
@@ -243,6 +243,36 @@ export function RepositoryList() {
 
 function normalizePath(path: string): string {
   return path.replace(/\/+$/, "");
+}
+
+async function seedTutorialRepository(): Promise<void> {
+  const bridge = getHostBridge();
+  if (!bridge.createTutorialRepository) {
+    throw new Error("tutorial repository creation is not available");
+  }
+
+  const path = normalizePath(await bridge.createTutorialRepository());
+  if (useRepositoryStore.getState().repositories.length > 0) return;
+
+  const added = await useRepositoryStore.getState().addRepository(path);
+  if (!added) return;
+
+  saveTutorialStarterDraft(added.id);
+  await useSkillStore.getState().scanRepository(added.id, added.path);
+}
+
+function saveTutorialStarterDraft(repositoryId: string): void {
+  const workflow = createCodexStarterWorkflow({
+    repositoryId,
+    initialRequest: TUTORIAL_STARTER_PROMPT,
+  });
+  const restored = fromWorkflow(workflow);
+  saveWorkflowDraft(repositoryId, {
+    workflowId: restored.meta.id,
+    workflowName: restored.meta.name,
+    nodes: restored.nodes,
+    edges: restored.edges,
+  });
 }
 
 function SkillBadge({
