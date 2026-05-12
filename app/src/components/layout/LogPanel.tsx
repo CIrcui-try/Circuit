@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { getHostBridge, type RunLogEntryDTO } from "../../host/bridge";
 import { parseRunLogJsonl } from "../../runner/runLogPersistence";
 import {
@@ -26,6 +33,30 @@ type RunLogDisplayItem =
       stream: "stdout" | "stderr";
       events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[];
     };
+
+type RunLogColumnKey = "provider" | "skill" | "type" | "message";
+type RunLogColumnWidths = Record<RunLogColumnKey, number>;
+type RunLogNodeMeta = {
+  provider?: WorkflowSkillProvider;
+  skillLabel: string;
+};
+
+const RUN_LOG_COLUMN_STORAGE_KEY = "circuit.runLog.columns.v1";
+const RUN_LOG_COLUMN_DEFAULTS: RunLogColumnWidths = {
+  provider: 90,
+  skill: 150,
+  type: 70,
+  message: 520,
+};
+const RUN_LOG_COLUMN_BOUNDS: Record<
+  RunLogColumnKey,
+  { min: number; max: number }
+> = {
+  provider: { min: 72, max: 160 },
+  skill: { min: 96, max: 340 },
+  type: { min: 56, max: 140 },
+  message: { min: 180, max: 1200 },
+};
 
 export interface LogPanelProps {
   /** Override the runtime bridge — used by tests / Storybook. */
@@ -231,6 +262,12 @@ function PastRunsPicker({
 
 export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = {}) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [columnWidths, setColumnWidths] = useRunLogColumnWidths();
+  const [activeResize, setActiveResize] = useState<{
+    column: RunLogColumnKey;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const copyFeedbackTimeoutRef = useRef<number | null>(null);
   const events = useRunLogStore((s) => s.events);
   const nodeResults = useRunLogStore((s) => s.nodeResults);
@@ -274,13 +311,64 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     events,
     new Set(approvals.map((a) => a.requestId)),
   );
-  const getNodeMeta = (nodeId: string): LogNodeMeta => {
+  const getNodeMeta = (nodeId: string): RunLogNodeMeta => {
     const node = workflowNodes.find((n) => n.id === nodeId);
     return {
-      label: node?.data.label ?? nodeId,
       provider: node?.data.skillRef.provider,
+      skillLabel: node?.data.label ?? nodeId,
     };
   };
+
+  const logColumnStyle = toRunLogColumnStyle(columnWidths);
+
+  useEffect(() => {
+    if (!activeResize) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const delta = event.clientX - activeResize.startX;
+      setColumnWidths((current) => ({
+        ...current,
+        [activeResize.column]: clampRunLogColumnWidth(
+          activeResize.column,
+          activeResize.startWidth + delta,
+        ),
+      }));
+    };
+    const handlePointerUp = () => setActiveResize(null);
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [activeResize, setColumnWidths]);
+
+  const handleResizeStart =
+    (column: RunLogColumnKey) =>
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setActiveResize({
+        column,
+        startX: event.clientX,
+        startWidth: columnWidths[column],
+      });
+    };
+
+  const handleHeaderKeyDown =
+    (column: RunLogColumnKey) =>
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+      const delta = event.key === "ArrowLeft" ? -10 : event.key === "ArrowRight" ? 10 : 0;
+      if (delta === 0) return;
+      event.preventDefault();
+      setColumnWidths((current) => ({
+        ...current,
+        [column]: clampRunLogColumnWidth(column, current[column] + delta),
+      }));
+    };
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -384,7 +472,11 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           isRunning={isRunning}
         />
       ) : null}
-      <ul className="run-log" data-testid="run-log">
+      <ul className="run-log" data-testid="run-log" style={logColumnStyle}>
+        <RunLogColumnHeader
+          onResizeStart={handleResizeStart}
+          onResizeKeyDown={handleHeaderKeyDown}
+        />
         {displayItems.map((item, i) =>
           item.kind === "stream" ? (
             <StreamLogGroup
@@ -398,10 +490,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
               className={`run-log__line run-log__line--${item.event.type}`}
               data-testid="run-log-line"
             >
-              <RunLogProviderBadge meta={getNodeMeta(item.nodeId)} />
-              <RunLogSkillName
+              <RunLogProviderCell provider={getNodeMeta(item.nodeId).provider} />
+              <RunLogSkillCell
                 nodeId={item.nodeId}
-                label={getNodeMeta(item.nodeId).label}
+                label={getNodeMeta(item.nodeId).skillLabel}
               />
               <span className="run-log__type">{formatEventType(item.event)}</span>
               <span className="run-log__payload">
@@ -414,7 +506,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           <ApprovalPrompt
             key={`approval-${approval.requestId}`}
             request={approval}
-            nodeMeta={getNodeMeta(approval.nodeId)}
+            provider={getNodeMeta(approval.nodeId).provider}
+            skillLabel={getNodeMeta(approval.nodeId).skillLabel}
             onRespond={(text) => handleRespond(approval, text)}
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
@@ -425,8 +518,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}
             data-testid="run-log-result"
           >
-            <RunLogProviderBadge meta={getNodeMeta(nodeId)} />
-            <RunLogSkillName nodeId={nodeId} label={getNodeMeta(nodeId).label} />
+            <RunLogProviderCell provider={getNodeMeta(nodeId).provider} />
+            <RunLogSkillCell nodeId={nodeId} label={getNodeMeta(nodeId).skillLabel} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -440,17 +533,44 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   );
 }
 
-type LogNodeMeta = {
-  label: string;
-  provider?: WorkflowSkillProvider;
-};
+function RunLogColumnHeader({
+  onResizeStart,
+  onResizeKeyDown,
+}: {
+  onResizeStart: (
+    column: RunLogColumnKey,
+  ) => (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onResizeKeyDown: (
+    column: RunLogColumnKey,
+  ) => (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <li className="run-log__header" data-testid="run-log-column-header">
+      {(["provider", "skill", "type", "message"] as RunLogColumnKey[]).map(
+        (column) => (
+          <span key={column} className={`run-log__header-cell run-log__header-cell--${column}`}>
+            {formatRunLogColumnLabel(column)}
+            <button
+              type="button"
+              className="run-log__resize-handle"
+              data-testid={`run-log-resize-${column}`}
+              aria-label={`Resize ${formatRunLogColumnLabel(column)} column`}
+              onPointerDown={onResizeStart(column)}
+              onKeyDown={onResizeKeyDown(column)}
+            />
+          </span>
+        ),
+      )}
+    </li>
+  );
+}
 
 function StreamLogGroup({
   item,
   nodeMeta,
 }: {
   item: Extract<RunLogDisplayItem, { kind: "stream" }>;
-  nodeMeta: LogNodeMeta;
+  nodeMeta: RunLogNodeMeta;
 }) {
   const lineCount = countStreamLines(item.events);
   const preview = summarizeStreamGroup(item.events);
@@ -463,8 +583,8 @@ function StreamLogGroup({
     >
       <details className="run-log__details">
         <summary className="run-log__summary-row">
-          <RunLogProviderBadge meta={nodeMeta} />
-          <RunLogSkillName nodeId={item.nodeId} label={nodeMeta.label} />
+          <RunLogProviderCell provider={nodeMeta.provider} />
+          <RunLogSkillCell nodeId={item.nodeId} label={nodeMeta.skillLabel} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
             {lineCount} {lineCount === 1 ? "line" : "lines"}
@@ -479,26 +599,26 @@ function StreamLogGroup({
   );
 }
 
-function RunLogProviderBadge({
-  meta,
+function RunLogProviderCell({
+  provider,
 }: {
-  meta: LogNodeMeta;
+  provider?: WorkflowSkillProvider;
 }) {
-  if (!meta.provider) {
-    return <span className="run-log__node run-log__provider">-</span>;
+  if (provider) {
+    return (
+      <span
+        className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
+        data-testid="run-log-provider"
+      >
+        {provider}
+      </span>
+    );
   }
 
-  return (
-    <span
-      className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${meta.provider}`}
-      data-testid="run-log-provider"
-    >
-      {meta.provider}
-    </span>
-  );
+  return <span className="run-log__provider run-log__provider--empty">-</span>;
 }
 
-function RunLogSkillName({
+function RunLogSkillCell({
   nodeId,
   label,
 }: {
@@ -506,11 +626,7 @@ function RunLogSkillName({
   label: string;
 }) {
   return (
-    <span
-      className="run-log__node run-log__skill"
-      data-testid="run-log-skill"
-      title={nodeId}
-    >
+    <span className="run-log__skill" data-testid="run-log-skill" title={nodeId}>
       {label}
     </span>
   );
@@ -696,6 +812,81 @@ function joinStreamText(
     }, "");
 }
 
+function useRunLogColumnWidths() {
+  const [widths, setWidths] = useState<RunLogColumnWidths>(() =>
+    readStoredRunLogColumnWidths(),
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      RUN_LOG_COLUMN_STORAGE_KEY,
+      JSON.stringify(widths),
+    );
+  }, [widths]);
+
+  return [widths, setWidths] as const;
+}
+
+function readStoredRunLogColumnWidths(): RunLogColumnWidths {
+  if (typeof window === "undefined") return RUN_LOG_COLUMN_DEFAULTS;
+
+  try {
+    const raw = window.localStorage.getItem(RUN_LOG_COLUMN_STORAGE_KEY);
+    if (!raw) return RUN_LOG_COLUMN_DEFAULTS;
+    const parsed = JSON.parse(raw) as Partial<Record<RunLogColumnKey, unknown>>;
+    return {
+      provider: parseStoredRunLogColumnWidth("provider", parsed.provider),
+      skill: parseStoredRunLogColumnWidth("skill", parsed.skill),
+      type: parseStoredRunLogColumnWidth("type", parsed.type),
+      message: parseStoredRunLogColumnWidth("message", parsed.message),
+    };
+  } catch {
+    return RUN_LOG_COLUMN_DEFAULTS;
+  }
+}
+
+function parseStoredRunLogColumnWidth(
+  column: RunLogColumnKey,
+  value: unknown,
+): number {
+  return typeof value === "number"
+    ? clampRunLogColumnWidth(column, value)
+    : RUN_LOG_COLUMN_DEFAULTS[column];
+}
+
+function clampRunLogColumnWidth(
+  column: RunLogColumnKey,
+  width: number,
+): number {
+  const bounds = RUN_LOG_COLUMN_BOUNDS[column];
+  return Math.min(bounds.max, Math.max(bounds.min, Math.round(width)));
+}
+
+function toRunLogColumnStyle(
+  widths: RunLogColumnWidths,
+): CSSProperties & Record<string, string> {
+  return {
+    "--run-log-provider-width": `${widths.provider}px`,
+    "--run-log-skill-width": `${widths.skill}px`,
+    "--run-log-type-width": `${widths.type}px`,
+    "--run-log-message-width": `${widths.message}px`,
+  } as CSSProperties & Record<string, string>;
+}
+
+function formatRunLogColumnLabel(column: RunLogColumnKey): string {
+  switch (column) {
+    case "provider":
+      return "Provider";
+    case "skill":
+      return "Skill";
+    case "type":
+      return "Type";
+    case "message":
+      return "Message";
+  }
+}
+
 function formatPayload(ev: AgentRunEvent): string {
   switch (ev.type) {
     case "stdout":
@@ -718,11 +909,11 @@ function formatPayload(ev: AgentRunEvent): string {
 function formatRunLogForClipboard(
   events: { nodeId: string; event: AgentRunEvent }[],
   nodeResults: Record<string, { status: string; exitCode?: number }>,
-  getNodeMeta: (nodeId: string) => LogNodeMeta,
+  getNodeMeta: (nodeId: string) => RunLogNodeMeta,
 ): string {
   const lines = events.map((entry) =>
     [
-      getNodeMeta(entry.nodeId).label,
+      getNodeMeta(entry.nodeId).skillLabel,
       entry.event.type,
       formatPayload(entry.event),
     ].join("\t"),
@@ -732,7 +923,7 @@ function formatRunLogForClipboard(
       result.exitCode != null
         ? `${result.status} (exit ${result.exitCode})`
         : result.status;
-    lines.push([getNodeMeta(nodeId).label, "result", payload].join("\t"));
+    lines.push([getNodeMeta(nodeId).skillLabel, "result", payload].join("\t"));
   }
   return lines.join("\n");
 }

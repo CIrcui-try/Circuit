@@ -728,6 +728,22 @@ a:hover {
 }
 
 .run-log {
+  --run-log-provider-width: 90px;
+  --run-log-skill-width: 150px;
+  --run-log-type-width: 70px;
+  --run-log-message-width: 520px;
+  --run-log-grid-template: minmax(72px, var(--run-log-provider-width))
+    minmax(96px, var(--run-log-skill-width))
+    minmax(56px, var(--run-log-type-width))
+    minmax(var(--run-log-message-width), 1fr);
+  --run-log-min-grid-width: calc(
+    var(--run-log-provider-width) + var(--run-log-skill-width) +
+      var(--run-log-type-width) + var(--run-log-message-width) + 48px
+  );
+  --run-log-message-offset: calc(
+    12px + var(--run-log-provider-width) + var(--run-log-skill-width) +
+      var(--run-log-type-width) + 24px
+  );
   flex: 1 1 auto;
   min-height: 0;
   list-style: none;
@@ -741,21 +757,82 @@ a:hover {
 
 .run-log__line {
   display: grid;
-  grid-template-columns: 90px 150px 60px 1fr;
+  grid-template-columns: var(--run-log-grid-template);
   gap: 8px;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 2px 12px;
   color: #c8c8cf;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: normal;
 }
 
 .run-log__payload {
   min-width: 0;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.run-log__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--run-log-grid-template);
+  gap: 8px;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
+  padding: 3px 12px 4px;
+  color: #a5a5ad;
+  background: #202026;
+  border-bottom: 1px solid #303038;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.run-log__header-cell {
+  position: relative;
+  min-width: 0;
+  padding-right: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log__resize-handle {
+  position: absolute;
+  top: -2px;
+  right: -6px;
+  width: 11px;
+  height: calc(100% + 4px);
+  padding: 0;
+  cursor: col-resize;
+  background: transparent;
+  border: 0;
+}
+
+.run-log__resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  width: 1px;
+  height: calc(100% - 6px);
+  background: #4c4c56;
+}
+
+.run-log__resize-handle:hover::after,
+.run-log__resize-handle:focus-visible::after {
+  background: #8f8f9a;
 }
 
 .run-log__line--stream {
   display: block;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 0;
 }
 
@@ -806,8 +883,11 @@ a:hover {
 
 .run-log__summary-row {
   display: grid;
-  grid-template-columns: 90px 150px 60px 1fr;
+  grid-template-columns: var(--run-log-grid-template);
   gap: 8px;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 2px 12px;
   cursor: pointer;
   list-style: none;
@@ -829,7 +909,8 @@ a:hover {
 }
 
 .run-log__raw {
-  margin: 2px 12px 6px 330px;
+  min-width: 180px;
+  margin: 2px 12px 6px var(--run-log-message-offset);
   padding: 6px 8px;
   color: #d7d7dd;
   background: #18181c;
@@ -872,17 +953,31 @@ a:hover {
   justify-self: start;
   align-self: center;
   color: #c8c8d0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log__provider--empty {
+  color: #5f5f68;
 }
 
 .run-log__skill {
-  align-self: center;
-  max-width: 100%;
-  color: #c8c8d0;
-  font-size: 11px;
+  min-width: 0;
+  color: #a9a9b2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-log__type {
   color: #6f6f78;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .repository-list {
