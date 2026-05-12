@@ -269,13 +269,31 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
-      "Actual repository",
+      "First workflow",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Build your first Circuit",
     );
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
       "/Users/me/alpha",
     );
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
-      "What would you like to build?",
+      ".claude/skills/*/SKILL.md",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      ".codex/skills/*/SKILL.md",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Add one Claude skill and one Codex skill",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Start Circuit",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Run Log",
+    );
+    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
+      "Optional starter request",
     );
     expect(screen.getByTestId("starter-flow-add")).not.toBeDisabled();
 

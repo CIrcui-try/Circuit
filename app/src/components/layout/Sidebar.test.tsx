@@ -43,8 +43,14 @@ describe("Sidebar", () => {
       errors: {},
     });
     render(<Sidebar repoId="r1" />);
-    expect(screen.getByText(/No skills found/i)).toBeInTheDocument();
+    expect(screen.getByText(/No repository skills found/i)).toBeInTheDocument();
     expect(screen.getByTestId("skill-list-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent(
+      ".claude/skills/<name>/SKILL.md",
+    );
+    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent(
+      ".codex/skills/<name>/SKILL.md",
+    );
   });
 
   it("SB4: renders skills with name, description, provider chip, and skill-list__item testid", () => {
