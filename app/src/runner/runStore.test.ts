@@ -37,17 +37,13 @@ describe("runStore", () => {
       nodeIds: ["n1"],
       startedAt: "2026-04-30T00:00:00Z",
       runMode: "cycle",
-      maxIterations: 10,
     });
 
     useRunStore.getState().setIteration(3);
-    useRunStore.getState().markGuardReached();
 
     const s = useRunStore.getState();
     expect(s.runMode).toBe("cycle");
     expect(s.iteration).toBe(3);
-    expect(s.maxIterations).toBe(10);
-    expect(s.guardReached).toBe(true);
   });
 
   it("RS1b: stores a cloned workflow snapshot for workspace re-entry", () => {
@@ -192,8 +188,6 @@ describe("runStore", () => {
     expect(s.finishedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
     expect(s.iteration).toBeNull();
-    expect(s.maxIterations).toBeNull();
-    expect(s.guardReached).toBe(false);
     expect(s.nodeStates).toEqual({});
     expect(s.nodeDebug).toEqual({});
     expect(s.snapshot).toBeNull();

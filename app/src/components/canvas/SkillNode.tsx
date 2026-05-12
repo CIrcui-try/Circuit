@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { HoverTooltip } from "../HoverTooltip";
-import { useNodeRunState, useRunStore } from "../../runner/runStore";
+import { useNodeRunState } from "../../runner/runStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
@@ -45,11 +45,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const inputHints = readInputHints(data.inputHints) ?? scannedInputHints;
   const argumentsHint = inputHints.find((hint) => hint.key === "arguments");
   const runState = useNodeRunState(id);
-  const activeCycleIteration = useRunStore((state) =>
-    state.runMode === "cycle" && state.activeNodeId === id
-      ? state.iteration
-      : null,
-  );
   const inputSummary = summarizeInput(data.input);
   const stackInputSummary = shouldStackInputSummary(inputSummary.items);
   const editButtonRef = useRef<HTMLButtonElement>(null);
@@ -119,7 +114,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       data-node-id={id}
       data-skill-provider={provider}
       data-run-state={runState}
-      data-run-iteration={activeCycleIteration ?? undefined}
       data-input-state={inputSummary.state}
     >
       <Handle type="target" position={Position.Top} />
@@ -128,14 +122,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         <span className={`skill-list__chip skill-list__chip--${provider}`}>
           {provider}
         </span>
-        {activeCycleIteration != null ? (
-          <span
-            className="skill-node__iteration"
-            data-testid="skill-node-iteration"
-          >
-            Loop {activeCycleIteration}
-          </span>
-        ) : null}
       </div>
       {description ? (
         <HoverTooltip

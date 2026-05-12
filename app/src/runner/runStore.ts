@@ -40,8 +40,6 @@ export type RunStoreState = {
   finishedAt: string | null;
   activeNodeId: string | null;
   iteration: number | null;
-  maxIterations: number | null;
-  guardReached: boolean;
   nodeStates: Record<string, NodeRunState>;
   nodeDebug: Record<string, NodeDebugInfo>;
   snapshot: WorkflowRunSnapshot | null;
@@ -57,12 +55,10 @@ export type RunStoreState = {
     nodeIds: readonly string[];
     startedAt: string;
     runMode?: "dag" | "cycle";
-    maxIterations?: number | null;
     snapshot?: WorkflowRunSnapshot;
   }) => void;
   setActiveNode: (id: string | null) => void;
   setIteration: (iteration: number | null) => void;
-  markGuardReached: () => void;
   setNodeState: (id: string, state: NodeRunState) => void;
   patchNodeDebug: (id: string, patch: NodeDebugInfo) => void;
   finishRun: (status: RunTerminalStatus, finishedAt?: string) => void;
@@ -82,8 +78,6 @@ const INITIAL: Pick<
   | "finishedAt"
   | "activeNodeId"
   | "iteration"
-  | "maxIterations"
-  | "guardReached"
   | "nodeStates"
   | "nodeDebug"
   | "snapshot"
@@ -99,8 +93,6 @@ const INITIAL: Pick<
   finishedAt: null,
   activeNodeId: null,
   iteration: null,
-  maxIterations: null,
-  guardReached: false,
   nodeStates: {},
   nodeDebug: {},
   snapshot: null,
@@ -117,7 +109,6 @@ export const useRunStore = create<RunStoreState>((set) => ({
     nodeIds,
     startedAt,
     runMode,
-    maxIterations,
     snapshot,
   }) => {
     const nodeStates: Record<string, NodeRunState> = {};
@@ -134,8 +125,6 @@ export const useRunStore = create<RunStoreState>((set) => ({
       activeNodeId: null,
       runMode: runMode ?? "dag",
       iteration: runMode === "cycle" ? 1 : null,
-      maxIterations: runMode === "cycle" ? maxIterations ?? null : null,
-      guardReached: false,
       nodeStates,
       nodeDebug: {},
       snapshot: snapshot ? cloneRunSnapshot(snapshot) : null,
@@ -148,10 +137,6 @@ export const useRunStore = create<RunStoreState>((set) => ({
 
   setIteration: (iteration) => {
     set({ iteration });
-  },
-
-  markGuardReached: () => {
-    set({ guardReached: true });
   },
 
   setNodeState: (id, state) => {

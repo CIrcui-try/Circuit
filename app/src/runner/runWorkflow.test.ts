@@ -176,11 +176,14 @@ describe("runWorkflow", () => {
     expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
   });
 
-  it("RW4b: an allowed cycle repeats nodes until the guard stops it", async () => {
+  it("RW4b: an allowed cycle repeats nodes until a skill stops it", async () => {
     const order: string[] = [];
     const runner: WorkflowRunner = {
       async runNode(n) {
         order.push(n.id);
+        if (order.length === 6) {
+          return { ok: false, status: "failed", reason: "stop" };
+        }
         return { ok: true };
       },
     };
@@ -191,32 +194,22 @@ describe("runWorkflow", () => {
       workflowId: "wf",
       runner,
       store: useRunStore,
-      logStore: useRunLogStore,
       now: () => "t",
       newRunId: () => "run_1",
       allowCycles: true,
-      cycleMaxIterations: 3,
     });
 
-    expect(outcome).toEqual({ kind: "started", status: "timeout" });
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
     expect(order).toEqual(["a", "b", "a", "b", "a", "b"]);
     expect(useRunStore.getState()).toMatchObject({
-      status: "timeout",
+      status: "failed",
       runMode: "cycle",
       iteration: 3,
-      maxIterations: 3,
-      guardReached: true,
     });
     expect(useRunStore.getState().nodeStates).toEqual({
       a: "success",
-      b: "success",
+      b: "failed",
     });
-    expect(useRunLogStore.getState().events.map((e) => e.event)).toMatchObject([
-      { type: "status", status: "cycle iteration 1/3 started" },
-      { type: "status", status: "cycle iteration 2/3 started" },
-      { type: "status", status: "cycle iteration 3/3 started" },
-      { type: "status", status: "cycle guard reached after 3 iterations" },
-    ]);
   });
 
   it("RW4c: an allowed cycle stops on the failed iteration and node", async () => {
@@ -240,7 +233,6 @@ describe("runWorkflow", () => {
       now: () => "t",
       newRunId: () => "run_1",
       allowCycles: true,
-      cycleMaxIterations: 10,
     });
 
     expect(outcome).toEqual({ kind: "started", status: "failed" });
@@ -249,7 +241,6 @@ describe("runWorkflow", () => {
       status: "failed",
       runMode: "cycle",
       iteration: 2,
-      guardReached: false,
     });
     expect(useRunStore.getState().nodeStates).toEqual({
       a: "success",

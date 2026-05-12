@@ -33,7 +33,6 @@ export type StartWorkflowRunOptions = {
   now?: () => string;
   newRunId?: () => string;
   allowCycles?: boolean;
-  cycleMaxIterations?: number;
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
   bridge?: RuntimeBridge;
@@ -83,7 +82,6 @@ export async function startWorkflowRun(
       now: opts.now,
       newRunId: opts.newRunId,
       allowCycles: opts.allowCycles,
-      cycleMaxIterations: opts.cycleMaxIterations,
       startFromNodeId: opts.startFromNodeId,
       seedPreviousOutputs: opts.seedPreviousOutputs,
     });

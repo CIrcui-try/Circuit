@@ -26,7 +26,6 @@ export type RunWorkflowOptions = {
   now?: () => string;
   newRunId?: () => string;
   allowCycles?: boolean;
-  cycleMaxIterations?: number;
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
 };
@@ -40,7 +39,6 @@ const defaultRunId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `run_${Math.random().toString(36).slice(2)}`;
-const DEFAULT_CYCLE_MAX_ITERATIONS = 10;
 
 export async function runWorkflow(
   opts: RunWorkflowOptions,
@@ -58,7 +56,6 @@ export async function runWorkflow(
     now = defaultNow,
     newRunId = defaultRunId,
     allowCycles = false,
-    cycleMaxIterations = DEFAULT_CYCLE_MAX_ITERATIONS,
     startFromNodeId,
     seedPreviousOutputs,
   } = opts;
@@ -86,7 +83,6 @@ export async function runWorkflow(
     nodeIds,
     startedAt: now(),
     runMode: isCycleRun ? "cycle" : "dag",
-    maxIterations: isCycleRun ? cycleMaxIterations : null,
     snapshot,
   });
   logStore?.getState().beginRun({ runId, workflowId });
@@ -103,9 +99,6 @@ export async function runWorkflow(
       byId: new Map(nodes.map((n) => [n.id, n])),
       runner,
       store,
-      logStore,
-      now,
-      maxIterations: cycleMaxIterations,
     });
     store.getState().finishRun(status, now());
     return { kind: "started", status };
@@ -167,27 +160,15 @@ async function runCycleWorkflow({
   byId,
   runner,
   store,
-  logStore,
-  now,
-  maxIterations,
 }: {
   order: string[];
   byId: Map<string, RunnableNode>;
   runner: WorkflowRunner;
   store: typeof RunStore;
-  logStore?: typeof RunLogStore;
-  now: () => string;
-  maxIterations: number;
 }): Promise<RunTerminalStatus> {
-  for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
+  for (let iteration = 1; ; iteration += 1) {
     store.getState().setIteration(iteration);
     for (const id of order) store.getState().setNodeState(id, "queued");
-    appendCycleLog(
-      logStore,
-      order[0],
-      now(),
-      `cycle iteration ${iteration}/${maxIterations} started`,
-    );
 
     for (let i = 0; i < order.length; i += 1) {
       const id = order[i];
@@ -221,15 +202,6 @@ async function runCycleWorkflow({
       return result.status;
     }
   }
-
-  store.getState().markGuardReached();
-  appendCycleLog(
-    logStore,
-    order[0],
-    now(),
-    `cycle guard reached after ${maxIterations} iterations`,
-  );
-  return "timeout";
 }
 
 function markRemainingSkipped(
@@ -240,18 +212,4 @@ function markRemainingSkipped(
   for (let i = startIndex; i < order.length; i += 1) {
     store.getState().setNodeState(order[i], "skipped");
   }
-}
-
-function appendCycleLog(
-  logStore: typeof RunLogStore | undefined,
-  nodeId: string | undefined,
-  timestamp: string,
-  status: string,
-): void {
-  if (!logStore || !nodeId) return;
-  logStore.getState().appendEvent(nodeId, {
-    type: "status",
-    timestamp,
-    status,
-  });
 }

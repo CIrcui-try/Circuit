@@ -357,7 +357,7 @@ export function Workspace() {
             </h2>
             <p className="modal__message">
               This workflow contains a loop and will repeat until it fails,
-              is cancelled, or reaches the safety guard.
+              is cancelled, or a skill stops the loop.
             </p>
             <p className="modal__message">Start repeated execution?</p>
             <div className="modal__footer">
