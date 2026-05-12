@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import { createMockRunner } from "./mockRunner";
 import type { RunnableEdge, RunnableNode, WorkflowRunner } from "./runner";
 import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
@@ -75,6 +76,46 @@ describe("runWorkflow", () => {
       a: "success",
       b: "failed",
       c: "skipped",
+    });
+  });
+
+  it("starts from the requested node and seeds previous outputs", async () => {
+    const order: string[] = [];
+    const seeded: SkillExecutionResult = {
+      status: "success",
+      output: { value: 1 },
+      logs: [],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+    const seedPreviousOutputs = vi.fn();
+    const runner: WorkflowRunner = {
+      seedPreviousOutputs,
+      async runNode(n) {
+        order.push(n.id);
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      startFromNodeId: "b",
+      seedPreviousOutputs: { a: seeded },
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(order).toEqual(["b", "c"]);
+    expect(seedPreviousOutputs).toHaveBeenCalledWith({ a: seeded });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "skipped",
+      b: "success",
+      c: "success",
     });
   });
 

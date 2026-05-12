@@ -4,6 +4,7 @@ import type {
   RunTerminalStatus,
   WorkflowRunner,
 } from "./runner";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import type { useRunStore as RunStore } from "./runStore";
 import type { WorkflowRunSnapshot } from "./runStore";
 import { topoSort } from "./topoSort";
@@ -23,6 +24,8 @@ export type RunWorkflowOptions = {
   now?: () => string;
   newRunId?: () => string;
   allowCycles?: boolean;
+  startFromNodeId?: string;
+  seedPreviousOutputs?: Record<string, SkillExecutionResult>;
 };
 
 export type RunWorkflowOutcome =
@@ -50,6 +53,8 @@ export async function runWorkflow(
     now = defaultNow,
     newRunId = defaultRunId,
     allowCycles = false,
+    startFromNodeId,
+    seedPreviousOutputs,
   } = opts;
 
   if (store.getState().status === "running") {
@@ -82,12 +87,20 @@ export async function runWorkflow(
   }
 
   const order = sorted.cycle ? nodeIds : sorted.order;
+  const startIndex = startFromNodeId ? order.indexOf(startFromNodeId) : 0;
+  const firstRunnableIndex = startIndex >= 0 ? startIndex : 0;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   let failureSeen = false;
   let finalStatus: RunTerminalStatus = "success";
 
+  runner.seedPreviousOutputs?.({ ...(seedPreviousOutputs ?? {}) });
+
   for (let i = 0; i < order.length; i++) {
     const id = order[i];
+    if (i < firstRunnableIndex) {
+      store.getState().setNodeState(id, "skipped");
+      continue;
+    }
     if (failureSeen) {
       store.getState().setNodeState(id, "skipped");
       continue;
