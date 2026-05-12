@@ -28,6 +28,8 @@ const TUTORIAL_STARTER_NODE_PROMPTS: StarterNodePrompts = {
     "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
 };
 
+type ActiveCheck = () => boolean;
+
 export function RepositoryList() {
   const repositories = useRepositoryStore((s) => s.repositories);
   const hydrated = useRepositoryStore((s) => s.hydrated);
@@ -45,8 +47,16 @@ export function RepositoryList() {
     name: string;
   } | null>(null);
   const [isPreparingTutorial, setIsPreparingTutorial] = useState(false);
+  const mounted = useRef(true);
   const tutorialSeedAttempted = useRef(false);
   const tutorialRepairAttempted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -63,9 +73,13 @@ export function RepositoryList() {
     tutorialSeedAttempted.current = true;
     tutorialRepairAttempted.current = true;
     setIsPreparingTutorial(true);
-    void seedTutorialRepository()
-      .catch((err) => notifyAppError(err, "Prepare tutorial failed"))
-      .finally(() => setIsPreparingTutorial(false));
+    void seedTutorialRepository(() => mounted.current)
+      .catch((err) => {
+        if (mounted.current) notifyAppError(err, "Prepare tutorial failed");
+      })
+      .finally(() => {
+        if (mounted.current) setIsPreparingTutorial(false);
+      });
   }, [hydrated, repositories.length]);
 
   useEffect(() => {
@@ -276,14 +290,19 @@ function normalizePath(path: string): string {
   return path.replace(/\/+$/, "");
 }
 
-async function seedTutorialRepository(): Promise<void> {
+async function seedTutorialRepository(
+  isActive: ActiveCheck = () => true,
+): Promise<void> {
   const path = await prepareTutorialRepository();
+  if (!isActive()) return;
   if (useRepositoryStore.getState().repositories.length > 0) return;
 
   const added = await useRepositoryStore.getState().addRepository(path);
+  if (!isActive()) return;
   if (!added) return;
 
   saveTutorialStarterDraft(added.id);
+  if (!isActive()) return;
   await useSkillStore.getState().scanRepository(added.id, added.path);
 }
 

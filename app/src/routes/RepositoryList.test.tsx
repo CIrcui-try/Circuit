@@ -43,6 +43,14 @@ beforeEach(() => {
   useRunStore.getState().reset();
 });
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe("RepositoryList", () => {
   it("R1: seeds the tutorial repository when no repositories exist", async () => {
     renderWithRouter(<RepositoryList />);
@@ -58,6 +66,31 @@ describe("RepositoryList", () => {
       "title",
       "Start here: open this tutorial repository and run the starter flow.",
     );
+  });
+
+  it("R1b: ignores an abandoned tutorial seed after unmount", async () => {
+    const pendingTutorial = createDeferred<string>();
+    bridgeMock.createTutorialRepository.mockReturnValueOnce(
+      pendingTutorial.promise,
+    );
+
+    const { unmount } = renderWithRouter(<RepositoryList />);
+    await waitFor(() =>
+      expect(bridgeMock.createTutorialRepository).toHaveBeenCalled(),
+    );
+
+    unmount();
+    useRepositoryStore.setState({
+      repositories: [],
+      selectedId: null,
+      hydrated: true,
+    });
+    pendingTutorial.resolve("/Users/me/Circuit Tutorial");
+    await pendingTutorial.promise;
+    await Promise.resolve();
+
+    expect(useRepositoryStore.getState().repositories).toEqual([]);
+    expect(bridgeMock.saveRepositories).not.toHaveBeenCalled();
   });
 
   it("R2: clicking Add invokes folder picker and renders selected folder", async () => {
@@ -98,8 +131,8 @@ describe("RepositoryList", () => {
     await user.click(screen.getByTestId("add-repository-button"));
 
     await waitFor(() => expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled());
-    expect(screen.getAllByRole("listitem")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Circuit Tutorial/ })).toHaveLength(1);
+    expect(screen.getByTestId("repository-list-add-button")).toBeInTheDocument();
   });
 
   it("R3b: seeded tutorial repo saves a starter draft", async () => {

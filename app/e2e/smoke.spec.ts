@@ -10,9 +10,11 @@ test("E1: app loads and shows the Repositories heading", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Repositories" })).toBeVisible();
 });
 
-test("E2: empty state hint is visible when no repositories registered", async ({ page }) => {
+test("E2: tutorial repository is seeded when no repositories registered", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText(/No repositories yet/i)).toBeVisible();
+  await expect(page.getByTestId("repository-list")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Circuit Tutorial/ })).toBeVisible();
+  await expect(page.getByTestId("tutorial-start-hint")).toHaveText("Start here");
   await expect(page.getByTestId("add-repository-button")).toBeVisible();
 });
 
