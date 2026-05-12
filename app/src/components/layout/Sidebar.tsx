@@ -105,6 +105,75 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     ];
   };
 
+  const defaultSkillSection = repoId ? (
+    <section className="skill-list__section" data-testid="default-skill-section">
+      <button
+        type="button"
+        className="skill-list__section-toggle"
+        data-testid="default-skill-section-toggle"
+        aria-expanded={!defaultCollapsed}
+        onClick={() => setDefaultCollapsed((collapsed) => !collapsed)}
+      >
+        <span className="skill-list__section-icon" aria-hidden="true">
+          {defaultCollapsed ? ">" : "v"}
+        </span>
+        <span>Default</span>
+      </button>
+      {defaultCollapsed ? null : (
+        <ul className="skill-list" data-testid="default-skill-list">
+          {defaultLoading && defaultSkills.length === 0 ? (
+            <li className="skill-list__hint">Scanning default skills...</li>
+          ) : defaultSkills.length === 0 ? (
+            <li className="skill-list__hint">No default skills available.</li>
+          ) : (
+            defaultSkills.map((skill) => (
+              <li
+                key={skill.id}
+                className="skill-list__item"
+                data-testid="default-skill-list__item"
+                data-skill-id={skill.id}
+                draggable
+                onDragStart={(event) => handleDragStart(event, skill)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setMenu({ x: event.clientX, y: event.clientY, skill });
+                }}
+              >
+                <div className="skill-list__row">
+                  <span className="skill-list__name">{skill.name}</span>
+                  <span
+                    className={`skill-list__chip skill-list__chip--${skill.provider}`}
+                  >
+                    {skill.provider}
+                  </span>
+                  <button
+                    type="button"
+                    className="skill-list__add"
+                    data-testid="default-skill-list__add"
+                    aria-label={`Add ${skill.name} to canvas`}
+                    onClick={() => handleAdd(skill)}
+                  >
+                    +
+                  </button>
+                </div>
+                {skill.description && (
+                  <HoverTooltip
+                    className="skill-list__desc-wrap"
+                    content={skill.description}
+                    testId="skill-list-description-tooltip"
+                  >
+                    <div className="skill-list__desc">{skill.description}</div>
+                  </HoverTooltip>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </section>
+  ) : null;
+
   return (
     <aside className="workspace__sidebar">
       <div className="panel-header panel-header--with-actions">
@@ -121,75 +190,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           </button>
         ) : null}
       </div>
-
-      {repoId ? (
-        <section className="skill-list__section" data-testid="default-skill-section">
-          <button
-            type="button"
-            className="skill-list__section-toggle"
-            data-testid="default-skill-section-toggle"
-            aria-expanded={!defaultCollapsed}
-            onClick={() => setDefaultCollapsed((collapsed) => !collapsed)}
-          >
-            <span className="skill-list__section-icon" aria-hidden="true">
-              {defaultCollapsed ? ">" : "v"}
-            </span>
-            <span>Default</span>
-          </button>
-          {defaultCollapsed ? null : (
-            <ul className="skill-list" data-testid="default-skill-list">
-              {defaultLoading && defaultSkills.length === 0 ? (
-                <li className="skill-list__hint">Scanning default skills...</li>
-              ) : defaultSkills.length === 0 ? (
-                <li className="skill-list__hint">No default skills available.</li>
-              ) : (
-                defaultSkills.map((skill) => (
-                  <li
-                    key={skill.id}
-                    className="skill-list__item"
-                    data-testid="default-skill-list__item"
-                    data-skill-id={skill.id}
-                    draggable
-                    onDragStart={(event) => handleDragStart(event, skill)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setMenu({ x: event.clientX, y: event.clientY, skill });
-                    }}
-                  >
-                    <div className="skill-list__row">
-                      <span className="skill-list__name">{skill.name}</span>
-                      <span
-                        className={`skill-list__chip skill-list__chip--${skill.provider}`}
-                      >
-                        {skill.provider}
-                      </span>
-                      <button
-                        type="button"
-                        className="skill-list__add"
-                        data-testid="default-skill-list__add"
-                        aria-label={`Add ${skill.name} to canvas`}
-                        onClick={() => handleAdd(skill)}
-                      >
-                        +
-                      </button>
-                    </div>
-                    {skill.description && (
-                      <HoverTooltip
-                        className="skill-list__desc-wrap"
-                        content={skill.description}
-                        testId="skill-list-description-tooltip"
-                      >
-                        <div className="skill-list__desc">{skill.description}</div>
-                      </HoverTooltip>
-                    )}
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
-        </section>
-      ) : null}
 
       {!repoId ? (
         <div className="empty-state">No repository selected.</div>
@@ -251,6 +251,8 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           ))}
         </ul>
       )}
+
+      {defaultSkillSection}
 
       {error && <div className="skill-list__error">{error}</div>}
       {defaultError && <div className="skill-list__error">{defaultError}</div>}

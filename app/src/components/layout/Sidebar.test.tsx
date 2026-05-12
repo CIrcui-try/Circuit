@@ -246,7 +246,7 @@ describe("Sidebar", () => {
     });
   });
 
-  it("SB9: places the common section above repository skills", () => {
+  it("SB9: places the common section below repository skills", () => {
     useSkillStore.setState({
       byRepo: {
         r1: [
@@ -277,11 +277,11 @@ describe("Sidebar", () => {
 
     render(<Sidebar repoId="r1" />);
 
-    const systemSection = screen.getByTestId("default-skill-section");
+    const defaultSection = screen.getByTestId("default-skill-section");
     const repositoryList = screen.getByTestId("skill-list");
 
     expect(
-      systemSection.compareDocumentPosition(repositoryList) &
+      repositoryList.compareDocumentPosition(defaultSection) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
