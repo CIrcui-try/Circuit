@@ -125,6 +125,28 @@ describe("RepositoryList", () => {
     ]);
   });
 
+  it("R3c: pre-seeded tutorial repo is prepared again for git repair", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-tutorial",
+          name: "Circuit Tutorial",
+          path: "/Users/me/Circuit Tutorial",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    await waitFor(() =>
+      expect(bridgeMock.createTutorialRepository).toHaveBeenCalled(),
+    );
+    expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toBeInTheDocument();
+  });
+
   it("R4: pre-seeded repositories render as links to /workspace/<id>", () => {
     useRepositoryStore.setState({
       repositories: [

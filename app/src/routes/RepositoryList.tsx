@@ -32,6 +32,7 @@ export function RepositoryList() {
   } | null>(null);
   const [isPreparingTutorial, setIsPreparingTutorial] = useState(false);
   const tutorialSeedAttempted = useRef(false);
+  const tutorialRepairAttempted = useRef(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -46,11 +47,23 @@ export function RepositoryList() {
     if (tutorialSeedAttempted.current) return;
 
     tutorialSeedAttempted.current = true;
+    tutorialRepairAttempted.current = true;
     setIsPreparingTutorial(true);
     void seedTutorialRepository()
       .catch((err) => notifyAppError(err, "Prepare tutorial failed"))
       .finally(() => setIsPreparingTutorial(false));
   }, [hydrated, repositories.length]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (tutorialRepairAttempted.current) return;
+    if (!repositories.some((repo) => repo.name === TUTORIAL_REPOSITORY_NAME)) return;
+
+    tutorialRepairAttempted.current = true;
+    void prepareTutorialRepository().catch((err) =>
+      notifyAppError(err, "Prepare tutorial failed"),
+    );
+  }, [hydrated, repositories]);
 
   async function handleAdd() {
     const selected = await getHostBridge().openRepositoryDialog();
@@ -246,12 +259,7 @@ function normalizePath(path: string): string {
 }
 
 async function seedTutorialRepository(): Promise<void> {
-  const bridge = getHostBridge();
-  if (!bridge.createTutorialRepository) {
-    throw new Error("tutorial repository creation is not available");
-  }
-
-  const path = normalizePath(await bridge.createTutorialRepository());
+  const path = await prepareTutorialRepository();
   if (useRepositoryStore.getState().repositories.length > 0) return;
 
   const added = await useRepositoryStore.getState().addRepository(path);
@@ -259,6 +267,15 @@ async function seedTutorialRepository(): Promise<void> {
 
   saveTutorialStarterDraft(added.id);
   await useSkillStore.getState().scanRepository(added.id, added.path);
+}
+
+async function prepareTutorialRepository(): Promise<string> {
+  const bridge = getHostBridge();
+  if (!bridge.createTutorialRepository) {
+    throw new Error("tutorial repository creation is not available");
+  }
+
+  return normalizePath(await bridge.createTutorialRepository());
 }
 
 function saveTutorialStarterDraft(repositoryId: string): void {

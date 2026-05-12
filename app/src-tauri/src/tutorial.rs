@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use tauri::{AppHandle, Manager};
 
@@ -32,7 +33,64 @@ pub fn create_tutorial_repository_at(root: &Path) -> Result<PathBuf, String> {
             .map_err(|e| format!("failed to write {}: {e}", readme_path.display()))?;
     }
 
+    ensure_git_repository(&path)?;
+
     Ok(path)
+}
+
+fn ensure_git_repository(path: &Path) -> Result<(), String> {
+    if !path.join(".git").is_dir() {
+        run_git(path, &["init"])?;
+    }
+
+    run_git(path, &["config", "user.name", "Circuit Tutorial"])?;
+    run_git(path, &["config", "user.email", "tutorial@circuit.local"])?;
+
+    if !git_head_exists(path)? {
+        run_git(path, &["add", "README.md"])?;
+        run_git(path, &["commit", "-m", "Initial tutorial commit"])?;
+    }
+
+    Ok(())
+}
+
+fn git_head_exists(path: &Path) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| format!("failed to run git rev-parse in {}: {e}", path.display()))?;
+
+    Ok(output.status.success())
+}
+
+fn run_git(path: &Path, args: &[&str]) -> Result<(), String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(path)
+        .output()
+        .map_err(|e| {
+            format!(
+                "failed to run git {} in {}: {e}",
+                args.join(" "),
+                path.display()
+            )
+        })?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if stderr.is_empty() { stdout } else { stderr };
+
+    Err(format!(
+        "git {} failed in {}: {}",
+        args.join(" "),
+        path.display(),
+        detail
+    ))
 }
 
 #[cfg(test)]
@@ -48,6 +106,18 @@ mod tests {
         assert_eq!(path, dir.path().join(TUTORIAL_DIR_NAME));
         assert!(path.is_dir());
         assert!(path.join("README.md").is_file());
+        assert!(path.join(".git").is_dir());
+        assert!(git_head_exists(&path).unwrap());
+        let remote_output = Command::new("git")
+            .args(["remote"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(remote_output.status.success());
+        assert!(String::from_utf8(remote_output.stdout)
+            .unwrap()
+            .trim()
+            .is_empty());
         assert!(path.starts_with(dir.path()));
     }
 
@@ -61,5 +131,19 @@ mod tests {
         create_tutorial_repository_at(dir.path()).unwrap();
 
         assert_eq!(fs::read_to_string(path.join("README.md")).unwrap(), "custom");
+        assert!(path.join(".git").is_dir());
+        assert!(git_head_exists(&path).unwrap());
+    }
+
+    #[test]
+    fn repairs_existing_folder_without_git() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(TUTORIAL_DIR_NAME);
+        fs::create_dir_all(&path).unwrap();
+
+        create_tutorial_repository_at(dir.path()).unwrap();
+
+        assert!(path.join(".git").is_dir());
+        assert!(git_head_exists(&path).unwrap());
     }
 }
