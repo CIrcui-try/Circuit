@@ -14,9 +14,15 @@ const bridgeMock = vi.hoisted(() => ({
   saveWorkflow: vi.fn(async () => {}),
 }));
 
+const openerMock = vi.hoisted(() => ({
+  openPath: vi.fn(async () => {}),
+}));
+
 vi.mock("../host/bridge", () => ({
   getHostBridge: () => bridgeMock,
 }));
+
+vi.mock("@tauri-apps/plugin-opener", () => openerMock);
 
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
@@ -104,6 +110,8 @@ beforeEach(() => {
   bridgeMock.saveWorkflow.mockResolvedValue(undefined);
   bridgeMock.loadWorkflow.mockReset();
   bridgeMock.loadWorkflow.mockResolvedValue("{}");
+  openerMock.openPath.mockReset();
+  openerMock.openPath.mockResolvedValue(undefined);
 
   // RuntimeBridge stub so RealWorkflowRunner can route node executions through
   // a fake spawn pipeline that always succeeds.
@@ -151,6 +159,29 @@ describe("Workspace", () => {
     expect(useRepositoryStore.getState().selectedId).toBe("id-alpha");
   });
 
+  it("W1a: opens the selected repository folder in Finder", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("show-repository-in-finder"));
+
+    await vi.waitFor(() => {
+      expect(openerMock.openPath).toHaveBeenCalledWith("/Users/me/alpha");
+    });
+  });
+
+  it("W1b: surfaces Finder open failures as an app error", async () => {
+    openerMock.openPath.mockRejectedValueOnce(new Error("open failed"));
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("show-repository-in-finder"));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Show repository in Finder failed");
+    expect(alert).toHaveTextContent("open failed");
+  });
+
   it("W2: shows 'Repository not found' for unknown id once hydrated", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
@@ -176,6 +207,7 @@ describe("Workspace", () => {
     renderAt("/workspace");
 
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
+    expect(screen.getByTestId("show-repository-in-finder")).toBeDisabled();
   });
 
   it("W5b: triggers scanSkills with the active repo path on mount", async () => {

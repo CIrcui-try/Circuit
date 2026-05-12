@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
@@ -151,6 +152,15 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
+  const handleShowRepositoryInFinder = useCallback(async () => {
+    if (!repo) return;
+    try {
+      await openPath(repo.path);
+    } catch (err) {
+      notifyAppError(err, "Show repository in Finder failed");
+    }
+  }, [repo]);
+
   const startSnapshot = useCallback(async (
     snapshot: WorkflowRunSnapshot,
     options: StartSnapshotOptions = {},
@@ -266,6 +276,14 @@ export function Workspace() {
         <span style={{ color: "#8a8a92" }}>
           {repo ? `Repository: ${repo.name}` : "No repository selected"}
         </span>
+        <button
+          type="button"
+          data-testid="show-repository-in-finder"
+          onClick={() => void handleShowRepositoryInFinder()}
+          disabled={!repo}
+        >
+          Show in Finder
+        </button>
         <span className="workspace__toolbar-spacer" />
         <input
           type="text"
