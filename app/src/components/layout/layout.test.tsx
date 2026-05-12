@@ -848,6 +848,7 @@ describe("Layout shell", () => {
 
     expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
     expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toHaveClass("skill-node__input-token--arguments");
     expect(tokens[0]).toHaveTextContent("arguments: Hello_world.md 적용하기");
     expect(tokens[1]).toHaveTextContent("prompt: 한국어로 작성할 것");
     expect(summary).not.toHaveTextContent(", prompt");

@@ -1481,6 +1481,10 @@ a:hover {
   text-overflow: ellipsis;
 }
 
+.skill-node__input-token--arguments {
+  white-space: nowrap;
+}
+
 .skill-node__input-key {
   color: #8ee48e;
   font-weight: 600;

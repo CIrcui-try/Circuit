@@ -144,7 +144,10 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
             title={inputSummary.summary}
           >
             {inputSummary.items.map((item, index) => (
-              <span key={item.key} className="skill-node__input-token">
+              <span
+                key={item.key}
+                className={`skill-node__input-token${item.key === "arguments" ? " skill-node__input-token--arguments" : ""}`}
+              >
                 {index > 0 && !stackInputSummary ? (
                   <span className="skill-node__input-separator">, </span>
                 ) : null}
