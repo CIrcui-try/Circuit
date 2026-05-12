@@ -735,7 +735,11 @@ a:hover {
   --run-log-grid-template: minmax(72px, var(--run-log-provider-width))
     minmax(96px, var(--run-log-skill-width))
     minmax(56px, var(--run-log-type-width))
-    minmax(180px, var(--run-log-message-width));
+    minmax(var(--run-log-message-width), 1fr);
+  --run-log-min-grid-width: calc(
+    var(--run-log-provider-width) + var(--run-log-skill-width) +
+      var(--run-log-type-width) + var(--run-log-message-width) + 48px
+  );
   --run-log-message-offset: calc(
     12px + var(--run-log-provider-width) + var(--run-log-skill-width) +
       var(--run-log-type-width) + 24px
@@ -755,8 +759,9 @@ a:hover {
   display: grid;
   grid-template-columns: var(--run-log-grid-template);
   gap: 8px;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 2px 12px;
   color: #c8c8cf;
   white-space: normal;
@@ -775,8 +780,9 @@ a:hover {
   display: grid;
   grid-template-columns: var(--run-log-grid-template);
   gap: 8px;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 3px 12px 4px;
   color: #a5a5ad;
   background: #202026;
@@ -824,6 +830,9 @@ a:hover {
 
 .run-log__line--stream {
   display: block;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 0;
 }
 
@@ -876,8 +885,9 @@ a:hover {
   display: grid;
   grid-template-columns: var(--run-log-grid-template);
   gap: 8px;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: var(--run-log-min-grid-width);
+  box-sizing: border-box;
   padding: 2px 12px;
   cursor: pointer;
   list-style: none;
@@ -899,7 +909,6 @@ a:hover {
 }
 
 .run-log__raw {
-  width: var(--run-log-message-width);
   min-width: 180px;
   margin: 2px 12px 6px var(--run-log-message-offset);
   padding: 6px 8px;
