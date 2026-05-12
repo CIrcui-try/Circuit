@@ -12,10 +12,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
 import { fromWorkflow } from "../workflow/serialize";
-import {
-  CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES,
-  createCodexStarterWorkflow,
-} from "../workflow/starterFlow";
+import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -67,10 +64,6 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [starterGoal, setStarterGoal] = useState("");
-  const [pendingRunPreview, setPendingRunPreview] =
-    useState<WorkflowRunSnapshot | null>(null);
-  const [pendingRerunPreview, setPendingRerunPreview] =
-    useState<RerunCandidate | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
 
@@ -199,8 +192,8 @@ export function Workspace() {
       setPendingCycleRun(snapshot);
       return;
     }
-    setPendingRunPreview(snapshot);
-  }, [repo]);
+    void startSnapshot(snapshot);
+  }, [repo, startSnapshot]);
 
   const handleAddStarterFlow = useCallback(() => {
     if (!repo) return;
@@ -329,7 +322,13 @@ export function Workspace() {
           <button
             type="button"
             data-testid="workflow-rerun-from-failed"
-            onClick={() => setPendingRerunPreview(rerunCandidate)}
+            onClick={() => {
+              void startSnapshot(rerunCandidate.snapshot, {
+                startFromNodeId: rerunCandidate.startFromNodeId,
+                seedPreviousOutputs: rerunCandidate.seedPreviousOutputs,
+                errorTitle: "Rerun from failed failed",
+              });
+            }}
             disabled={isRunning}
           >
             Rerun from failed
@@ -383,32 +382,6 @@ export function Workspace() {
             </div>
           </div>
         </div>
-      ) : null}
-      {pendingRunPreview ? (
-        <RunPreviewModal
-          snapshot={pendingRunPreview}
-          onCancel={() => setPendingRunPreview(null)}
-          onConfirm={() => {
-            const snapshot = pendingRunPreview;
-            setPendingRunPreview(null);
-            void startSnapshot(snapshot);
-          }}
-        />
-      ) : null}
-      {pendingRerunPreview ? (
-        <RunPreviewModal
-          snapshot={pendingRerunPreview.snapshot}
-          onCancel={() => setPendingRerunPreview(null)}
-          onConfirm={() => {
-            const rerun = pendingRerunPreview;
-            setPendingRerunPreview(null);
-            void startSnapshot(rerun.snapshot, {
-              startFromNodeId: rerun.startFromNodeId,
-              seedPreviousOutputs: rerun.seedPreviousOutputs,
-              errorTitle: "Rerun from failed failed",
-            });
-          }}
-        />
       ) : null}
       {sidebarCollapsed ? (
         <button
@@ -499,74 +472,6 @@ type RerunCandidate = {
   startFromNodeId: string;
   seedPreviousOutputs: Record<string, SkillExecutionResult>;
 };
-
-function RunPreviewModal({
-  snapshot,
-  onCancel,
-  onConfirm,
-}: {
-  snapshot: WorkflowRunSnapshot;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const riskyBoundaries = CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES.filter((boundary) =>
-    snapshot.nodes.some((node) => node.id === boundary.nodeId),
-  );
-
-  return (
-    <div className="modal__backdrop">
-      <div
-        className="modal__panel modal__panel--confirm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="run-preview-title"
-        data-testid="run-preview-modal"
-      >
-        <h2 id="run-preview-title" className="modal__title">
-          Confirm actual repository run
-        </h2>
-        <p className="modal__message">
-          This workflow runs against the selected repository, not a mock or demo.
-        </p>
-        <dl className="modal__meta">
-          <dt>Repository</dt>
-          <dd>{snapshot.repository.name}</dd>
-          <dt>Path</dt>
-          <dd>
-            <code>{snapshot.repository.path}</code>
-          </dd>
-          <dt>Workflow</dt>
-          <dd>{snapshot.workflowName}</dd>
-          <dt>Nodes</dt>
-          <dd>{snapshot.nodes.length}</dd>
-        </dl>
-        {riskyBoundaries.length > 0 ? (
-          <div className="modal__warn" data-testid="run-preview-risk">
-            <strong>Changes may affect this repo.</strong>
-            <ul>
-              {riskyBoundaries.map((boundary) => (
-                <li key={boundary.nodeId}>{boundary.description}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        <div className="modal__footer">
-          <button type="button" onClick={onCancel} data-testid="run-preview-cancel">
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="button-danger"
-            onClick={onConfirm}
-            data-testid="run-preview-confirm"
-          >
-            Run on this repository
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function buildRerunCandidate({
   repoId,

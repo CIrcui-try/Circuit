@@ -417,7 +417,7 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
   });
 
-  it("W9: clicking Start previews the actual repo before running", async () => {
+  it("W9: clicking Start runs the workflow immediately", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -438,16 +438,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-
-    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
-      "Confirm actual repository run",
-    );
-    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
-      "/Users/me/alpha",
-    );
-    expect(useRunStore.getState().status).toBe("idle");
-
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
@@ -596,7 +586,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     const alert = await screen.findByTestId("app-error-alert");
     expect(alert).toHaveTextContent("Start Circuit failed");
@@ -708,7 +697,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("running");
@@ -918,12 +906,6 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-root")).toHaveClass(
-      "workspace--log-collapsed",
-    );
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
-
     expect(screen.getByTestId("workspace-root")).not.toHaveClass(
       "workspace--log-collapsed",
     );
@@ -1080,10 +1062,6 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     fireEvent.click(screen.getByTestId("workflow-rerun-from-failed"));
-    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
-      "Confirm actual repository run",
-    );
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
