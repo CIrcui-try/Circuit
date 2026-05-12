@@ -193,6 +193,40 @@ describe("runViaBridge approval forwarding", () => {
     );
   });
 
+  it.each([
+    "main 브랜치·develop 부재·미커밋 상태로 publish-pr을 그대로 실행할 수 없어 사용자에게 진행 방향을 묻고 대기 중입니다.",
+    "develop 부재로 publish-pr 진행을 멈췄습니다.",
+    "사용자 확인 필요: 기존 워크트리 삭제 후 재생성 여부를 선택해야 합니다.",
+  ])(
+    "marks zero-exit runs failed for blocked Korean summaries: %s",
+    async (summary) => {
+      const bridge = createMockRuntimeBridge({
+        scenario: () => [
+          { event: { type: "started" } },
+          {
+            event: {
+              type: "stdout",
+              text: `CIRCUIT_SUMMARY: ${summary}\n`,
+            },
+          },
+          { event: { type: "exited", exitCode: 0 } },
+        ],
+      });
+
+      const result = await runViaBridge({
+        bridge,
+        ctx: ctx(),
+        runId: "r-summary-korean-blocker",
+        command: { command: "codex", args: ["exec", "p"] },
+        sink: () => {},
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.exitCode).toBe(0);
+      expect(result.summary).toBe(summary);
+    },
+  );
+
   it("keeps zero-exit runs successful when CIRCUIT_SUMMARY reports success", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [

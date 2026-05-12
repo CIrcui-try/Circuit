@@ -367,13 +367,14 @@ describe("Layout shell", () => {
     expect(result).toHaveClass("run-log__line--result-failed");
   });
 
-  it("LogPanel includes node result summaries in the result row", () => {
+  it("LogPanel includes failed zero-exit summaries in the result row", () => {
+    const summary =
+      "main 브랜치·develop 부재·미커밋 상태로 publish-pr을 그대로 실행할 수 없어 사용자에게 진행 방향을 묻고 대기 중입니다.";
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().setNodeResult("node-a", {
       status: "failed",
       exitCode: 0,
-      summary:
-        "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+      summary,
       logs: [],
       startedAt: "t1",
       finishedAt: "t2",
@@ -382,7 +383,7 @@ describe("Layout shell", () => {
     render(<LogPanel />);
 
     expect(screen.getByTestId("run-log-result")).toHaveTextContent(
-      "failed (exit 0) - Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+      `failed (exit 0) - ${summary}`,
     );
   });
 

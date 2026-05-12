@@ -11,7 +11,7 @@ import type {
 const STDIN_WAITING_RE = /Reading additional input from stdin/i;
 const CIRCUIT_SUMMARY_RE = /^CIRCUIT_SUMMARY:\s*(.+)$/i;
 const FAILURE_SUMMARY_RE =
-  /(실패|중단|차단|불가|오류|에러|failed|failure|blocked|aborted|stopped|cannot|could not|unable|invalid|error)/i;
+  /(실패|중단|차단|불가|오류|에러|실행할 수 없어|할 수 없어|부재|진행 방향.*(?:묻|대기)|사용자(?:에게)?.*(?:묻|확인|입력|대기)|승인.*필요|확인.*필요|failed|failure|blocked|aborted|stopped|cannot|could not|unable|invalid|error|needs? user input|requires? approval)/i;
 
 export interface BridgeCommand {
   command: string;
