@@ -54,6 +54,8 @@ export function Workspace() {
   const runElapsed = useRunElapsedLabel();
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
+  const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
+  const setPropsCollapsed = useLayoutStore((s) => s.setPropsCollapsed);
   const logCollapsed = useLayoutStore((s) => s.logCollapsed);
   const setLogCollapsed = useLayoutStore((s) => s.setLogCollapsed);
   const activeRunSnapshot = useRunStore((s) =>
@@ -269,6 +271,7 @@ export function Workspace() {
       className={[
         "workspace",
         sidebarCollapsed ? "workspace--sidebar-collapsed" : "",
+        propsCollapsed ? "workspace--props-collapsed" : "",
         logCollapsed ? "workspace--log-collapsed" : "",
       ].filter(Boolean).join(" ")}
       data-testid="workspace-root"
@@ -440,7 +443,19 @@ export function Workspace() {
           </button>
         </section>
       ) : null}
-      <PropertiesPanel />
+      {propsCollapsed ? (
+        <button
+          type="button"
+          className="workspace__props-restore"
+          data-testid="properties-panel-restore"
+          aria-label="Show properties panel"
+          onClick={() => setPropsCollapsed(false)}
+        >
+          Properties
+        </button>
+      ) : (
+        <PropertiesPanel onCollapse={() => setPropsCollapsed(true)} />
+      )}
       {logCollapsed ? (
         <button
           type="button"
@@ -455,7 +470,7 @@ export function Workspace() {
         <LogPanel onCollapse={() => setLogCollapsed(true)} />
       )}
       {sidebarCollapsed ? null : <ResizeHandle direction="sidebar" />}
-      <ResizeHandle direction="props" />
+      {propsCollapsed ? null : <ResizeHandle direction="props" />}
       {logCollapsed ? null : <ResizeHandle direction="log" />}
     </div>
   );

@@ -277,6 +277,14 @@ a:hover {
   grid-template-columns: 40px 1fr var(--props-width);
 }
 
+.workspace--props-collapsed {
+  grid-template-columns: var(--sidebar-width) 1fr 40px;
+}
+
+.workspace--sidebar-collapsed.workspace--props-collapsed {
+  grid-template-columns: 40px 1fr 40px;
+}
+
 .workspace--log-collapsed {
   grid-template-rows: 44px 1fr 40px;
 }
@@ -679,6 +687,26 @@ a:hover {
 }
 
 .workspace__sidebar-restore:hover {
+  background: #303038;
+}
+
+.workspace__props-restore {
+  grid-area: props;
+  align-self: start;
+  justify-self: center;
+  width: 28px;
+  min-height: 104px;
+  margin-top: 8px;
+  padding: 6px 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  color: #c8c8d0;
+  background: #26262b;
+  border-color: #3a3a42;
+  border-radius: 6px;
+}
+
+.workspace__props-restore:hover {
   background: #303038;
 }
 

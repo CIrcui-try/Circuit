@@ -9,7 +9,7 @@ import { useWorkflowStore } from "../../stores/workflowStore";
 
 type InputEditorMode = "friendly" | "json";
 
-export function PropertiesPanel() {
+export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
   const setNodeInput = useWorkflowStore((s) => s.setNodeInput);
   const [inputMode, setInputMode] = useState<InputEditorMode>("friendly");
   const [jsonDraft, setJsonDraft] = useState("{}");
@@ -95,7 +95,20 @@ export function PropertiesPanel() {
 
   return (
     <aside className="workspace__props" data-testid="node-properties-panel">
-      <div className="panel-header">Properties</div>
+      <div className="panel-header panel-header--with-actions">
+        <span>Properties</span>
+        {onCollapse ? (
+          <button
+            type="button"
+            className="panel-header__button"
+            data-testid="properties-panel-collapse"
+            aria-label="Hide properties panel"
+            onClick={onCollapse}
+          >
+            Hide
+          </button>
+        ) : null}
+      </div>
       {!selectedNode ? (
         <div className="empty-state">Select a node or edge to inspect.</div>
       ) : (
