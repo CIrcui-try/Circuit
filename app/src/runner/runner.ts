@@ -1,3 +1,5 @@
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
+
 // Runner module is independent of React Flow and the workflow schema module.
 // We define the minimal node shape the runner needs so that adapters in later
 // phases can call mock or real runners without dragging editor types around.
@@ -41,4 +43,7 @@ export type RunResult =
 
 export type WorkflowRunner = {
   runNode: (node: RunnableNode) => Promise<RunResult>;
+  seedPreviousOutputs?: (
+    previousOutputs: Record<string, SkillExecutionResult>,
+  ) => void;
 };

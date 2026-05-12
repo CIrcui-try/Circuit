@@ -266,6 +266,26 @@ describe("RealWorkflowRunner", () => {
     expect(adapterA.seenContexts[0].previousOutputs).toEqual({});
   });
 
+  it("seeds previousOutputs before the first rerun node", async () => {
+    const b = workflowNode("b");
+    const harness = makeHarness({ nodes: [b] });
+    const adapter = new FakeAgentAdapter({ provider: "claude" });
+    harness.registry.register(adapter);
+    const seeded: SkillExecutionResult = {
+      status: "success",
+      output: { value: 42 },
+      summary: "ran a earlier",
+      logs: [],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+
+    harness.runner.seedPreviousOutputs({ a: seeded });
+    await harness.runner.runNode(runnable(b));
+
+    expect(adapter.seenContexts[0].previousOutputs).toEqual({ a: seeded });
+  });
+
   it("R4: stores SkillExecutionResult in runLogStore.nodeResults", async () => {
     const node = workflowNode("a");
     const harness = makeHarness({ nodes: [node] });

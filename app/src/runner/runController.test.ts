@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import type { WorkflowRunSnapshot } from "./runController";
 import { cancelWorkflowRun, startWorkflowRun } from "./runController";
 import type { RunResult } from "./runner";
@@ -113,6 +114,41 @@ describe("runController", () => {
 
     expect(outcome).toEqual({ kind: "rejected", reason: "already-running" });
     expect(createRunner).not.toHaveBeenCalled();
+  });
+
+  it("passes rerun start options into the workflow runner", async () => {
+    const seeded: SkillExecutionResult = {
+      status: "success",
+      output: { value: 1 },
+      logs: [],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+    const seen: string[] = [];
+    const seedPreviousOutputs = vi.fn();
+
+    await expect(
+      startWorkflowRun({
+        snapshot: snapshot(),
+        bridge: createMockRuntimeBridge(),
+        startFromNodeId: "b",
+        seedPreviousOutputs: { a: seeded },
+        createRunner: () => ({
+          seedPreviousOutputs,
+          async runNode(node): Promise<RunResult> {
+            seen.push(node.id);
+            return { ok: true };
+          },
+        }),
+      }),
+    ).resolves.toEqual({ kind: "started", status: "success" });
+
+    expect(seen).toEqual(["b"]);
+    expect(seedPreviousOutputs).toHaveBeenCalledWith({ a: seeded });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "skipped",
+      b: "success",
+    });
   });
 
   it("RC3: cancel targets the active controller-owned runner", async () => {

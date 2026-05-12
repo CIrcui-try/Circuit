@@ -37,6 +37,8 @@ const STDIN_WAITING_RE = /Reading additional input from stdin/i;
 
 export class RealWorkflowRunner implements WorkflowRunner {
   private previousOutputs: Record<string, SkillExecutionResult> = {};
+  private pendingPreviousOutputs: Record<string, SkillExecutionResult> | null =
+    null;
   private lastSeenRunId: string | null = null;
   private currentAdapterRunId: string | null = null;
   private currentNodeId: string | null = null;
@@ -46,10 +48,17 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
   reset(): void {
     this.previousOutputs = {};
+    this.pendingPreviousOutputs = null;
     this.lastSeenRunId = null;
     this.currentAdapterRunId = null;
     this.currentNodeId = null;
     this.clearIdleTimer();
+  }
+
+  seedPreviousOutputs(
+    previousOutputs: Record<string, SkillExecutionResult>,
+  ): void {
+    this.pendingPreviousOutputs = { ...previousOutputs };
   }
 
   async cancel(): Promise<void> {
@@ -70,7 +79,8 @@ export class RealWorkflowRunner implements WorkflowRunner {
     const { runId, workflowId } = this.opts.getRunMeta();
 
     if (this.lastSeenRunId !== runId) {
-      this.previousOutputs = {};
+      this.previousOutputs = { ...(this.pendingPreviousOutputs ?? {}) };
+      this.pendingPreviousOutputs = null;
       this.opts.logStore.getState().beginRun({ runId, workflowId });
       this.lastSeenRunId = runId;
     }
