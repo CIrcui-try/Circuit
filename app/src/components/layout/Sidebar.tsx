@@ -221,8 +221,9 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
             data-testid="skill-list-empty"
           >
             <span className="skill-list__empty-text">
-              No skills found in <code>.claude/skills</code> or{" "}
-              <code>.codex/skills</code>.
+              No repository skills found. Add <code>SKILL.md</code> files under{" "}
+              <code>.claude/skills/&lt;name&gt;/SKILL.md</code> or{" "}
+              <code>.codex/skills/&lt;name&gt;/SKILL.md</code>.
             </span>
           </div>
         ) : (
