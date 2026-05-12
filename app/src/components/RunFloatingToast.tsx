@@ -50,6 +50,8 @@ export function RunFloatingToast() {
   const runId = useRunStore((s) => s.runId);
   const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
+  const runMode = useRunStore((s) => s.runMode);
+  const iteration = useRunStore((s) => s.iteration);
   const elapsedLabel = useRunElapsedLabel();
   const hasWaitingNode = useRunStore((s) =>
     Object.values(s.nodeStates).some((state) => state === "waiting_input"),
@@ -68,7 +70,12 @@ export function RunFloatingToast() {
   const canCancel = status === "running";
   const isActive = status === "running";
   const canDismiss = !isActive && Boolean(runId);
-  const detail = formatToastDetail(view.detail, repositoryName, elapsedLabel);
+  const detail = formatToastDetail(
+    view.detail,
+    formatLoopLabel(runMode, iteration),
+    repositoryName,
+    elapsedLabel,
+  );
 
   async function handleCancel() {
     setCancelling(true);
@@ -137,10 +144,19 @@ export function RunFloatingToast() {
 
 function formatToastDetail(
   detail: string,
+  loopLabel: string | null,
   repositoryName: string | null,
   elapsedLabel: string | null,
 ): string {
-  return [detail, elapsedLabel, repositoryName].filter(Boolean).join(" · ");
+  return [detail, loopLabel, elapsedLabel, repositoryName].filter(Boolean).join(" · ");
+}
+
+function formatLoopLabel(
+  runMode: "dag" | "cycle",
+  iteration: number | null,
+): string | null {
+  if (runMode !== "cycle" || iteration == null) return null;
+  return `loop ${iteration}`;
 }
 
 function isViewingRunWorkflow(pathname: string, repositoryId: string | null): boolean {
