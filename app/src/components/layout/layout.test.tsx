@@ -667,7 +667,8 @@ describe("Layout shell", () => {
     });
 
     fireEvent.click(screen.getByTestId("skill-node-input-edit"));
-    expect(screen.getByTestId("skill-node-input-arguments")).toHaveValue(
+    expect(screen.getByTestId("skill-node-input-arguments")).toHaveValue("");
+    expect(screen.getByTestId("skill-node-input-prompt")).toHaveValue(
       "legacy prompt",
     );
     fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
@@ -676,6 +677,7 @@ describe("Layout shell", () => {
 
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "CIR-68",
+      prompt: "legacy prompt",
     });
   });
 

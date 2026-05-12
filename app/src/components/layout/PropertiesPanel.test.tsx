@@ -321,12 +321,15 @@ describe("PropertiesPanel", () => {
 
     render(<PropertiesPanel />);
 
-    const input = screen.getByTestId("node-input-arguments");
-    expect(input).toHaveValue("legacy prompt");
-    fireEvent.change(input, { target: { value: "CIR-68" } });
+    expect(screen.getByTestId("node-input-arguments")).toHaveValue("");
+    expect(screen.getByTestId("node-input-prompt")).toHaveValue("legacy prompt");
+    fireEvent.change(screen.getByTestId("node-input-arguments"), {
+      target: { value: "CIR-68" },
+    });
 
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "CIR-68",
+      prompt: "legacy prompt",
     });
   });
 });

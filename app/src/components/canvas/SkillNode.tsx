@@ -46,7 +46,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const argumentsHint = inputHints.find((hint) => hint.key === "arguments");
   const runState = useNodeRunState(id);
   const inputSummary = summarizeInput(data.input);
-  const inputMode: InputMode = argumentsHint ? "arguments" : "prompt";
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
@@ -57,7 +56,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     useWorkflowStore.getState().selectNode(id);
     const current = useWorkflowStore.getState().nodes.find((n) => n.id === id)
       ?.data.input ?? data.input;
-    setDraftArguments(readArguments(current) || readPrompt(current));
+    setDraftArguments(readArguments(current));
     setDraftPrompt(readPrompt(current));
     setIsEditingInput((open) => !open);
   };
@@ -192,7 +191,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                   ×
                 </button>
               </div>
-              {inputMode === "arguments" ? (
+              <div className="skill-node-input-popover__fields">
                 <label className="skill-node-input-popover__field">
                   <span>{argumentsHint?.label ?? "Arguments"}</span>
                   <textarea
@@ -204,7 +203,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                     onKeyDown={handleInputKeyDown}
                   />
                 </label>
-              ) : (
                 <label className="skill-node-input-popover__field">
                   <span>Prompt</span>
                   <textarea
@@ -216,7 +214,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                     onKeyDown={handleInputKeyDown}
                   />
                 </label>
-              )}
+              </div>
               <div className="skill-node-input-popover__footer">
                 <button
                   type="button"
@@ -249,11 +247,8 @@ function updateInputField(
   } else {
     delete next[key];
   }
-  if (key === "arguments") delete next.prompt;
   store.setNodeInput(nodeId, Object.keys(next).length > 0 ? next : null);
 }
-
-type InputMode = "arguments" | "prompt";
 
 function readPrompt(input: unknown): string {
   if (!isRecord(input)) return "";

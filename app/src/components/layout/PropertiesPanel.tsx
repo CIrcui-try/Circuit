@@ -48,7 +48,6 @@ export function PropertiesPanel() {
     typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
   const promptValue =
     typeof selectedInput?.prompt === "string" ? selectedInput.prompt : "";
-  const friendlyValue = argumentsHint ? argumentsValue || promptValue : promptValue;
 
   useEffect(() => {
     setInputMode("friendly");
@@ -62,16 +61,14 @@ export function PropertiesPanel() {
     }
   }, [inputMode, jsonError, selectedInputJson]);
 
-  const handleArgumentsChange = (value: string) => {
+  const handleFriendlyChange = (key: "arguments" | "prompt", value: string) => {
     if (!selectedNodeId) return;
     const next = selectedInput ? { ...selectedInput } : {};
-    const key = argumentsHint ? "arguments" : "prompt";
     if (value.length > 0) {
       next[key] = value;
     } else {
       delete next[key];
     }
-    if (argumentsHint) delete next.prompt;
     setNodeInput(selectedNodeId, Object.keys(next).length > 0 ? next : null);
   };
 
@@ -154,18 +151,38 @@ export function PropertiesPanel() {
                 </button>
               </div>
               {inputMode === "friendly" ? (
-                <textarea
-                  data-testid="node-input-arguments"
-                  className="properties__textarea"
-                  aria-label={
-                    argumentsHint
-                      ? `Node input ${argumentsHint.label}`
-                      : "Node input prompt"
-                  }
-                  placeholder={argumentsHint?.placeholder ?? "Prompt"}
-                  value={friendlyValue}
-                  onChange={(e) => handleArgumentsChange(e.target.value)}
-                />
+                <div className="properties__friendly-fields">
+                  <label className="properties__input-field">
+                    <span>{argumentsHint?.label ?? "Arguments"}</span>
+                    <textarea
+                      data-testid="node-input-arguments"
+                      className="properties__textarea"
+                      aria-label={
+                        argumentsHint
+                          ? `Node input ${argumentsHint.label}`
+                          : "Node input arguments"
+                      }
+                      placeholder={argumentsHint?.placeholder ?? "Arguments"}
+                      value={argumentsValue}
+                      onChange={(e) =>
+                        handleFriendlyChange("arguments", e.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="properties__input-field">
+                    <span>Prompt</span>
+                    <textarea
+                      data-testid="node-input-prompt"
+                      className="properties__textarea"
+                      aria-label="Node input prompt"
+                      placeholder="Prompt"
+                      value={promptValue}
+                      onChange={(e) =>
+                        handleFriendlyChange("prompt", e.target.value)
+                      }
+                    />
+                  </label>
+                </div>
               ) : (
                 <>
                   <textarea
