@@ -66,6 +66,30 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
+  it("SF1c: allows tutorial-specific node prompts without changing default skills", () => {
+    const wf = createCodexStarterWorkflow({
+      repositoryId: "repo-1",
+      initialRequest: "Create hello_world.html",
+      nodePrompts: {
+        starter_taxiing: "Do not open the page in this step.",
+        starter_wrap_up: "Open hello_world.html in the default browser.",
+      },
+      now: () => "2026-05-11T00:00:00.000Z",
+    });
+
+    expect(wf.nodes[1].input).toEqual({
+      prompt: "Do not open the page in this step.",
+    });
+    expect(wf.nodes[3].input).toEqual({
+      prompt: "Open hello_world.html in the default browser.",
+    });
+    expect(wf.nodes[1].skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/implement-plan/SKILL.md",
+    });
+  });
+
   it("SF2: binds starter execution to the selected repository and marks approval edges", () => {
     expect(CODEX_STARTER_FLOW_BINDING_POLICY).toEqual({
       repository: "selected-repository",

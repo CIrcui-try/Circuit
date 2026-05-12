@@ -30,6 +30,8 @@ type StarterStep = {
   y: number;
 };
 
+export type StarterNodePrompts = Partial<Record<string, string>>;
+
 const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_boarding",
@@ -61,7 +63,7 @@ const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_wrap_up",
     label: "wrap-up",
-    description: "Write a short result briefing document for the tutorial run.",
+    description: "Run the final tutorial check and summarize the result.",
     provider: "claude",
     skillFile: ".claude/skills/wrap-up/SKILL.md",
     x: 240,
@@ -73,6 +75,7 @@ export type CreateCodexStarterWorkflowArgs = {
   repositoryId: string;
   initialRequest?: string;
   issueId?: string;
+  nodePrompts?: StarterNodePrompts;
   workflowId?: string;
   now?: () => string;
 };
@@ -89,7 +92,11 @@ export function createCodexStarterWorkflow(
     repositoryId: args.repositoryId,
     name: CODEX_STARTER_FLOW_NAME,
     nodes: STARTER_STEPS.map((step, index) =>
-      toNode(step, index === 0 ? initialRequest : ""),
+      toNode({
+        step,
+        argumentsValue: index === 0 ? initialRequest : "",
+        promptValue: args.nodePrompts?.[step.id] ?? "",
+      }),
     ),
     edges: toEdges(STARTER_STEPS),
     createdAt: now,
@@ -97,8 +104,21 @@ export function createCodexStarterWorkflow(
   };
 }
 
-function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
-  const trimmedRequest = initialRequest.trim();
+function toNode({
+  step,
+  argumentsValue,
+  promptValue,
+}: {
+  step: StarterStep;
+  argumentsValue: string;
+  promptValue: string;
+}): WorkflowSkillNode {
+  const trimmedArguments = argumentsValue.trim();
+  const trimmedPrompt = promptValue.trim();
+  const input = {
+    ...(trimmedArguments ? { arguments: trimmedArguments } : {}),
+    ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
+  };
   return {
     id: step.id,
     type: "skill",
@@ -110,7 +130,7 @@ function toNode(step: StarterStep, initialRequest: string): WorkflowSkillNode {
     label: step.label,
     description: step.description,
     position: { x: step.x, y: step.y },
-    ...(trimmedRequest ? { input: { arguments: trimmedRequest } } : {}),
+    ...(Object.keys(input).length > 0 ? { input } : {}),
   };
 }
 

@@ -118,6 +118,18 @@ describe("RepositoryList", () => {
     expect(draft.nodes[0].data.input).toEqual({
       arguments: "Create hello_world.html with a friendly Hello from Circuit page.",
     });
+    expect(draft.nodes[1].data.input).toEqual({
+      prompt:
+        "Create or update hello_world.html from the plan. Verify the file contents from disk, but do not open the page or launch a browser in this step.",
+    });
+    expect(draft.nodes[2].data.input).toEqual({
+      prompt:
+        "Review hello_world.html, fix only obvious issues, and verify the file contents from disk. Do not open the page or launch a browser in this step.",
+    });
+    expect(draft.nodes[3].data.input).toEqual({
+      prompt:
+        "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly. Do not create extra summary files.",
+    });
     expect(draft.nodes.map((node: { id: string }) => node.id)).toEqual([
       "starter_boarding",
       "starter_taxiing",
@@ -134,6 +146,8 @@ describe("RepositoryList", () => {
       provider: "claude",
       skillFile: ".claude/skills/wrap-up/SKILL.md",
     });
+    expect(draft.nodes[1].data.input.prompt).toContain("do not open");
+    expect(draft.nodes[3].data.input.prompt).toContain("open the completed page");
   });
 
   it("R3c: pre-seeded tutorial repo is prepared again and legacy starter draft is migrated", async () => {

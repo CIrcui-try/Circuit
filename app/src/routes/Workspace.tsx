@@ -15,7 +15,6 @@ import type { WorkflowSummaryDTO } from "../host/bridge";
 import { getHostBridge } from "../host/bridge";
 import {
   isTutorialRepositoryPath,
-  tutorialBriefingPath,
   tutorialResultPath,
 } from "../tutorial";
 import { fromWorkflow } from "../workflow/serialize";
@@ -491,15 +490,8 @@ export function Workspace() {
 async function openTutorialResult(repoPath: string): Promise<void> {
   if (!isTutorialRepositoryPath(repoPath)) return;
 
-  const briefingPath = tutorialBriefingPath(repoPath);
   const htmlPath = tutorialResultPath(repoPath);
   try {
-    const briefingExists = await getHostBridge().pathExists?.(briefingPath);
-    if (briefingExists) {
-      await openPath(briefingPath);
-      return;
-    }
-
     const htmlExists = await getHostBridge().pathExists?.(htmlPath);
     if (!htmlExists) return;
     await openPath(htmlPath);

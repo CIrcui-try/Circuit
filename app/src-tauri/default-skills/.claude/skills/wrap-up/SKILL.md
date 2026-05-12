@@ -1,15 +1,8 @@
 ---
 name: wrap-up
-description: Write a short tutorial result briefing document.
+description: Complete the workflow with a concise final check and summary.
 ---
 
 # wrap-up
 
-Starter workflow wrap-up step. Create or update `tutorial_result.md` in the selected tutorial folder with a concise Markdown briefing for the user.
-
-Include:
-- what was created
-- how it was checked
-- the local file names to inspect next
-
-Keep it short and friendly. Do not push, open a PR, or rely on a remote repository.
+Starter workflow wrap-up step. Run the final check requested by the node input, then summarize the result briefly for the user.

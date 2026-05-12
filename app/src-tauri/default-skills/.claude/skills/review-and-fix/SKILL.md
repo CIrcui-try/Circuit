@@ -1,8 +1,8 @@
 ---
 name: review-and-fix
-description: Review the tutorial result, fix obvious issues, and verify it.
+description: Review local changes, fix obvious issues, and verify the result.
 ---
 
 # review-and-fix
 
-Starter workflow review-and-fix step. Review the file created by the implementation step, apply small obvious fixes directly in the selected tutorial folder, and verify the result. Keep the task local: do not push, open a PR, or rely on a remote repository.
+Starter workflow review-and-fix step. Review the local result from the implementation step, apply small obvious fixes directly in the selected folder, and verify the result.
