@@ -113,6 +113,9 @@ describe("App routing", () => {
 
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("Running");
     expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("run-floating-toast")).not.toHaveTextContent(
+      /loop \d+/,
+    );
     expect(screen.getByTestId("run-floating-toast-progress")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to workflow" })).toHaveAttribute(
       "href",
@@ -125,6 +128,26 @@ describe("App routing", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(runControllerMock.cancelWorkflowRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("A4a: shows loop iteration in the global run toast for cycle runs", () => {
+    useRunStore.getState().beginRun({
+      runId: "run-1",
+      workflowId: "wf-1",
+      repository: { id: "id-alpha", name: "alpha" },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:00Z",
+      runMode: "cycle",
+    });
+    useRunStore.getState().setIteration(3);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("run-floating-toast")).toHaveTextContent("loop 3");
   });
 
   it("A4b: hides the global run toast while viewing the running workflow", () => {

@@ -34,6 +34,7 @@ export interface RealWorkflowRunnerOptions {
 
 const DEFAULT_IDLE_MS = 30_000;
 const STDIN_WAITING_RE = /Reading additional input from stdin/i;
+const LOOP_LIMIT_SKILL_FILE = ".codex/skills/loop-limit/SKILL.md";
 
 export class RealWorkflowRunner implements WorkflowRunner {
   private previousOutputs: Record<string, SkillExecutionResult> = {};
@@ -81,7 +82,9 @@ export class RealWorkflowRunner implements WorkflowRunner {
     if (this.lastSeenRunId !== runId) {
       this.previousOutputs = { ...(this.pendingPreviousOutputs ?? {}) };
       this.pendingPreviousOutputs = null;
-      this.opts.logStore.getState().beginRun({ runId, workflowId });
+      if (this.opts.logStore.getState().runId !== runId) {
+        this.opts.logStore.getState().beginRun({ runId, workflowId });
+      }
       this.lastSeenRunId = runId;
     }
 
@@ -97,6 +100,10 @@ export class RealWorkflowRunner implements WorkflowRunner {
         `node ${node.id} not found in workflow`,
         repo,
       );
+    }
+
+    if (isLoopLimitSkill(fullNode)) {
+      return await this.runLoopLimitSkill(fullNode, repo);
     }
 
     let adapter;
@@ -271,6 +278,45 @@ export class RealWorkflowRunner implements WorkflowRunner {
     return { ok: false, status: "failed", reason };
   }
 
+  private async runLoopLimitSkill(
+    node: WorkflowSkillNode,
+    repo: RunnerRepository,
+  ): Promise<RunResult> {
+    const timestamp = new Date().toISOString();
+    const maxIterations = readLoopLimit(node.input);
+    const iteration = this.opts.runStore?.getState().iteration ?? 1;
+    if (maxIterations == null) {
+      return await this.recordNodeFailure(
+        node.id,
+        "loop-limit requires a positive integer in arguments",
+        repo,
+      );
+    }
+
+    const exceeded = iteration > maxIterations;
+    const summary = exceeded
+      ? `loop limit exceeded (${iteration}/${maxIterations})`
+      : `loop limit passed (${iteration}/${maxIterations})`;
+    const event: AgentRunEvent = exceeded
+      ? { type: "error", timestamp, message: summary }
+      : { type: "status", timestamp, status: summary };
+    this.opts.logStore.getState().appendEvent(node.id, event);
+    const result: SkillExecutionResult = {
+      status: exceeded ? "failed" : "success",
+      output: { iteration, maxIterations, exceeded },
+      summary,
+      logs: [event],
+      startedAt: timestamp,
+      finishedAt: timestamp,
+    };
+    this.opts.logStore.getState().setNodeResult(node.id, result);
+    this.previousOutputs[node.id] = result;
+    await this.persistCurrentLog(repo);
+
+    if (!exceeded) return { ok: true };
+    return { ok: false, status: "failed", reason: summary };
+  }
+
   private async persistCurrentLog(repo: RunnerRepository): Promise<void> {
     if (!this.opts.persistRunLog) return;
     const { runId, workflowId } = this.opts.getRunMeta();
@@ -313,6 +359,24 @@ function readNodeIdleMs(
   if (typeof value !== "number") return fallback;
   if (!Number.isFinite(value)) return fallback;
   if (value <= 0) return fallback;
+  return value;
+}
+
+function isLoopLimitSkill(node: WorkflowSkillNode): boolean {
+  return (
+    (node.skillRef.source ?? "repository") === "default" &&
+    node.skillRef.skillFile === LOOP_LIMIT_SKILL_FILE
+  );
+}
+
+function readLoopLimit(
+  input: Record<string, unknown> | undefined,
+): number | null {
+  const raw = input?.arguments;
+  if (typeof raw !== "string") return null;
+  const first = raw.trim().split(/\s+/, 1)[0];
+  const value = Number(first);
+  if (!Number.isInteger(value) || value <= 0) return null;
   return value;
 }
 

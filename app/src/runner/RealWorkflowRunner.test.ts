@@ -32,6 +32,7 @@ const SKILL_CONTENT =
 const SYSTEM_SKILL_ID = "codex:starter/boarding";
 const SYSTEM_SKILL_CONTENT =
   "---\nname: boarding\ndescription: starter\n---\n\n# boarding\n\nStart here.\n";
+const LOOP_LIMIT_SKILL_FILE = ".codex/skills/loop-limit/SKILL.md";
 
 function workflowNode(
   id: string,
@@ -199,6 +200,82 @@ describe("RealWorkflowRunner", () => {
     expect(ctx.skill.content).toBe(SYSTEM_SKILL_CONTENT);
     expect(ctx.execution.cwd).toBe(REPO.path);
     expect(ctx.input).toEqual({ arguments: "CIR-63" });
+  });
+
+  it("runs the default loop-limit skill without invoking an adapter", async () => {
+    const node = workflowNode("limit", "codex", { arguments: "3" });
+    node.skillRef = {
+      source: "default",
+      provider: "codex",
+      skillFile: LOOP_LIMIT_SKILL_FILE,
+    };
+    const harness = makeHarness({ nodes: [node] });
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf",
+      nodeIds: ["limit"],
+      startedAt: "t0",
+      runMode: "cycle",
+    });
+    useRunStore.getState().setIteration(2);
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result).toEqual({ ok: true });
+    expect(useRunLogStore.getState().nodeResults.limit).toMatchObject({
+      status: "success",
+      output: { iteration: 2, maxIterations: 3, exceeded: false },
+      summary: "loop limit passed (2/3)",
+    });
+  });
+
+  it("fails the default loop-limit skill when iteration exceeds arguments", async () => {
+    const node = workflowNode("limit", "codex", { arguments: "3" });
+    node.skillRef = {
+      source: "default",
+      provider: "codex",
+      skillFile: LOOP_LIMIT_SKILL_FILE,
+    };
+    const harness = makeHarness({ nodes: [node] });
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf",
+      nodeIds: ["limit"],
+      startedAt: "t0",
+      runMode: "cycle",
+    });
+    useRunStore.getState().setIteration(4);
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result).toEqual({
+      ok: false,
+      status: "failed",
+      reason: "loop limit exceeded (4/3)",
+    });
+    expect(useRunLogStore.getState().nodeResults.limit).toMatchObject({
+      status: "failed",
+      output: { iteration: 4, maxIterations: 3, exceeded: true },
+      summary: "loop limit exceeded (4/3)",
+    });
+  });
+
+  it("fails the default loop-limit skill when arguments are invalid", async () => {
+    const node = workflowNode("limit", "codex", { arguments: "soon" });
+    node.skillRef = {
+      source: "default",
+      provider: "codex",
+      skillFile: LOOP_LIMIT_SKILL_FILE,
+    };
+    const harness = makeHarness({ nodes: [node] });
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("positive integer");
+    }
+    expect(useRunLogStore.getState().nodeResults.limit.status).toBe("failed");
   });
 
   it("records missing system skill failures in the run log", async () => {

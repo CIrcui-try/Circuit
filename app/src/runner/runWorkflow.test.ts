@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import { createMockRunner } from "./mockRunner";
 import type { RunnableEdge, RunnableNode, WorkflowRunner } from "./runner";
+import { useRunLogStore } from "./runLogStore";
 import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
 import { runWorkflow } from "./runWorkflow";
 
@@ -19,6 +20,7 @@ const edge = (id: string, source: string, target: string): RunnableEdge => ({
 
 beforeEach(() => {
   useRunStore.getState().reset();
+  useRunLogStore.getState().reset();
 });
 
 describe("runWorkflow", () => {
@@ -174,11 +176,14 @@ describe("runWorkflow", () => {
     expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
   });
 
-  it("RW4b: an allowed cycle runs nodes once in insertion order", async () => {
+  it("RW4b: an allowed cycle repeats nodes until a skill stops it", async () => {
     const order: string[] = [];
     const runner: WorkflowRunner = {
       async runNode(n) {
         order.push(n.id);
+        if (order.length === 6) {
+          return { ok: false, status: "failed", reason: "stop" };
+        }
         return { ok: true };
       },
     };
@@ -194,11 +199,85 @@ describe("runWorkflow", () => {
       allowCycles: true,
     });
 
-    expect(outcome).toEqual({ kind: "started", status: "success" });
-    expect(order).toEqual(["a", "b"]);
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "a", "b", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      runMode: "cycle",
+      iteration: 3,
+    });
     expect(useRunStore.getState().nodeStates).toEqual({
       a: "success",
-      b: "success",
+      b: "failed",
+    });
+  });
+
+  it("RW4c: an allowed cycle stops on the failed iteration and node", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (order.length === 4) {
+          return { ok: false, status: "failed", reason: "boom" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      runMode: "cycle",
+      iteration: 2,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+    });
+  });
+
+  it("RW4d: an allowed cycle preserves cancelled as the terminal state", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "cancelled", reason: "cancelled" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    expect(useRunStore.getState()).toMatchObject({
+      status: "cancelled",
+      runMode: "cycle",
+      iteration: 1,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "cancelled",
     });
   });
 

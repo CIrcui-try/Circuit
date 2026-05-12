@@ -17,6 +17,7 @@ describe("runStore", () => {
     });
     const s = useRunStore.getState();
     expect(s.status).toBe("running");
+    expect(s.runMode).toBe("dag");
     expect(s.runId).toBe("run_1");
     expect(s.workflowId).toBe("wf_1");
     expect(s.workflowName).toBe("Release flow");
@@ -27,6 +28,22 @@ describe("runStore", () => {
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({ n1: "queued", n2: "queued" });
     expect(s.nodeDebug).toEqual({});
+  });
+
+  it("RS1c: beginRun tracks cycle iteration metadata", () => {
+    useRunStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf_1",
+      nodeIds: ["n1"],
+      startedAt: "2026-04-30T00:00:00Z",
+      runMode: "cycle",
+    });
+
+    useRunStore.getState().setIteration(3);
+
+    const s = useRunStore.getState();
+    expect(s.runMode).toBe("cycle");
+    expect(s.iteration).toBe(3);
   });
 
   it("RS1b: stores a cloned workflow snapshot for workspace re-entry", () => {
@@ -161,6 +178,7 @@ describe("runStore", () => {
     useRunStore.getState().reset();
     const s = useRunStore.getState();
     expect(s.status).toBe("idle");
+    expect(s.runMode).toBe("dag");
     expect(s.runId).toBeNull();
     expect(s.workflowId).toBeNull();
     expect(s.workflowName).toBeNull();
@@ -169,6 +187,7 @@ describe("runStore", () => {
     expect(s.startedAt).toBeNull();
     expect(s.finishedAt).toBeNull();
     expect(s.activeNodeId).toBeNull();
+    expect(s.iteration).toBeNull();
     expect(s.nodeStates).toEqual({});
     expect(s.nodeDebug).toEqual({});
     expect(s.snapshot).toBeNull();

@@ -78,6 +78,7 @@ export async function startWorkflowRun(
       snapshot,
       runner,
       store: useRunStore,
+      logStore: useRunLogStore,
       now: opts.now,
       newRunId: opts.newRunId,
       allowCycles: opts.allowCycles,

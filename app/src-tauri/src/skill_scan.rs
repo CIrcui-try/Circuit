@@ -361,7 +361,7 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-skills");
         let skills = scan_default_skills_from_root(&root).expect("scan failed");
 
-        assert_eq!(skills.len(), 5);
+        assert_eq!(skills.len(), 6);
         let planning = skills
             .iter()
             .find(|s| s.skill_file == ".codex/skills/planning/SKILL.md")
@@ -370,6 +370,15 @@ mod tests {
         assert_eq!(planning.source, "default");
         assert!(planning.content.contains("argument-hint"));
         assert!(planning.skill_file_abs_path.ends_with("planning/SKILL.md"));
+
+        let loop_limit = skills
+            .iter()
+            .find(|s| s.skill_file == ".codex/skills/loop-limit/SKILL.md")
+            .unwrap();
+        assert_eq!(loop_limit.provider, "codex");
+        assert_eq!(loop_limit.source, "default");
+        assert!(loop_limit.content.contains("argument-hint: <max-iterations>"));
+        assert!(loop_limit.skill_file_abs_path.ends_with("loop-limit/SKILL.md"));
     }
 
     #[test]

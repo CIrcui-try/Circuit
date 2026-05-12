@@ -87,6 +87,36 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel header shows loop iteration only for cycle runs", () => {
+    useRunStore.getState().beginRun({
+      runId: "run_abcdef123",
+      workflowId: "wf",
+      nodeIds: ["node-1"],
+      startedAt: "t",
+      runMode: "cycle",
+    });
+    useRunStore.getState().setIteration(3);
+
+    const { rerender } = render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
+      /run run_abcd.*running.*loop 3/,
+    );
+
+    useRunStore.getState().beginRun({
+      runId: "run_abcdef456",
+      workflowId: "wf",
+      nodeIds: ["node-1"],
+      startedAt: "t",
+      runMode: "dag",
+    });
+    rerender(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).not.toHaveTextContent(
+      /loop \d+/,
+    );
+  });
+
   it("LogPanel header shows terminal elapsed time", () => {
     useRunStore.setState({
       status: "success",

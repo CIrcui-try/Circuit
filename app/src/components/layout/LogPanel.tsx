@@ -68,6 +68,7 @@ function LogHeader({
   isRunning,
   status,
   runId,
+  loopLabel,
   activeNodeLabel,
   activeNodeState,
   activeNodeIdle,
@@ -82,6 +83,7 @@ function LogHeader({
   isRunning: boolean;
   status: string;
   runId: string | null;
+  loopLabel: string | null;
   activeNodeLabel: string | null;
   activeNodeState: string | null;
   activeNodeIdle: boolean;
@@ -108,6 +110,7 @@ function LogHeader({
           {runId ? `run ${shortId(runId)} · ` : ""}
           {status}
           {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+          {loopLabel ? ` · ${loopLabel}` : ""}
           {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
           {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
           {activeNodeIdle ? " · idle" : ""}
@@ -279,6 +282,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   );
   const runStatus = useRunStore((s) => s.status);
   const runStoreRunId = useRunStore((s) => s.runId);
+  const runMode = useRunStore((s) => s.runMode);
+  const iteration = useRunStore((s) => s.iteration);
   const activeNodeId = useRunStore((s) => s.activeNodeId);
   const nodeStates = useRunStore((s) => s.nodeStates);
   const nodeDebug = useRunStore((s) => s.nodeDebug);
@@ -303,6 +308,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     ? Boolean(nodeDebug[activeNodeId]?.idleSince)
     : false;
   const headerRunId = runStoreRunId ?? runId;
+  const loopLabel = formatLoopLabel(runMode, iteration);
   const canCopyLog =
     events.length > 0 || Object.keys(nodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
@@ -425,6 +431,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           isRunning={isRunning}
           status={runStatus}
           runId={headerRunId}
+          loopLabel={loopLabel}
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
@@ -454,6 +461,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         isRunning={isRunning}
         status={runStatus}
         runId={headerRunId}
+        loopLabel={loopLabel}
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
@@ -930,4 +938,12 @@ function formatRunLogForClipboard(
 
 function shortId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+function formatLoopLabel(
+  runMode: "dag" | "cycle",
+  iteration: number | null,
+): string | null {
+  if (runMode !== "cycle" || iteration == null) return null;
+  return `loop ${iteration}`;
 }

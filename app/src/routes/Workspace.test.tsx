@@ -485,24 +485,14 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByTestId("workflow-start"));
 
     expect(
-      screen.getByRole("dialog", { name: "Workflow loop warning" }),
+      screen.getByRole("dialog", { name: "Run workflow loop" }),
     ).toHaveTextContent(
-      "This workflow contains a loop and may run indefinitely.",
+      "This workflow contains a loop and will repeat until it fails, is cancelled, or a skill stops the loop.",
     );
     expect(screen.getByTestId("cycle-run-confirm")).toHaveTextContent(
-      "Do you want to continue?",
+      "Start repeated execution?",
     );
     expect(useRunStore.getState().status).toBe("idle");
-
-    fireEvent.click(screen.getByTestId("cycle-run-confirm-proceed"));
-
-    await vi.waitFor(() => {
-      expect(useRunStore.getState().status).toBe("success");
-    });
-    expect(useRunStore.getState().nodeStates).toMatchObject({
-      [a]: "success",
-      [b]: "success",
-    });
   });
 
   it("W9c: cancelling the loop confirmation does not start a run", async () => {

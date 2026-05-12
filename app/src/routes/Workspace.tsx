@@ -353,12 +353,13 @@ export function Workspace() {
             data-testid="cycle-run-confirm"
           >
             <h2 id="cycle-run-title" className="modal__title">
-              Workflow loop warning
+              Run workflow loop
             </h2>
             <p className="modal__message">
-              This workflow contains a loop and may run indefinitely.
+              This workflow contains a loop and will repeat until it fails,
+              is cancelled, or a skill stops the loop.
             </p>
-            <p className="modal__message">Do you want to continue?</p>
+            <p className="modal__message">Start repeated execution?</p>
             <div className="modal__footer">
               <button
                 type="button"
