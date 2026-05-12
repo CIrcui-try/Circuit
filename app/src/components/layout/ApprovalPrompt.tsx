@@ -4,17 +4,16 @@ import type { WorkflowSkillProvider } from "../../workflow/schema";
 
 export interface ApprovalPromptProps {
   request: PendingApproval;
-  nodeMeta?: {
-    label: string;
-    provider?: WorkflowSkillProvider;
-  };
+  provider?: WorkflowSkillProvider;
+  skillLabel?: string;
   onRespond: (text: string) => void | Promise<void>;
   onDismiss?: () => void;
 }
 
 export function ApprovalPrompt({
   request,
-  nodeMeta,
+  provider,
+  skillLabel = request.nodeId,
   onRespond,
   onDismiss,
 }: ApprovalPromptProps) {
@@ -37,22 +36,22 @@ export function ApprovalPrompt({
       data-testid="approval-prompt"
       data-request-id={request.requestId}
     >
-      {nodeMeta?.provider ? (
+      {provider ? (
         <span
-          className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${nodeMeta.provider}`}
+          className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
           data-testid="run-log-provider"
         >
-          {nodeMeta.provider}
+          {provider}
         </span>
       ) : (
-        <span className="run-log__node run-log__provider">-</span>
+        <span className="run-log__provider run-log__provider--empty">-</span>
       )}
       <span
-        className="run-log__node run-log__skill"
+        className="run-log__skill"
         data-testid="run-log-skill"
         title={request.nodeId}
       >
-        {nodeMeta?.label ?? request.nodeId}
+        {skillLabel}
       </span>
       <span className="run-log__type">approval</span>
       <span className="run-log__payload run-log__payload--approval">

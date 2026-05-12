@@ -34,6 +34,7 @@ beforeEach(() => {
   useRunLogStore.getState().reset();
   useRunStore.getState().reset();
   useSkillStore.setState({ byRepo: {}, defaultSkills: [], systemSkills: [], loading: {}, errors: {} });
+  window.localStorage.clear();
 });
 
 describe("Layout shell", () => {
@@ -115,8 +116,19 @@ describe("Layout shell", () => {
       value: { writeText },
       configurable: true,
     });
+    const nodeA = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
-    useRunLogStore.getState().appendEvent("node-a", {
+    useRunLogStore.getState().appendEvent(nodeA, {
       type: "stdout",
       timestamp: "t1",
       text: "hello from stdout",
@@ -126,7 +138,7 @@ describe("Layout shell", () => {
       timestamp: "t2",
       status: "running command",
     });
-    useRunLogStore.getState().setNodeResult("node-a", {
+    useRunLogStore.getState().setNodeResult(nodeA, {
       status: "success",
       exitCode: 0,
       logs: [],
@@ -141,9 +153,9 @@ describe("Layout shell", () => {
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0][0];
-    expect(copied).toContain("node-a\tstdout\thello from stdout");
+    expect(copied).toContain("Foo\tstdout\thello from stdout");
     expect(copied).toContain("node-b\tstatus\trunning command");
-    expect(copied).toContain("node-a\tresult\tsuccess (exit 0)");
+    expect(copied).toContain("Foo\tresult\tsuccess (exit 0)");
     expect(await screen.findByTestId("run-log-copy-feedback")).toHaveTextContent(
       "Copied",
     );
@@ -182,6 +194,73 @@ describe("Layout shell", () => {
     expect(groups[1]).toHaveTextContent("stderr");
     expect(groups[1]).toHaveTextContent("2 lines - first stderr");
     expect(screen.queryAllByTestId("run-log-line")).toHaveLength(0);
+  });
+
+  it("LogPanel renders column headers above log rows", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    const header = screen.getByTestId("run-log-column-header");
+    expect(header).toHaveTextContent("Provider");
+    expect(header).toHaveTextContent("Skill");
+    expect(header).toHaveTextContent("Type");
+    expect(header).toHaveTextContent("Message");
+    expect(screen.getByTestId("run-log").firstElementChild).toBe(header);
+  });
+
+  it("LogPanel resizes a column and persists the selected width", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    act(() => {
+      fireEvent.pointerDown(screen.getByTestId("run-log-resize-skill"), {
+        clientX: 100,
+        pointerId: 1,
+      });
+    });
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 140 });
+    });
+
+    const log = screen.getByTestId("run-log");
+    expect(log).toHaveStyle({ "--run-log-skill-width": "190px" });
+    expect(window.localStorage.getItem("circuit.runLog.columns.v1")).toContain(
+      '"skill":190',
+    );
+  });
+
+  it("LogPanel restores persisted column widths from localStorage", () => {
+    window.localStorage.setItem(
+      "circuit.runLog.columns.v1",
+      JSON.stringify({ provider: 120, skill: 260, type: 90, message: 640 }),
+    );
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log")).toHaveStyle({
+      "--run-log-provider-width": "120px",
+      "--run-log-skill-width": "260px",
+      "--run-log-type-width": "90px",
+      "--run-log-message-width": "640px",
+    });
   });
 
   it("LogPanel shows provider chips and skill names when available", () => {
@@ -371,14 +450,13 @@ describe("Layout shell", () => {
     expect(result).toHaveClass("run-log__line--result-failed");
   });
 
-  it("LogPanel includes failed zero-exit summaries in the result row", () => {
-    const summary =
-      "main 브랜치·develop 부재·미커밋 상태로 publish-pr을 그대로 실행할 수 없어 사용자에게 진행 방향을 묻고 대기 중입니다.";
+  it("LogPanel includes node result summaries in the result row", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().setNodeResult("node-a", {
       status: "failed",
       exitCode: 0,
-      summary,
+      summary:
+        "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
       logs: [],
       startedAt: "t1",
       finishedAt: "t2",
@@ -387,7 +465,7 @@ describe("Layout shell", () => {
     render(<LogPanel />);
 
     expect(screen.getByTestId("run-log-result")).toHaveTextContent(
-      `failed (exit 0) - ${summary}`,
+      "failed (exit 0) - Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
     );
   });
 
