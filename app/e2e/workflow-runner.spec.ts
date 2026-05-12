@@ -45,11 +45,6 @@ async function connectFirstTwoNodes(page: Page) {
   });
 }
 
-async function confirmRunPreview(page: Page) {
-  await expect(page.getByTestId("run-preview-modal")).toBeVisible();
-  await page.getByTestId("run-preview-confirm").click();
-}
-
 test("F7a: Start runs both nodes to success in sequence", async ({ page }) => {
   await openWorkspace(page);
 
@@ -62,7 +57,6 @@ test("F7a: Start runs both nodes to success in sequence", async ({ page }) => {
   const startBtn = page.getByTestId("workflow-start");
   await expect(startBtn).toBeEnabled();
   await startBtn.click();
-  await confirmRunPreview(page);
 
   // Both nodes should land on success.
   await expect(page.locator('[data-testid="workflow-node"][data-run-state="success"]')).toHaveCount(2);
@@ -131,7 +125,6 @@ test("F7c: stdin wait is surfaced and resolved by closing input", async ({ page 
   const startBtn = page.getByTestId("workflow-start");
   await expect(startBtn).toBeEnabled();
   await startBtn.click();
-  await confirmRunPreview(page);
 
   await expect(page.getByTestId("run-log")).toContainText(
     "Reading additional input from stdin",
