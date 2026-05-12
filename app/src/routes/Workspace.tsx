@@ -45,8 +45,12 @@ export function Workspace() {
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
-  const isRunning = useRunStore((s) => s.status === "running");
+  const runStatus = useRunStore((s) => s.status);
+  const isRunning = runStatus === "running";
   const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const lastRunSnapshot = useRunStore((s) => s.snapshot);
+  const lastRunNodeStates = useRunStore((s) => s.nodeStates);
+  const lastRunNodeResults = useRunLogStore((s) => s.nodeResults);
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
   const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
@@ -65,8 +69,18 @@ export function Workspace() {
   const [starterGoal, setStarterGoal] = useState("");
   const [pendingRunPreview, setPendingRunPreview] =
     useState<WorkflowRunSnapshot | null>(null);
+  const [pendingRerunPreview, setPendingRerunPreview] =
+    useState<RerunCandidate | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
+
+  const rerunCandidate = buildRerunCandidate({
+    repoId: repo?.id,
+    status: runStatus,
+    snapshot: lastRunSnapshot,
+    nodeStates: lastRunNodeStates,
+    nodeResults: lastRunNodeResults,
+  });
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -146,26 +160,31 @@ export function Workspace() {
 
   const startSnapshot = useCallback(async (
     snapshot: WorkflowRunSnapshot,
-    allowCycles = false,
+    options: StartSnapshotOptions = {},
   ) => {
     setLogCollapsed(false);
     try {
       const outcome = await startWorkflowRun({
         snapshot,
-        allowCycles,
+        allowCycles: options.allowCycles,
+        startFromNodeId: options.startFromNodeId,
+        seedPreviousOutputs: options.seedPreviousOutputs,
       });
       if (outcome.kind === "rejected") {
-        notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
+        notifyAppError(
+          formatRunRejection(outcome.reason),
+          options.errorTitle ?? "Start Circuit failed",
+        );
         return;
       }
       if (outcome.status === "failed" || outcome.status === "timeout") {
         notifyAppError(
           describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
-          "Start Circuit failed",
+          options.errorTitle ?? "Start Circuit failed",
         );
       }
     } catch (err) {
-      notifyAppError(err, "Start Circuit failed");
+      notifyAppError(err, options.errorTitle ?? "Start Circuit failed");
     }
   }, [setLogCollapsed]);
 
@@ -306,6 +325,16 @@ export function Workspace() {
             "Start Circuit"
           )}
         </button>
+        {rerunCandidate ? (
+          <button
+            type="button"
+            data-testid="workflow-rerun-from-failed"
+            onClick={() => setPendingRerunPreview(rerunCandidate)}
+            disabled={isRunning}
+          >
+            Rerun from failed
+          </button>
+        ) : null}
         <button
           type="button"
           data-testid="workflow-cancel"
@@ -345,7 +374,7 @@ export function Workspace() {
                 onClick={() => {
                   const snapshot = pendingCycleRun;
                   setPendingCycleRun(null);
-                  void startSnapshot(snapshot, true);
+                  void startSnapshot(snapshot, { allowCycles: true });
                 }}
                 data-testid="cycle-run-confirm-proceed"
               >
@@ -363,6 +392,21 @@ export function Workspace() {
             const snapshot = pendingRunPreview;
             setPendingRunPreview(null);
             void startSnapshot(snapshot);
+          }}
+        />
+      ) : null}
+      {pendingRerunPreview ? (
+        <RunPreviewModal
+          snapshot={pendingRerunPreview.snapshot}
+          onCancel={() => setPendingRerunPreview(null)}
+          onConfirm={() => {
+            const rerun = pendingRerunPreview;
+            setPendingRerunPreview(null);
+            void startSnapshot(rerun.snapshot, {
+              startFromNodeId: rerun.startFromNodeId,
+              seedPreviousOutputs: rerun.seedPreviousOutputs,
+              errorTitle: "Rerun from failed failed",
+            });
           }}
         />
       ) : null}
@@ -443,6 +487,19 @@ export function Workspace() {
   );
 }
 
+type StartSnapshotOptions = {
+  allowCycles?: boolean;
+  startFromNodeId?: string;
+  seedPreviousOutputs?: Record<string, SkillExecutionResult>;
+  errorTitle?: string;
+};
+
+type RerunCandidate = {
+  snapshot: WorkflowRunSnapshot;
+  startFromNodeId: string;
+  seedPreviousOutputs: Record<string, SkillExecutionResult>;
+};
+
 function RunPreviewModal({
   snapshot,
   onCancel,
@@ -509,6 +566,56 @@ function RunPreviewModal({
       </div>
     </div>
   );
+}
+
+function buildRerunCandidate({
+  repoId,
+  status,
+  snapshot,
+  nodeStates,
+  nodeResults,
+}: {
+  repoId?: string;
+  status: ReturnType<typeof useRunStore.getState>["status"];
+  snapshot: WorkflowRunSnapshot | null;
+  nodeStates: ReturnType<typeof useRunStore.getState>["nodeStates"];
+  nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
+}): RerunCandidate | null {
+  if (!repoId || !snapshot || snapshot.repository.id !== repoId) return null;
+  if (status !== "failed" && status !== "timeout" && status !== "cancelled") {
+    return null;
+  }
+  const sorted = topoSort(
+    snapshot.nodes.map((node) => node.id),
+    snapshot.edges,
+  );
+  const runOrder = sorted.cycle
+    ? snapshot.nodes.map((node) => node.id)
+    : sorted.order;
+  const failedNodeId = runOrder.find((id) =>
+    isRerunnableNodeState(nodeStates[id]),
+  );
+  if (!failedNodeId) return null;
+
+  const seedPreviousOutputs: Record<string, SkillExecutionResult> = {};
+  for (const id of runOrder) {
+    const result = nodeResults[id];
+    if (!result) continue;
+    seedPreviousOutputs[id] = result;
+    if (id === failedNodeId) break;
+  }
+
+  return {
+    snapshot,
+    startFromNodeId: failedNodeId,
+    seedPreviousOutputs,
+  };
+}
+
+function isRerunnableNodeState(
+  state: ReturnType<typeof useRunStore.getState>["nodeStates"][string],
+): boolean {
+  return state === "failed" || state === "timeout" || state === "cancelled";
 }
 
 function formatRunRejection(
