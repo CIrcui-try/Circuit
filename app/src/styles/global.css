@@ -1553,6 +1553,16 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node__iteration {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(106, 169, 255, 0.16);
+  color: #b6dcff;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 .skill-node__description-wrap {
   position: relative;
   margin-top: 3px;

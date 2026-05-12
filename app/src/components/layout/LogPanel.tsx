@@ -71,6 +71,8 @@ function LogHeader({
   activeNodeLabel,
   activeNodeState,
   activeNodeIdle,
+  cycleLabel,
+  guardReached,
   elapsedLabel,
   copyDisabled,
   copyFeedback,
@@ -85,6 +87,8 @@ function LogHeader({
   activeNodeLabel: string | null;
   activeNodeState: string | null;
   activeNodeIdle: boolean;
+  cycleLabel: string | null;
+  guardReached: boolean;
   elapsedLabel: string | null;
   copyDisabled: boolean;
   copyFeedback: string | null;
@@ -107,6 +111,8 @@ function LogHeader({
           ) : null}
           {runId ? `run ${shortId(runId)} · ` : ""}
           {status}
+          {cycleLabel ? ` · ${cycleLabel}` : ""}
+          {guardReached ? " · guard reached" : ""}
           {elapsedLabel ? ` · ${elapsedLabel}` : ""}
           {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
           {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
@@ -282,6 +288,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const activeNodeId = useRunStore((s) => s.activeNodeId);
   const nodeStates = useRunStore((s) => s.nodeStates);
   const nodeDebug = useRunStore((s) => s.nodeDebug);
+  const runMode = useRunStore((s) => s.runMode);
+  const iteration = useRunStore((s) => s.iteration);
+  const maxIterations = useRunStore((s) => s.maxIterations);
+  const guardReached = useRunStore((s) => s.guardReached);
   const elapsedLabel = useRunElapsedLabel();
   const isRunning = runStatus === "running";
   const repo = useRepositoryStore((s) =>
@@ -302,6 +312,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const activeNodeIdle = activeNodeId
     ? Boolean(nodeDebug[activeNodeId]?.idleSince)
     : false;
+  const cycleLabel =
+    runMode === "cycle" && iteration != null
+      ? `cycle ${iteration}${maxIterations ? `/${maxIterations}` : ""}`
+      : null;
   const headerRunId = runStoreRunId ?? runId;
   const canCopyLog =
     events.length > 0 || Object.keys(nodeResults).length > 0;
@@ -428,6 +442,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
+          cycleLabel={cycleLabel}
+          guardReached={guardReached}
           elapsedLabel={elapsedLabel}
           copyDisabled={!canCopyLog}
           copyFeedback={copyFeedback}
@@ -457,6 +473,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
+        cycleLabel={cycleLabel}
+        guardReached={guardReached}
         elapsedLabel={elapsedLabel}
         copyDisabled={!canCopyLog}
         copyFeedback={copyFeedback}

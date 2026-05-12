@@ -30,6 +30,7 @@ export type WorkflowRunSnapshot = {
 
 export type RunStoreState = {
   status: RunStatus;
+  runMode: "dag" | "cycle";
   runId: string | null;
   workflowId: string | null;
   workflowName: string | null;
@@ -38,6 +39,9 @@ export type RunStoreState = {
   startedAt: string | null;
   finishedAt: string | null;
   activeNodeId: string | null;
+  iteration: number | null;
+  maxIterations: number | null;
+  guardReached: boolean;
   nodeStates: Record<string, NodeRunState>;
   nodeDebug: Record<string, NodeDebugInfo>;
   snapshot: WorkflowRunSnapshot | null;
@@ -52,9 +56,13 @@ export type RunStoreState = {
     };
     nodeIds: readonly string[];
     startedAt: string;
+    runMode?: "dag" | "cycle";
+    maxIterations?: number | null;
     snapshot?: WorkflowRunSnapshot;
   }) => void;
   setActiveNode: (id: string | null) => void;
+  setIteration: (iteration: number | null) => void;
+  markGuardReached: () => void;
   setNodeState: (id: string, state: NodeRunState) => void;
   patchNodeDebug: (id: string, patch: NodeDebugInfo) => void;
   finishRun: (status: RunTerminalStatus, finishedAt?: string) => void;
@@ -64,6 +72,7 @@ export type RunStoreState = {
 const INITIAL: Pick<
   RunStoreState,
   | "status"
+  | "runMode"
   | "runId"
   | "workflowId"
   | "workflowName"
@@ -72,11 +81,15 @@ const INITIAL: Pick<
   | "startedAt"
   | "finishedAt"
   | "activeNodeId"
+  | "iteration"
+  | "maxIterations"
+  | "guardReached"
   | "nodeStates"
   | "nodeDebug"
   | "snapshot"
 > = {
   status: "idle",
+  runMode: "dag",
   runId: null,
   workflowId: null,
   workflowName: null,
@@ -85,6 +98,9 @@ const INITIAL: Pick<
   startedAt: null,
   finishedAt: null,
   activeNodeId: null,
+  iteration: null,
+  maxIterations: null,
+  guardReached: false,
   nodeStates: {},
   nodeDebug: {},
   snapshot: null,
@@ -100,6 +116,8 @@ export const useRunStore = create<RunStoreState>((set) => ({
     repository,
     nodeIds,
     startedAt,
+    runMode,
+    maxIterations,
     snapshot,
   }) => {
     const nodeStates: Record<string, NodeRunState> = {};
@@ -114,6 +132,10 @@ export const useRunStore = create<RunStoreState>((set) => ({
       startedAt,
       finishedAt: null,
       activeNodeId: null,
+      runMode: runMode ?? "dag",
+      iteration: runMode === "cycle" ? 1 : null,
+      maxIterations: runMode === "cycle" ? maxIterations ?? null : null,
+      guardReached: false,
       nodeStates,
       nodeDebug: {},
       snapshot: snapshot ? cloneRunSnapshot(snapshot) : null,
@@ -122,6 +144,14 @@ export const useRunStore = create<RunStoreState>((set) => ({
 
   setActiveNode: (id) => {
     set({ activeNodeId: id });
+  },
+
+  setIteration: (iteration) => {
+    set({ iteration });
+  },
+
+  markGuardReached: () => {
+    set({ guardReached: true });
   },
 
   setNodeState: (id, state) => {

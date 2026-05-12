@@ -81,7 +81,9 @@ export class RealWorkflowRunner implements WorkflowRunner {
     if (this.lastSeenRunId !== runId) {
       this.previousOutputs = { ...(this.pendingPreviousOutputs ?? {}) };
       this.pendingPreviousOutputs = null;
-      this.opts.logStore.getState().beginRun({ runId, workflowId });
+      if (this.opts.logStore.getState().runId !== runId) {
+        this.opts.logStore.getState().beginRun({ runId, workflowId });
+      }
       this.lastSeenRunId = runId;
     }
 

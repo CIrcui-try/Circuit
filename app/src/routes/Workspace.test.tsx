@@ -485,19 +485,25 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByTestId("workflow-start"));
 
     expect(
-      screen.getByRole("dialog", { name: "Workflow loop warning" }),
+      screen.getByRole("dialog", { name: "Run workflow loop" }),
     ).toHaveTextContent(
-      "This workflow contains a loop and may run indefinitely.",
+      "This workflow contains a loop and will repeat until it fails, is cancelled, or reaches the safety guard.",
     );
     expect(screen.getByTestId("cycle-run-confirm")).toHaveTextContent(
-      "Do you want to continue?",
+      "Start repeated execution?",
     );
     expect(useRunStore.getState().status).toBe("idle");
 
     fireEvent.click(screen.getByTestId("cycle-run-confirm-proceed"));
 
     await vi.waitFor(() => {
-      expect(useRunStore.getState().status).toBe("success");
+      expect(useRunStore.getState().status).toBe("timeout");
+    });
+    expect(useRunStore.getState()).toMatchObject({
+      runMode: "cycle",
+      iteration: 10,
+      maxIterations: 10,
+      guardReached: true,
     });
     expect(useRunStore.getState().nodeStates).toMatchObject({
       [a]: "success",
