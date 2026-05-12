@@ -365,7 +365,10 @@ a:hover {
   grid-area: sidebar;
   background: #26262b;
   border-right: 1px solid #3a3a42;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace__canvas {
@@ -1128,6 +1131,12 @@ a:hover {
   gap: 6px;
 }
 
+.skill-list__repo-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .skill-list__empty {
   height: auto;
   min-height: 96px;
@@ -1140,9 +1149,11 @@ a:hover {
 }
 
 .skill-list__section {
+  flex: 0 0 auto;
+  max-height: 65%;
+  overflow: auto;
   border-top: 1px solid #34343b;
   border-bottom: 1px solid #34343b;
-  margin-bottom: 4px;
   padding-top: 4px;
   padding-bottom: 4px;
 }
