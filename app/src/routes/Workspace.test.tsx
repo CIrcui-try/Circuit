@@ -125,7 +125,11 @@ beforeEach(() => {
     hydrated: true,
   });
   useSkillStore.setState({ byRepo: {}, defaultSkills: [], loading: {}, errors: {} });
-  useLayoutStore.setState({ sidebarCollapsed: false, logCollapsed: false });
+  useLayoutStore.setState({
+    sidebarCollapsed: false,
+    propsCollapsed: false,
+    logCollapsed: false,
+  });
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
   useRunLogStore.getState().reset();
@@ -838,7 +842,45 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
   });
 
-  it("W18: keeps the collapsed run log state across workspace remounts in the same session", () => {
+  it("W18: collapses and restores the properties panel without a props resize handle", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("properties-panel-collapse"));
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--props-collapsed",
+    );
+    expect(screen.getByTestId("properties-panel-restore")).toBeInTheDocument();
+    expect(screen.queryByTestId("properties-panel-collapse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("resize-handle-props")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("properties-panel-restore"));
+
+    expect(screen.getByTestId("workspace-root")).not.toHaveClass(
+      "workspace--props-collapsed",
+    );
+    expect(screen.getByTestId("properties-panel-collapse")).toBeInTheDocument();
+    expect(screen.getByTestId("resize-handle-props")).toBeInTheDocument();
+    expect(screen.queryByTestId("properties-panel-restore")).not.toBeInTheDocument();
+  });
+
+  it("W19: keeps the collapsed properties panel state across workspace remounts in the same session", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    const firstRender = renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("properties-panel-collapse"));
+    firstRender.unmount();
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workspace-root")).toHaveClass(
+      "workspace--props-collapsed",
+    );
+    expect(screen.getByTestId("properties-panel-restore")).toBeInTheDocument();
+  });
+
+  it("W20: keeps the collapsed run log state across workspace remounts in the same session", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     const firstRender = renderAt("/workspace/id-alpha");
@@ -853,7 +895,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
   });
 
-  it("W18b: opens the run log when starting Circuit", async () => {
+  it("W20b: opens the run log when starting Circuit", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -888,7 +930,7 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
   });
 
-  it("W19: shows final elapsed time in the toolbar after a run completes", () => {
+  it("W21: leaves the toolbar status slot empty after a run completes", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
     useRunStore.setState({
       status: "success",
@@ -907,8 +949,6 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByTestId("workflow-save-status")).toHaveTextContent(
-      "Success: Deploy flow · 0:05",
-    );
+    expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
   });
 });

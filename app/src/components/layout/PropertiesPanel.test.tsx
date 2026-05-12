@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRunStore } from "../../runner/runStore";
 import { useSkillStore } from "../../stores/skillStore";
@@ -22,6 +22,15 @@ describe("PropertiesPanel", () => {
     render(<PropertiesPanel />);
     expect(screen.getByTestId("node-properties-panel")).toBeInTheDocument();
     expect(screen.getByText(/Select a node or edge/i)).toBeInTheDocument();
+  });
+
+  it("calls onCollapse from the header Hide button", () => {
+    const onCollapse = vi.fn();
+
+    render(<PropertiesPanel onCollapse={onCollapse} />);
+    fireEvent.click(screen.getByTestId("properties-panel-collapse"));
+
+    expect(onCollapse).toHaveBeenCalledTimes(1);
   });
 
   it("PP2: shows label, provider, and skillFile when a node is selected", () => {

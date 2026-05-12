@@ -2,11 +2,13 @@ import type { WorkflowSkillNode } from "../../workflow/schema";
 import type {
   SkillExecutionContext,
   SkillExecutionResult,
+  SkillRerunContext,
 } from "../contracts/SkillExecution";
 import { assertInsideRepoRoot } from "../safety/pathPolicy";
 import { parseSkillMeta } from "../../skills/parseSkillMeta";
 
 export const DEFAULT_TIMEOUT_MS = 300_000;
+const RERUN_LOG_TAIL_CHARS = 4 * 1024;
 
 export type ReadSkillFile = (
   absPath: string,
@@ -25,6 +27,7 @@ export interface BuildSkillExecutionContextInput {
   node: WorkflowSkillNode;
   repository: { id: string; name: string; path: string };
   previousOutputs: Record<string, SkillExecutionResult>;
+  rerunPreviousAttempt?: SkillExecutionResult;
   timeoutMs?: number;
   env?: Record<string, string>;
 }
@@ -93,6 +96,7 @@ export async function buildSkillExecutionContext(
     },
     input: node.input ?? {},
     previousOutputs,
+    ...formatRerun(input.rerunPreviousAttempt),
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: repository.path,
@@ -147,6 +151,7 @@ async function buildDefaultSkillContext(
     },
     input: node.input ?? {},
     previousOutputs,
+    ...formatRerun(input.rerunPreviousAttempt),
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: normalizedRoot,
@@ -202,6 +207,7 @@ async function buildSystemSkillContext(
     },
     input: node.input ?? {},
     previousOutputs,
+    ...formatRerun(input.rerunPreviousAttempt),
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: normalizedRoot,
@@ -219,6 +225,68 @@ function resolveTimeoutMs(timeoutMs: number | undefined): number {
   if (timeoutMs < MIN_TIMEOUT_MS) return MIN_TIMEOUT_MS;
   if (timeoutMs > MAX_TIMEOUT_MS) return MAX_TIMEOUT_MS;
   return Math.floor(timeoutMs);
+}
+
+function formatRerun(
+  previousAttempt: SkillExecutionResult | undefined,
+): { rerun?: SkillRerunContext } {
+  if (!previousAttempt) return {};
+  return { rerun: buildRerunContext(previousAttempt) };
+}
+
+function buildRerunContext(
+  previousAttempt: SkillExecutionResult,
+): SkillRerunContext {
+  const stdout = collectLogText(previousAttempt, "stdout");
+  const stderr = collectLogText(previousAttempt, "stderr");
+  const stdoutTail = takeTail(stdout, RERUN_LOG_TAIL_CHARS);
+  const stderrTail = takeTail(stderr, RERUN_LOG_TAIL_CHARS);
+
+  return {
+    previousAttempt,
+    ...formatLastError(previousAttempt),
+    stdoutTail: stdoutTail.text,
+    stderrTail: stderrTail.text,
+    stdoutTruncated: stdoutTail.truncated,
+    stderrTruncated: stderrTail.truncated,
+  };
+}
+
+function collectLogText(
+  result: SkillExecutionResult,
+  type: "stdout" | "stderr",
+): string {
+  const chunks: string[] = [];
+  for (const ev of result.logs) {
+    if (ev.type === type) chunks.push(ev.text);
+  }
+  return chunks.join("");
+}
+
+function formatLastError(
+  result: SkillExecutionResult,
+): { lastError?: string } {
+  for (let i = result.logs.length - 1; i >= 0; i -= 1) {
+    const ev = result.logs[i];
+    if (ev.type === "error" && ev.message.trim().length > 0) {
+      return { lastError: ev.message.trim() };
+    }
+  }
+  for (let i = result.logs.length - 1; i >= 0; i -= 1) {
+    const ev = result.logs[i];
+    if (ev.type === "stderr" && ev.text.trim().length > 0) {
+      return { lastError: ev.text.trim() };
+    }
+  }
+  return {};
+}
+
+function takeTail(text: string, maxChars: number): {
+  text: string;
+  truncated: boolean;
+} {
+  if (text.length <= maxChars) return { text, truncated: false };
+  return { text: text.slice(text.length - maxChars), truncated: true };
 }
 
 function resolveSkillFilePath(skillFile: string, repoRoot: string): string {

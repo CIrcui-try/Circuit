@@ -110,7 +110,8 @@ test("F6: save workflow, reload page, restore the last edited graph and input", 
   await nameInput.fill("Persisted flow");
   await page.getByTestId("workflow-save").click();
 
-  await expect(page.getByTestId("workflow-save-status")).toContainText(/Saved/i);
+  const menu = page.getByTestId("workflow-menu");
+  await expect(menu.locator("option", { hasText: "Persisted flow" })).toHaveCount(1);
 
   // Reload — the local draft should restore the last edited workflow immediately.
   await page.reload();
@@ -122,7 +123,6 @@ test("F6: save workflow, reload page, restore the last edited graph and input", 
   await expect(page.getByText("CIR-46 --force")).toBeVisible();
 
   // The saved entry should now appear in the workflow menu.
-  const menu = page.getByTestId("workflow-menu");
   await expect(menu.locator("option", { hasText: "Persisted flow" })).toHaveCount(1);
 
   const after = await page.evaluate(() => {

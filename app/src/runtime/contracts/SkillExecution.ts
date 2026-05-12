@@ -37,6 +37,15 @@ export interface SkillExecutionResult {
   finishedAt: string;
 }
 
+export interface SkillRerunContext {
+  previousAttempt: SkillExecutionResult;
+  lastError?: string;
+  stdoutTail: string;
+  stderrTail: string;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+}
+
 export interface SkillExecutionContext {
   runId: string;
   workflowId: string;
@@ -58,6 +67,7 @@ export interface SkillExecutionContext {
   };
   input: Record<string, unknown>;
   previousOutputs: Record<string, SkillExecutionResult>;
+  rerun?: SkillRerunContext;
   execution: {
     timeoutMs: number;
     cwd: string;

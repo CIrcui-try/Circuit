@@ -257,6 +257,41 @@ describe("buildSkillExecutionContext", () => {
     expect(ctx.previousOutputs).toBe(previousOutputs);
   });
 
+  it("builds rerun context from a previous failed attempt", async () => {
+    const previousAttempt: SkillExecutionResult = {
+      status: "failed",
+      exitCode: 1,
+      summary: "failed earlier",
+      logs: [
+        { type: "stdout", timestamp: "t", text: `${"a".repeat(5000)}done\n` },
+        { type: "stderr", timestamp: "t", text: "warn\n" },
+        { type: "error", timestamp: "t", message: "boom" },
+      ],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+
+    const ctx = await buildSkillExecutionContext(
+      {
+        runId: "r",
+        workflowId: "w",
+        node: makeNode(),
+        repository: baseRepo,
+        previousOutputs: {},
+        rerunPreviousAttempt: previousAttempt,
+      },
+      { readSkillFile: async () => skillContent },
+    );
+
+    expect(ctx.rerun?.previousAttempt).toBe(previousAttempt);
+    expect(ctx.rerun?.lastError).toBe("boom");
+    expect(ctx.rerun?.stdoutTail).toContain("done");
+    expect(ctx.rerun?.stdoutTail.length).toBe(4 * 1024);
+    expect(ctx.rerun?.stdoutTruncated).toBe(true);
+    expect(ctx.rerun?.stderrTail).toBe("warn\n");
+    expect(ctx.rerun?.stderrTruncated).toBe(false);
+  });
+
   it("B7 derives skill.name from frontmatter, then heading, then dirname", async () => {
     const fmCtx = await buildSkillExecutionContext(
       {
