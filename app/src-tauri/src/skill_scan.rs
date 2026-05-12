@@ -361,7 +361,7 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-skills");
         let skills = scan_default_skills_from_root(&root).expect("scan failed");
 
-        assert_eq!(skills.len(), 8);
+        assert_eq!(skills.len(), 9);
         let planning = skills
             .iter()
             .find(|s| s.skill_file == ".codex/skills/planning/SKILL.md")
@@ -397,6 +397,16 @@ mod tests {
         assert!(review_and_fix
             .skill_file_abs_path
             .ends_with("review-and-fix/SKILL.md"));
+
+        let claude_wrap_up = skills
+            .iter()
+            .find(|s| s.skill_file == ".claude/skills/wrap-up/SKILL.md")
+            .unwrap();
+        assert_eq!(claude_wrap_up.provider, "claude");
+        assert_eq!(claude_wrap_up.source, "default");
+        assert!(claude_wrap_up
+            .skill_file_abs_path
+            .ends_with("wrap-up/SKILL.md"));
     }
 
     #[test]

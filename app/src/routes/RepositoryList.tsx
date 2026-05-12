@@ -318,10 +318,18 @@ function isLegacyTutorialStarterDraft(
 
   return draft.nodes.some((node) => {
     const skillRef = node.data.skillRef;
-    return (
+    if (
       node.id === "starter_review_and_fix" &&
       skillRef?.provider === "codex" &&
       skillRef?.skillFile === ".codex/skills/review-changes/SKILL.md"
+    ) {
+      return true;
+    }
+
+    return (
+      node.id === "starter_wrap_up" &&
+      skillRef?.provider === "codex" &&
+      skillRef?.skillFile === ".codex/skills/wrap-up/SKILL.md"
     );
   });
 }

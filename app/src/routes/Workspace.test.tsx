@@ -89,6 +89,22 @@ beforeEach(() => {
       content: "---\nname: review-changes\ndescription: Review the implementation\n---\n",
     },
     {
+      provider: "claude",
+      source: "default",
+      dirName: "review-and-fix",
+      rootDir: ".claude/skills/review-and-fix",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+      content: "---\nname: review-and-fix\ndescription: Review and fix the implementation\n---\n",
+    },
+    {
+      provider: "claude",
+      source: "default",
+      dirName: "wrap-up",
+      rootDir: ".claude/skills/wrap-up",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
+      content: "---\nname: wrap-up\ndescription: Write a result briefing\n---\n",
+    },
+    {
       provider: "codex",
       source: "default",
       dirName: "wrap-up",
@@ -474,7 +490,7 @@ describe("Workspace", () => {
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
   });
 
-  it("W9a: opens hello_world.html after a successful tutorial run", async () => {
+  it("W9a: opens the tutorial briefing after a successful tutorial run", async () => {
     const tutorialRepo: Repository = {
       id: "id-tutorial",
       name: "Circuit Tutorial",
@@ -483,7 +499,64 @@ describe("Workspace", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
     useRepositoryStore.setState({ repositories: [tutorialRepo], hydrated: true });
-    bridgeMock.pathExists.mockResolvedValue(true);
+    bridgeMock.pathExists.mockImplementation(async (...args: unknown[]) => {
+      const path = args[0] as string;
+      return (
+        path === "/Users/me/Circuit Tutorial/tutorial_result.md" ||
+        path === "/Users/me/Circuit Tutorial/hello_world.html"
+      );
+    });
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/Circuit Tutorial/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: () => [
+          { event: { type: "started" } },
+          { event: { type: "exited", exitCode: 0 } },
+        ],
+      });
+
+    renderAt("/workspace/id-tutorial");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+      expect(openerMock.openPath).toHaveBeenCalledWith(
+        "/Users/me/Circuit Tutorial/tutorial_result.md",
+      );
+    });
+  });
+
+  it("W9b: falls back to hello_world.html when the tutorial briefing is missing", async () => {
+    const tutorialRepo: Repository = {
+      id: "id-tutorial",
+      name: "Circuit Tutorial",
+      path: "/Users/me/Circuit Tutorial",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    useRepositoryStore.setState({ repositories: [tutorialRepo], hydrated: true });
+    bridgeMock.pathExists.mockImplementation(async (...args: unknown[]) => {
+      const path = args[0] as string;
+      return path === "/Users/me/Circuit Tutorial/hello_world.html";
+    });
     (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
       createMockRuntimeBridge({
         files: {
@@ -522,7 +595,7 @@ describe("Workspace", () => {
     });
   });
 
-  it("W9b: clicking Start on a loop asks before running", async () => {
+  it("W9c: clicking Start on a loop asks before running", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");

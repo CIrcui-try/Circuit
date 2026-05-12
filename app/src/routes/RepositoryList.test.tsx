@@ -129,6 +129,11 @@ describe("RepositoryList", () => {
       provider: "claude",
       skillFile: ".claude/skills/review-and-fix/SKILL.md",
     });
+    expect(draft.nodes[3].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
+    });
   });
 
   it("R3c: pre-seeded tutorial repo is prepared again and legacy starter draft is migrated", async () => {
@@ -162,6 +167,16 @@ describe("RepositoryList", () => {
               },
             },
           },
+          {
+            id: "starter_wrap_up",
+            data: {
+              skillRef: {
+                source: "default",
+                provider: "codex",
+                skillFile: ".codex/skills/wrap-up/SKILL.md",
+              },
+            },
+          },
         ],
         edges: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
@@ -180,6 +195,11 @@ describe("RepositoryList", () => {
       source: "default",
       provider: "claude",
       skillFile: ".claude/skills/review-and-fix/SKILL.md",
+    });
+    expect(draft.nodes[3].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
     });
   });
 

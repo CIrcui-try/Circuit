@@ -61,9 +61,9 @@ const STARTER_STEPS: StarterStep[] = [
   {
     id: "starter_wrap_up",
     label: "wrap-up",
-    description: "Summarize the result and note what the user should inspect next.",
-    provider: "codex",
-    skillFile: ".codex/skills/wrap-up/SKILL.md",
+    description: "Write a short result briefing document for the tutorial run.",
+    provider: "claude",
+    skillFile: ".claude/skills/wrap-up/SKILL.md",
     x: 240,
     y: 620,
   },

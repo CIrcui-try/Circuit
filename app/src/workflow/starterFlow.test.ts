@@ -45,7 +45,7 @@ describe("workflow/starterFlow", () => {
       "codex",
       "claude",
       "claude",
-      "codex",
+      "claude",
     ]);
     expect(wf.nodes.map((node) => node.input)).toEqual([
       { arguments: "Add a theme toggle" },
@@ -111,7 +111,7 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(saved)).toEqual({ ok: true });
   });
 
-  it("SF4: assigns planning and wrap-up to Codex, and mutating steps to Claude", () => {
+  it("SF4: assigns planning to Codex, and mutating/documenting steps to Claude", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       now: () => "2026-05-11T00:00:00.000Z",
@@ -134,8 +134,8 @@ describe("workflow/starterFlow", () => {
     });
     expect(wf.nodes[3].skillRef).toEqual({
       source: "default",
-      provider: "codex",
-      skillFile: ".codex/skills/wrap-up/SKILL.md",
+      provider: "claude",
+      skillFile: ".claude/skills/wrap-up/SKILL.md",
     });
   });
 });
