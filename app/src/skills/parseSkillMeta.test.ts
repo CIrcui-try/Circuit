@@ -86,20 +86,36 @@ describe("parseSkillMeta", () => {
       {
         kind: "command",
         key: "arguments",
+        label: "ISSUE-ID",
         placeholder: "<ISSUE-ID> [--force]",
       },
     ]);
   });
 
-  it("P10: marks command template skills even when the argument shape is omitted", () => {
-    const content = "## Command Template\n\nRun this command with $ARGUMENTS.";
+  it("P10: reads explicit argument-hint frontmatter before body inference", () => {
+    const content = [
+      "---",
+      "name: planning",
+      "argument-hint: <task, request, or issue>",
+      "---",
+      "",
+      "## Command Template",
+      "`$ARGUMENTS` format: `<TASK>`.",
+    ].join("\n");
 
-    expect(parseSkillMeta(content, "command").inputHints).toEqual([
+    expect(parseSkillMeta(content, "planning").inputHints).toEqual([
       {
         kind: "command",
         key: "arguments",
-        placeholder: "$ARGUMENTS",
+        label: "task, request, or issue",
+        placeholder: "<task, request, or issue>",
       },
     ]);
+  });
+
+  it("P11: does not infer command input when no explicit hint exists", () => {
+    const content = "## Command Template\n\nRun this command carefully.";
+
+    expect(parseSkillMeta(content, "command").inputHints).toEqual([]);
   });
 });

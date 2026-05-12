@@ -76,7 +76,7 @@ describe("workflow/starterFlow", () => {
     expect(CODEX_STARTER_FLOW_BINDING_POLICY).toEqual({
       repository: "selected-repository",
       runCwd: "repository.path",
-      skillReference: "systemSkillId",
+      skillReference: "default-skill-file",
       saveLoadContract: "regular-workflow-json",
       actualRepoEffects: true,
     });
@@ -96,10 +96,9 @@ describe("workflow/starterFlow", () => {
 
     const restored = fromWorkflow(wf);
     expect(restored.nodes[0].data.skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      skillFile: "",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
 
     const saved = toWorkflow(
@@ -114,9 +113,9 @@ describe("workflow/starterFlow", () => {
     );
 
     expect(saved.nodes[0].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
     expect(validateWorkflow(saved)).toEqual({ ok: true });
   });
@@ -128,29 +127,29 @@ describe("workflow/starterFlow", () => {
     });
 
     expect(wf.nodes[0].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      systemSkillId: "codex:starter/boarding",
+      skillFile: ".codex/skills/planning/SKILL.md",
     });
     expect(wf.nodes[1].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "claude",
-      systemSkillId: "claude:starter/taxiing",
+      skillFile: ".claude/skills/implement-plan/SKILL.md",
     });
     expect(wf.nodes[2].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "codex",
-      systemSkillId: "codex:starter/review-and-fix",
+      skillFile: ".codex/skills/review-changes/SKILL.md",
     });
     expect(wf.nodes[3].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "claude",
-      systemSkillId: "claude:starter/takeoff",
+      skillFile: ".claude/skills/publish-pr/SKILL.md",
     });
     expect(wf.nodes[4].skillRef).toEqual({
-      source: "system",
+      source: "default",
       provider: "claude",
-      systemSkillId: "claude:starter/landing",
+      skillFile: ".claude/skills/cleanup-merged-pr/SKILL.md",
     });
   });
 });

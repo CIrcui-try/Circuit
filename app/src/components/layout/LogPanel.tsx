@@ -424,6 +424,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             <span className="run-log__payload">
               {r.status}
               {r.exitCode != null ? ` (exit ${r.exitCode})` : ""}
+              {r.summary ? ` - ${r.summary}` : ""}
             </span>
           </li>
         ))}
@@ -580,7 +581,7 @@ function summarizeStreamGroup(
       .filter((line) => line.length > 0),
   );
   const circuitSummary = extractCircuitSummary(lines);
-  if (circuitSummary.length > 0) return truncate(circuitSummary, 96);
+  if (circuitSummary.length > 0) return circuitSummary;
 
   const candidates = lines.filter((line) => !isStreamSummaryNoise(line));
   let bestLine = "";
@@ -599,7 +600,7 @@ function summarizeStreamGroup(
     }
   });
 
-  if (bestLine.length > 0) return truncate(bestLine, 96);
+  if (bestLine.length > 0) return bestLine;
   return "";
 }
 
@@ -704,10 +705,4 @@ function formatRunLogForClipboard(
 
 function shortId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
-}
-
-function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength
-    ? `${value.slice(0, Math.max(0, maxLength - 3))}...`
-    : value;
 }

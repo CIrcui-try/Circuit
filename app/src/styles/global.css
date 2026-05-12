@@ -365,7 +365,10 @@ a:hover {
   grid-area: sidebar;
   background: #26262b;
   border-right: 1px solid #3a3a42;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace__canvas {
@@ -716,6 +719,11 @@ a:hover {
   color: #c8c8cf;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.run-log__payload {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .run-log__line--stream {
@@ -1128,6 +1136,12 @@ a:hover {
   gap: 6px;
 }
 
+.skill-list__repo-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .skill-list__empty {
   height: auto;
   min-height: 96px;
@@ -1140,9 +1154,11 @@ a:hover {
 }
 
 .skill-list__section {
+  flex: 0 0 auto;
+  max-height: 65%;
+  overflow: auto;
   border-top: 1px solid #34343b;
   border-bottom: 1px solid #34343b;
-  margin-bottom: 4px;
   padding-top: 4px;
   padding-bottom: 4px;
 }
@@ -1452,6 +1468,23 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node__input-summary--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+
+.skill-node__input-token {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-node__input-token--arguments {
+  white-space: nowrap;
+}
+
 .skill-node__input-key {
   color: #8ee48e;
   font-weight: 600;
@@ -1491,7 +1524,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 240px;
+  width: 280px;
   padding: 10px;
   border: 1px solid #3a3a42;
   border-radius: 6px;
@@ -1530,6 +1563,11 @@ a:hover {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.skill-node-input-popover__fields {
+  display: grid;
+  gap: 8px;
+}
+
 .skill-node-input-popover__field {
   display: flex;
   flex-direction: column;
@@ -1552,7 +1590,7 @@ a:hover {
 }
 
 .skill-node-input-popover__textarea {
-  min-height: 84px;
+  min-height: 64px;
   resize: vertical;
 }
 
@@ -1669,6 +1707,19 @@ a:hover {
   width: 100%;
 }
 
+.properties__friendly-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.properties__input-field {
+  display: grid;
+  gap: 4px;
+  color: #8a8a92;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .properties__segmented {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1699,7 +1750,7 @@ a:hover {
 
 .properties__textarea {
   width: 100%;
-  min-height: 72px;
+  min-height: 64px;
   resize: vertical;
   padding: 6px 8px;
   color: inherit;

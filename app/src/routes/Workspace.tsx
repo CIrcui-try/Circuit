@@ -40,7 +40,7 @@ export function Workspace() {
   );
   const selectRepository = useRepositoryStore((s) => s.selectRepository);
   const scanRepository = useSkillStore((s) => s.scanRepository);
-  const scanSystemCatalog = useSkillStore((s) => s.scanSystemCatalog);
+  const scanDefaultCatalog = useSkillStore((s) => s.scanDefaultCatalog);
   const resetWorkflow = useWorkflowStore((s) => s.resetWorkflow);
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
@@ -123,9 +123,9 @@ export function Workspace() {
 
   useEffect(() => {
     if (repo) {
-      void scanSystemCatalog();
+      void scanDefaultCatalog();
     }
-  }, [repo, scanSystemCatalog]);
+  }, [repo, scanDefaultCatalog]);
 
   const refreshWorkflows = useCallback(async () => {
     if (!repo) return;

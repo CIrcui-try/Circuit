@@ -76,6 +76,9 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   async readSystemSkill(systemSkillId) {
     return await invoke<string>("runtime_read_system_skill", { systemSkillId });
   },
+  async readDefaultSkill(skillFile) {
+    return await invoke<string>("runtime_read_default_skill", { skillFile });
+  },
   async spawn(options: SpawnOptions) {
     const binding = getOrCreateBinding(options.runId);
     binding.spawnSent = true;

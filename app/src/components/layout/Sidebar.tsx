@@ -9,6 +9,7 @@ import {
   SkillNodeMenu,
   type SkillNodeMenuItem,
 } from "../canvas/SkillNodeMenu";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 
 type SidebarProps = {
   repoId?: string;
@@ -16,14 +17,6 @@ type SidebarProps = {
 };
 
 type MenuState = { x: number; y: number; skill: Skill };
-
-const STARTER_SYSTEM_SKILL_IDS = [
-  "codex:starter/boarding",
-  "claude:starter/taxiing",
-  "codex:starter/review-and-fix",
-  "claude:starter/takeoff",
-  "claude:starter/landing",
-];
 
 function dropPosition(index: number) {
   return { x: 80 + 280 * index, y: 80 + 80 * index };
@@ -35,22 +28,42 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
+function resolveSkillFilePath(
+  skill: Skill,
+  repoPath: string | null,
+  defaultSkills: Skill[],
+): string | null {
+  if (skill.source === "default") {
+    return (
+      skill.skillFileAbsPath ??
+      defaultSkills.find((candidate) => candidate.skillFile === skill.skillFile)
+        ?.skillFileAbsPath ??
+      null
+    );
+  }
+  if (skill.source === "system") {
+    const defaultSkillFile = defaultSkillFileForLegacySystemId(skill.systemSkillId);
+    return (
+      defaultSkills.find((candidate) => candidate.skillFile === defaultSkillFile)
+        ?.skillFileAbsPath ?? null
+    );
+  }
+  return repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
+}
+
 export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const skills = useSkillStore((s) => (repoId ? s.byRepo[repoId] : undefined));
-  const systemSkills = useSkillStore((s) => s.systemSkills);
+  const defaultSkills = useSkillStore((s) => s.defaultSkills);
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
-  const systemLoading = useSkillStore((s) => s.loading.system ?? false);
+  const defaultLoading = useSkillStore((s) => s.loading.default ?? false);
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
-  const systemError = useSkillStore((s) => s.errors.system ?? null);
+  const defaultError = useSkillStore((s) => s.errors.default ?? null);
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const repoPath = useRepositoryStore((s) =>
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
   );
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [systemCollapsed, setSystemCollapsed] = useState(false);
-  const starterSystemSkills = STARTER_SYSTEM_SKILL_IDS.map((id) =>
-    systemSkills.find((skill) => skill.systemSkillId === id || skill.id === id),
-  ).filter((skill): skill is Skill => Boolean(skill));
+  const [defaultCollapsed, setDefaultCollapsed] = useState(false);
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -59,8 +72,11 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         provider: skill.provider,
         source: skill.source ?? "repository",
         skillFile: skill.skillFile,
+        skillFileAbsPath: skill.skillFileAbsPath,
         systemSkillId: skill.systemSkillId,
         name: skill.name,
+        description: skill.description,
+        inputHints: skill.inputHints ?? [],
       }),
     );
     event.dataTransfer.effectAllowed = "copy";
@@ -72,8 +88,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   };
 
   const buildMenuItems = (skill: Skill): SkillNodeMenuItem[] => {
-    const absSkillFile =
-      repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
+    const absSkillFile = resolveSkillFilePath(skill, repoPath, defaultSkills);
     return [
       {
         label: "Show in Finder",
@@ -109,6 +124,75 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     ];
   };
 
+  const defaultSkillSection = repoId ? (
+    <section className="skill-list__section" data-testid="default-skill-section">
+      <button
+        type="button"
+        className="skill-list__section-toggle"
+        data-testid="default-skill-section-toggle"
+        aria-expanded={!defaultCollapsed}
+        onClick={() => setDefaultCollapsed((collapsed) => !collapsed)}
+      >
+        <span className="skill-list__section-icon" aria-hidden="true">
+          {defaultCollapsed ? ">" : "v"}
+        </span>
+        <span>Common</span>
+      </button>
+      {defaultCollapsed ? null : (
+        <ul className="skill-list" data-testid="default-skill-list">
+          {defaultLoading && defaultSkills.length === 0 ? (
+            <li className="skill-list__hint">Scanning default skills...</li>
+          ) : defaultSkills.length === 0 ? (
+            <li className="skill-list__hint">No default skills available.</li>
+          ) : (
+            defaultSkills.map((skill) => (
+              <li
+                key={skill.id}
+                className="skill-list__item"
+                data-testid="default-skill-list__item"
+                data-skill-id={skill.id}
+                draggable
+                onDragStart={(event) => handleDragStart(event, skill)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setMenu({ x: event.clientX, y: event.clientY, skill });
+                }}
+              >
+                <div className="skill-list__row">
+                  <span className="skill-list__name">{skill.name}</span>
+                  <span
+                    className={`skill-list__chip skill-list__chip--${skill.provider}`}
+                  >
+                    {skill.provider}
+                  </span>
+                  <button
+                    type="button"
+                    className="skill-list__add"
+                    data-testid="default-skill-list__add"
+                    aria-label={`Add ${skill.name} to canvas`}
+                    onClick={() => handleAdd(skill)}
+                  >
+                    +
+                  </button>
+                </div>
+                {skill.description && (
+                  <HoverTooltip
+                    className="skill-list__desc-wrap"
+                    content={skill.description}
+                    testId="skill-list-description-tooltip"
+                  >
+                    <div className="skill-list__desc">{skill.description}</div>
+                  </HoverTooltip>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </section>
+  ) : null;
+
   return (
     <aside className="workspace__sidebar">
       <div className="panel-header panel-header--with-actions">
@@ -126,133 +210,73 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         ) : null}
       </div>
 
-      {repoId ? (
-        <section className="skill-list__section" data-testid="system-skill-section">
-          <button
-            type="button"
-            className="skill-list__section-toggle"
-            data-testid="system-skill-section-toggle"
-            aria-expanded={!systemCollapsed}
-            onClick={() => setSystemCollapsed((collapsed) => !collapsed)}
+      <div className="skill-list__repo-region">
+        {!repoId ? (
+          <div className="empty-state">No repository selected.</div>
+        ) : loading && !skills ? (
+          <div className="empty-state">Scanning repository…</div>
+        ) : !skills || skills.length === 0 ? (
+          <div
+            className="empty-state skill-list__empty"
+            data-testid="skill-list-empty"
           >
-            <span className="skill-list__section-icon" aria-hidden="true">
-              {systemCollapsed ? ">" : "v"}
+            <span className="skill-list__empty-text">
+              No skills found in <code>.claude/skills</code> or{" "}
+              <code>.codex/skills</code>.
             </span>
-            <span>Common</span>
-          </button>
-          {systemCollapsed ? null : (
-            <ul className="skill-list" data-testid="system-skill-list">
-              {systemLoading && starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">Scanning common skills...</li>
-              ) : starterSystemSkills.length === 0 ? (
-                <li className="skill-list__hint">No common skills available.</li>
-              ) : (
-                starterSystemSkills.map((skill) => (
-                  <li
-                    key={skill.id}
-                    className="skill-list__item"
-                    data-testid="system-skill-list__item"
-                    data-skill-id={skill.id}
-                    draggable
-                    onDragStart={(event) => handleDragStart(event, skill)}
+          </div>
+        ) : (
+          <ul className="skill-list" data-testid="skill-list">
+            {skills.map((skill) => (
+              <li
+                key={skill.id}
+                className="skill-list__item"
+                data-testid="skill-list__item"
+                data-skill-id={skill.id}
+                draggable
+                onDragStart={(event) => handleDragStart(event, skill)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setMenu({ x: event.clientX, y: event.clientY, skill });
+                }}
+              >
+                <div className="skill-list__row">
+                  <span className="skill-list__name">{skill.name}</span>
+                  <span
+                    className={`skill-list__chip skill-list__chip--${skill.provider}`}
                   >
-                    <div className="skill-list__row">
-                      <span className="skill-list__name">{skill.name}</span>
-                      <span
-                        className={`skill-list__chip skill-list__chip--${skill.provider}`}
-                      >
-                        {skill.provider}
-                      </span>
-                      <button
-                        type="button"
-                        className="skill-list__add"
-                        data-testid="system-skill-list__add"
-                        aria-label={`Add ${skill.name} to canvas`}
-                        onClick={() => handleAdd(skill)}
-                      >
-                        +
-                      </button>
-                    </div>
-                    {skill.description && (
-                      <HoverTooltip
-                        className="skill-list__desc-wrap"
-                        content={skill.description}
-                        testId="skill-list-description-tooltip"
-                      >
-                        <div className="skill-list__desc">{skill.description}</div>
-                      </HoverTooltip>
-                    )}
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
-        </section>
-      ) : null}
+                    {skill.provider}
+                  </span>
+                  <button
+                    type="button"
+                    className="skill-list__add"
+                    data-testid="skill-list__add"
+                    aria-label={`Add ${skill.name} to canvas`}
+                    onClick={() => handleAdd(skill)}
+                  >
+                    +
+                  </button>
+                </div>
+                {skill.description && (
+                  <HoverTooltip
+                    className="skill-list__desc-wrap"
+                    content={skill.description}
+                    testId="skill-list-description-tooltip"
+                  >
+                    <div className="skill-list__desc">{skill.description}</div>
+                  </HoverTooltip>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-      {!repoId ? (
-        <div className="empty-state">No repository selected.</div>
-      ) : loading && !skills ? (
-        <div className="empty-state">Scanning repository…</div>
-      ) : !skills || skills.length === 0 ? (
-        <div
-          className="empty-state skill-list__empty"
-          data-testid="skill-list-empty"
-        >
-          <span className="skill-list__empty-text">
-            No skills found in <code>.claude/skills</code> or{" "}
-            <code>.codex/skills</code>.
-          </span>
-        </div>
-      ) : (
-        <ul className="skill-list" data-testid="skill-list">
-          {skills.map((skill) => (
-            <li
-              key={skill.id}
-              className="skill-list__item"
-              data-testid="skill-list__item"
-              data-skill-id={skill.id}
-              draggable
-              onDragStart={(event) => handleDragStart(event, skill)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setMenu({ x: event.clientX, y: event.clientY, skill });
-              }}
-            >
-              <div className="skill-list__row">
-                <span className="skill-list__name">{skill.name}</span>
-                <span
-                  className={`skill-list__chip skill-list__chip--${skill.provider}`}
-                >
-                  {skill.provider}
-                </span>
-                <button
-                  type="button"
-                  className="skill-list__add"
-                  data-testid="skill-list__add"
-                  aria-label={`Add ${skill.name} to canvas`}
-                  onClick={() => handleAdd(skill)}
-                >
-                  +
-                </button>
-              </div>
-              {skill.description && (
-                <HoverTooltip
-                  className="skill-list__desc-wrap"
-                  content={skill.description}
-                  testId="skill-list-description-tooltip"
-                >
-                  <div className="skill-list__desc">{skill.description}</div>
-                </HoverTooltip>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      {defaultSkillSection}
 
       {error && <div className="skill-list__error">{error}</div>}
-      {systemError && <div className="skill-list__error">{systemError}</div>}
+      {defaultError && <div className="skill-list__error">{defaultError}</div>}
 
       {menu && (
         <SkillNodeMenu

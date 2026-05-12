@@ -53,8 +53,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             skill_scan::scan_skills,
+            skill_scan::scan_default_skills,
             skill_scan::scan_system_skills,
             skill_scan::runtime_read_system_skill,
+            skill_scan::runtime_read_default_skill,
             workflow_store::list_workflows,
             workflow_store::load_workflow,
             workflow_store::save_workflow,

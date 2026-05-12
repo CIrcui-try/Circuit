@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
+import type { SkillInputHint } from "../../host/bridge";
+
+const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 import { useRunStore } from "../../runner/runStore";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
+import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
 type InputEditorMode = "friendly" | "json";
@@ -22,9 +27,27 @@ export function PropertiesPanel() {
     selectedNodeId ? s.nodeDebug[selectedNodeId] ?? null : null,
   );
   const selectedInput = asRecord(selectedNode?.data.input);
+  const selectedInputHints = useSkillStore((state) =>
+    selectedNode
+      ? findSkillInputHints(
+          state.byRepo,
+          state.defaultSkills,
+          selectedNode.data.skillRef.provider,
+          selectedNode.data.skillRef.skillFile,
+          selectedNode.data.skillRef.source,
+          selectedNode.data.skillRef.systemSkillId,
+        )
+      : EMPTY_INPUT_HINTS,
+  );
+  const nodeInputHints = readInputHints(selectedNode?.data.inputHints);
+  const argumentsHint = (nodeInputHints ?? selectedInputHints).find(
+    (hint) => hint.key === "arguments",
+  );
   const selectedInputJson = formatJsonDraft(selectedInput);
   const argumentsValue =
     typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
+  const promptValue =
+    typeof selectedInput?.prompt === "string" ? selectedInput.prompt : "";
 
   useEffect(() => {
     setInputMode("friendly");
@@ -38,13 +61,13 @@ export function PropertiesPanel() {
     }
   }, [inputMode, jsonError, selectedInputJson]);
 
-  const handleArgumentsChange = (value: string) => {
+  const handleFriendlyChange = (key: "arguments" | "prompt", value: string) => {
     if (!selectedNodeId) return;
     const next = selectedInput ? { ...selectedInput } : {};
     if (value.length > 0) {
-      next.arguments = value;
+      next[key] = value;
     } else {
-      delete next.arguments;
+      delete next[key];
     }
     setNodeInput(selectedNodeId, Object.keys(next).length > 0 ? next : null);
   };
@@ -128,14 +151,38 @@ export function PropertiesPanel() {
                 </button>
               </div>
               {inputMode === "friendly" ? (
-                <textarea
-                  data-testid="node-input-arguments"
-                  className="properties__textarea"
-                  aria-label="Node input arguments"
-                  placeholder="<ISSUE-ID> [--force]"
-                  value={argumentsValue}
-                  onChange={(e) => handleArgumentsChange(e.target.value)}
-                />
+                <div className="properties__friendly-fields">
+                  <label className="properties__input-field">
+                    <span>{argumentsHint?.label ?? "Arguments"}</span>
+                    <textarea
+                      data-testid="node-input-arguments"
+                      className="properties__textarea"
+                      aria-label={
+                        argumentsHint
+                          ? `Node input ${argumentsHint.label}`
+                          : "Node input arguments"
+                      }
+                      placeholder={argumentsHint?.placeholder ?? "Arguments"}
+                      value={argumentsValue}
+                      onChange={(e) =>
+                        handleFriendlyChange("arguments", e.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="properties__input-field">
+                    <span>Prompt</span>
+                    <textarea
+                      data-testid="node-input-prompt"
+                      className="properties__textarea"
+                      aria-label="Node input prompt"
+                      placeholder="Prompt"
+                      value={promptValue}
+                      onChange={(e) =>
+                        handleFriendlyChange("prompt", e.target.value)
+                      }
+                    />
+                  </label>
+                </div>
               ) : (
                 <>
                   <textarea
@@ -226,6 +273,49 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function findSkillInputHints(
+  byRepo: ReturnType<typeof useSkillStore.getState>["byRepo"],
+  defaultSkills: ReturnType<typeof useSkillStore.getState>["defaultSkills"],
+  provider: string,
+  skillFile: string,
+  source: string | undefined,
+  systemSkillId?: string,
+): SkillInputHint[] {
+  const resolvedSkillFile =
+    source === "system"
+      ? defaultSkillFileForLegacySystemId(systemSkillId)
+      : skillFile;
+  if (!resolvedSkillFile) return EMPTY_INPUT_HINTS;
+
+  const collections =
+    source === "default" || source === "system"
+      ? [defaultSkills]
+      : Object.values(byRepo);
+  for (const skills of collections) {
+    const match = skills.find(
+      (skill) =>
+        skill.provider === provider && skill.skillFile === resolvedSkillFile,
+    );
+    if (match?.inputHints?.length) return match.inputHints;
+  }
+  return EMPTY_INPUT_HINTS;
+}
+
+function readInputHints(value: unknown): SkillInputHint[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter(isSkillInputHint);
+}
+
+function isSkillInputHint(value: unknown): value is SkillInputHint {
+  if (!isRecord(value)) return false;
+  return (
+    value.kind === "command" &&
+    value.key === "arguments" &&
+    typeof value.label === "string" &&
+    typeof value.placeholder === "string"
+  );
 }
 
 function formatJsonDraft(input: Record<string, unknown> | null): string {

@@ -6,6 +6,7 @@ vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
     openRepositoryDialog: vi.fn(),
     scanSkills: vi.fn(async () => []),
+    scanDefaultSkills: vi.fn(async () => []),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
     listWorkflows: vi.fn(async () => []),
@@ -32,7 +33,7 @@ beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
   useRunLogStore.getState().reset();
   useRunStore.getState().reset();
-  useSkillStore.setState({ byRepo: {}, loading: {}, errors: {} });
+  useSkillStore.setState({ byRepo: {}, defaultSkills: [], systemSkills: [], loading: {}, errors: {} });
 });
 
 describe("Layout shell", () => {
@@ -260,6 +261,23 @@ describe("Layout shell", () => {
     expect(summary).not.toHaveTextContent("CIRCUIT_SUMMARY:");
   });
 
+  it("LogPanel shows the full one-line CIRCUIT_SUMMARY in stream summaries", () => {
+    const summaryText =
+      "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet";
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: `CIRCUIT_SUMMARY: ${summaryText}\n`,
+    });
+
+    render(<LogPanel />);
+
+    const group = screen.getByTestId("run-log-stream-group");
+    expect(group).toHaveTextContent(`1 line - ${summaryText}`);
+    expect(group).not.toHaveTextContent("implementable fe...");
+  });
+
   it("LogPanel skips tokens used and token counts when picking a stream summary", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
@@ -347,6 +365,25 @@ describe("Layout shell", () => {
     expect(result).toHaveTextContent("node-a");
     expect(result).toHaveTextContent("failed (exit 2)");
     expect(result).toHaveClass("run-log__line--result-failed");
+  });
+
+  it("LogPanel includes node result summaries in the result row", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "failed",
+      exitCode: 0,
+      summary:
+        "Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-result")).toHaveTextContent(
+      "failed (exit 0) - Planning is blocked because the provided prompt/arguments do not describe an implementable feature or concrete code change yet",
+    );
   });
 
   it("LogPanel clears visible run log entries when the run is idle", () => {
@@ -594,6 +631,14 @@ describe("Layout shell", () => {
         description: "",
         rootDir: ".codex/skills/takeoff",
         skillFile: ".codex/skills/takeoff/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -611,6 +656,64 @@ describe("Layout shell", () => {
 
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       arguments: "CIR-43 --force",
+    });
+  });
+
+  it("SkillNode input popover edits legacy starter system nodes as arguments", () => {
+    useSkillStore.setState({
+      defaultSkills: [
+        {
+          id: "codex:.codex/skills/planning",
+          provider: "codex",
+          source: "default",
+          name: "planning",
+          description: "Plan the feature",
+          rootDir: ".codex/skills/planning",
+          skillFile: ".codex/skills/planning/SKILL.md",
+          inputHints: [
+            {
+              kind: "command",
+              key: "arguments",
+              label: "task, request, or issue",
+              placeholder: "<task, request, or issue>",
+            },
+          ],
+        },
+      ],
+    });
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:starter/boarding",
+        provider: "codex",
+        source: "system",
+        name: "planning",
+        description: "",
+        rootDir: "system://codex:starter/boarding",
+        skillFile: "",
+        systemSkillId: "codex:starter/boarding",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, { prompt: "legacy prompt" });
+    const node = useWorkflowStore.getState().nodes[0];
+    renderSkillNode({
+      id,
+      selected: false,
+      data: node.data,
+    });
+
+    fireEvent.click(screen.getByTestId("skill-node-input-edit"));
+    expect(screen.getByTestId("skill-node-input-arguments")).toHaveValue("");
+    expect(screen.getByTestId("skill-node-input-prompt")).toHaveValue(
+      "legacy prompt",
+    );
+    fireEvent.change(screen.getByTestId("skill-node-input-arguments"), {
+      target: { value: "CIR-68" },
+    });
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-68",
+      prompt: "legacy prompt",
     });
   });
 
@@ -661,6 +764,14 @@ describe("Layout shell", () => {
         description: "",
         rootDir: ".codex/skills/takeoff",
         skillFile: ".codex/skills/takeoff/SKILL.md",
+        inputHints: [
+          {
+            kind: "command",
+            key: "arguments",
+            label: "ISSUE-ID",
+            placeholder: "<ISSUE-ID> [--force]",
+          },
+        ],
       },
       { x: 0, y: 0 },
     );
@@ -712,6 +823,35 @@ describe("Layout shell", () => {
       "title",
       expect.stringContaining("timeoutMs: 120000"),
     );
+  });
+
+  it("SkillNode stacks arguments and prompt input summaries", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "planning",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/planning/SKILL.md",
+        },
+        input: {
+          arguments: "Hello_world.md 적용하기",
+          prompt: "한국어로 작성할 것",
+        },
+      },
+    });
+
+    const summary = screen.getByTestId("skill-node-input-summary");
+    const innerSummary = summary.querySelector(".skill-node__input-summary");
+    const tokens = summary.querySelectorAll(".skill-node__input-token");
+
+    expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toHaveClass("skill-node__input-token--arguments");
+    expect(tokens[0]).toHaveTextContent("arguments: Hello_world.md 적용하기");
+    expect(tokens[1]).toHaveTextContent("prompt: 한국어로 작성할 것");
+    expect(summary).not.toHaveTextContent(", prompt");
   });
 
   it("SkillNode marks non-object input as invalid", () => {

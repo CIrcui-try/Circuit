@@ -26,10 +26,13 @@ import {
   type SkillNodeMenuItem,
 } from "../canvas/SkillNodeMenu";
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useSkillStore } from "../../stores/skillStore";
 import {
   useWorkflowStore,
   type SkillNode as SkillNodeType,
 } from "../../stores/workflowStore";
+import type { SkillInputHint } from "../../host/bridge";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
@@ -39,10 +42,13 @@ export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
 
 type SkillDragPayload = {
   provider: "claude" | "codex";
-  source?: "repository" | "system";
+  source?: "repository" | "default" | "system";
   skillFile: string;
+  skillFileAbsPath?: string;
   systemSkillId?: string;
   name: string;
+  description?: string;
+  inputHints?: SkillInputHint[];
 };
 
 type MenuState = {
@@ -50,10 +56,36 @@ type MenuState = {
   y: number;
   nodeId: string;
   skillFile: string;
+  source?: "repository" | "default" | "system";
+  skillFileAbsPath?: string;
+  systemSkillId?: string;
 };
 
 function joinPath(base: string, rel: string): string {
   return `${base.replace(/\/+$/, "")}/${rel.replace(/^\/+/, "")}`;
+}
+
+function resolveSkillFilePath(
+  menu: MenuState,
+  repoPath: string | null,
+  defaultSkills: ReturnType<typeof useSkillStore.getState>["defaultSkills"],
+): string | null {
+  if (menu.source === "default") {
+    return (
+      menu.skillFileAbsPath ??
+      defaultSkills.find((skill) => skill.skillFile === menu.skillFile)
+        ?.skillFileAbsPath ??
+      null
+    );
+  }
+  if (menu.source === "system") {
+    const defaultSkillFile = defaultSkillFileForLegacySystemId(menu.systemSkillId);
+    return (
+      defaultSkills.find((skill) => skill.skillFile === defaultSkillFile)
+        ?.skillFileAbsPath ?? null
+    );
+  }
+  return repoPath && menu.skillFile ? joinPath(repoPath, menu.skillFile) : null;
 }
 
 function isPointInsideElement(
@@ -98,6 +130,7 @@ function CanvasInner() {
     if (!s.selectedId) return null;
     return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
   });
+  const defaultSkills = useSkillStore((s) => s.defaultSkills);
   const renderedEdges = useMemo(
     () =>
       edges.map((edge) => ({
@@ -157,12 +190,14 @@ function CanvasInner() {
           provider: payload.provider,
           source: payload.source ?? "repository",
           name: payload.name,
-          description: "",
+          description: payload.description ?? "",
+          inputHints: payload.inputHints ?? [],
           rootDir:
             payload.source === "system" && payload.systemSkillId
               ? `system://${payload.systemSkillId}`
               : payload.skillFile.replace(/\/SKILL\.md$/, ""),
           skillFile: payload.skillFile,
+          skillFileAbsPath: payload.skillFileAbsPath,
           ...(payload.source === "system" && payload.systemSkillId
             ? { systemSkillId: payload.systemSkillId }
             : {}),
@@ -205,6 +240,9 @@ function CanvasInner() {
         y: event.clientY,
         nodeId: skillNode.id,
         skillFile: skillNode.data.skillRef.skillFile,
+        source: skillNode.data.skillRef.source,
+        skillFileAbsPath: skillNode.data.skillRef.skillFileAbsPath,
+        systemSkillId: skillNode.data.skillRef.systemSkillId,
       });
     },
     [],
@@ -212,10 +250,7 @@ function CanvasInner() {
 
   const menuItems: SkillNodeMenuItem[] = useMemo(() => {
     if (!menu) return [];
-    const absolutePath =
-      activeRepoPath && menu.skillFile
-        ? joinPath(activeRepoPath, menu.skillFile)
-        : null;
+    const absolutePath = resolveSkillFilePath(menu, activeRepoPath, defaultSkills);
     return [
       {
         label: "Show in Finder",
@@ -240,7 +275,7 @@ function CanvasInner() {
         },
       },
     ];
-  }, [menu, activeRepoPath]);
+  }, [menu, activeRepoPath, defaultSkills]);
 
   return (
     <section

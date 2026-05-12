@@ -16,6 +16,7 @@ export type ReadSkillFile = (
 export interface BuildSkillExecutionContextDeps {
   readSkillFile: ReadSkillFile;
   readSystemSkill?: (systemSkillId: string) => Promise<string>;
+  readDefaultSkill?: (skillFile: string) => Promise<string>;
 }
 
 export interface BuildSkillExecutionContextInput {
@@ -57,6 +58,9 @@ export async function buildSkillExecutionContext(
   if (source === "system") {
     return await buildSystemSkillContext(input, deps, normalizedRoot);
   }
+  if (source === "default") {
+    return await buildDefaultSkillContext(input, deps, normalizedRoot);
+  }
 
   const skillFile = node.skillRef.skillFile;
   if (!skillFile) {
@@ -92,6 +96,60 @@ export async function buildSkillExecutionContext(
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: repository.path,
+      ...(env ? { env } : {}),
+    },
+  };
+}
+
+async function buildDefaultSkillContext(
+  input: BuildSkillExecutionContextInput,
+  deps: BuildSkillExecutionContextDeps,
+  normalizedRoot: string,
+): Promise<SkillExecutionContext> {
+  const {
+    runId,
+    workflowId,
+    node,
+    repository,
+    previousOutputs,
+    timeoutMs,
+    env,
+  } = input;
+  const skillFile = node.skillRef.skillFile;
+  if (!skillFile) {
+    throw new Error(`node ${node.id} is missing skillRef.skillFile`);
+  }
+  if (!deps.readDefaultSkill) {
+    throw new Error("default skill reader is not available");
+  }
+
+  const content = await deps.readDefaultSkill(skillFile);
+  const rootDir = `default://${dirname(skillFile)}`;
+  const meta = parseSkillMeta(content, basename(dirname(skillFile)));
+
+  return {
+    runId,
+    workflowId,
+    nodeId: node.id,
+    repository: {
+      id: repository.id,
+      name: repository.name,
+      path: repository.path,
+    },
+    skill: {
+      source: "default",
+      provider: node.skillRef.provider,
+      name: meta.name,
+      rootDir,
+      skillFile,
+      skillFileAbsPath: `${rootDir}/SKILL.md`,
+      content,
+    },
+    input: node.input ?? {},
+    previousOutputs,
+    execution: {
+      timeoutMs: resolveTimeoutMs(timeoutMs),
+      cwd: normalizedRoot,
       ...(env ? { env } : {}),
     },
   };

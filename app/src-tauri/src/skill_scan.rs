@@ -1,15 +1,18 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
+use tauri::{AppHandle, Manager};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSkill {
     pub provider: String,
+    pub source: String,
     pub dir_name: String,
     pub root_dir: String,
     pub skill_file: String,
+    pub skill_file_abs_path: String,
     pub content: String,
 }
 
@@ -78,9 +81,23 @@ pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
         return Err("repository path does not exist".into());
     }
 
+    scan_skill_root(&repo, "repository")
+}
+
+#[tauri::command]
+pub fn scan_default_skills(app: AppHandle) -> Result<Vec<RawSkill>, String> {
+    let root = default_skills_root(&app)?;
+    scan_default_skills_from_root(&root)
+}
+
+pub fn scan_default_skills_from_root(root: &Path) -> Result<Vec<RawSkill>, String> {
+    scan_skill_root(root, "default")
+}
+
+fn scan_skill_root(root: &Path, source: &str) -> Result<Vec<RawSkill>, String> {
     let mut out: Vec<RawSkill> = Vec::new();
     for provider in PROVIDERS {
-        let skills_dir = repo.join(format!(".{provider}")).join("skills");
+        let skills_dir = root.join(format!(".{provider}")).join("skills");
         if !skills_dir.is_dir() {
             continue;
         }
@@ -119,9 +136,11 @@ pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
 
             out.push(RawSkill {
                 provider: provider.to_string(),
+                source: source.to_string(),
                 dir_name,
                 root_dir,
                 skill_file,
+                skill_file_abs_path: skill_file_path.to_string_lossy().into_owned(),
                 content,
             });
         }
@@ -133,6 +152,44 @@ pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
             .then_with(|| a.dir_name.cmp(&b.dir_name))
     });
     Ok(out)
+}
+
+fn default_skills_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let resource_root = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("failed to resolve app resource directory: {e}"))?
+        .join("default-skills");
+    if resource_root.is_dir() {
+        return Ok(resource_root);
+    }
+
+    let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-skills");
+    if dev_root.is_dir() {
+        return Ok(dev_root);
+    }
+
+    Err(format!(
+        "default skills directory does not exist: {}",
+        resource_root.display()
+    ))
+}
+
+fn resolve_default_skill_file(root: &Path, skill_file: &str) -> Result<PathBuf, String> {
+    let rel = Path::new(skill_file);
+    if rel.components().any(|c| {
+        matches!(
+            c,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return Err(format!("invalid default skill path: {skill_file}"));
+    }
+    let path = root.join(rel);
+    if !path.is_file() {
+        return Err(format!("default skill not found: {skill_file}"));
+    }
+    Ok(path)
 }
 
 #[tauri::command]
@@ -166,6 +223,13 @@ pub fn runtime_read_system_skill(system_skill_id: String) -> Result<String, Stri
         .find(|entry| entry.id == system_skill_id)
         .map(|entry| entry.content.to_string())
         .ok_or_else(|| format!("system skill not found: {system_skill_id}"))
+}
+
+#[tauri::command]
+pub fn runtime_read_default_skill(app: AppHandle, skill_file: String) -> Result<String, String> {
+    let root = default_skills_root(&app)?;
+    let path = resolve_default_skill_file(&root, &skill_file)?;
+    fs::read_to_string(&path).map_err(|e| format!("failed to read {}: {e}", path.display()))
 }
 
 fn resolve_skill_file(skill_dir: &Path) -> Option<(&'static str, PathBuf)> {
@@ -289,6 +353,23 @@ mod tests {
     fn scan_skills_errors_for_missing_dir() {
         let result = scan_skills("/definitely/does/not/exist".into());
         assert!(result.is_err());
+    }
+
+
+    #[test]
+    fn scan_default_skills_returns_installable_skill_files() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-skills");
+        let skills = scan_default_skills_from_root(&root).expect("scan failed");
+
+        assert_eq!(skills.len(), 5);
+        let planning = skills
+            .iter()
+            .find(|s| s.skill_file == ".codex/skills/planning/SKILL.md")
+            .unwrap();
+        assert_eq!(planning.provider, "codex");
+        assert_eq!(planning.source, "default");
+        assert!(planning.content.contains("argument-hint"));
+        assert!(planning.skill_file_abs_path.ends_with("planning/SKILL.md"));
     }
 
     #[test]
