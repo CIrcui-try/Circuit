@@ -105,6 +105,56 @@ describe("RepositoryList", () => {
     expect(betaLink).toHaveAttribute("href", "/workspace/id-beta");
   });
 
+  it("R4a: renders an add button at the bottom of a populated repository list", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    const items = screen.getAllByRole("listitem");
+    expect(screen.getByTestId("repository-list-add-button")).toHaveTextContent("+");
+    expect(items[items.length - 1]).toContainElement(
+      screen.getByTestId("repository-list-add-button"),
+    );
+  });
+
+  it("R4c: clicking the bottom add button uses the existing add flow", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    bridgeMock.openRepositoryDialog.mockResolvedValueOnce("/Users/me/projects/beta");
+    const user = userEvent.setup();
+
+    renderWithRouter(<RepositoryList />);
+    await user.click(screen.getByTestId("repository-list-add-button"));
+
+    expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled();
+    expect(await screen.findByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("/Users/me/projects/beta")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/Users/me/projects/beta"),
+    );
+  });
+
   it("R4b: marks the repository that owns the active run", () => {
     useRepositoryStore.setState({
       repositories: [
@@ -367,6 +417,7 @@ describe("RepositoryList", () => {
     renderWithRouter(<RepositoryList />);
 
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("repository-list-add-button")).not.toBeInTheDocument();
   });
 
   it("R5: adding the same path twice keeps a single row (silent dedupe)", async () => {
@@ -383,7 +434,6 @@ describe("RepositoryList", () => {
 
     await user.click(button);
 
-    const items = screen.getAllByRole("listitem");
-    expect(items).toHaveLength(1);
+    expect(screen.getAllByText("dup")).toHaveLength(1);
   });
 });

@@ -1083,6 +1083,32 @@ a:hover {
   text-decoration: none;
 }
 
+.repository-list__add-row {
+  position: relative;
+}
+
+.repository-list__add-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #4a4a54;
+  border-radius: 8px;
+  background: #222227;
+  color: #b8b8c2;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.repository-list__add-button:hover,
+.repository-list__add-button:focus-visible {
+  border-color: #5f6f8f;
+  background: #292d36;
+  color: #d7e3ff;
+}
+
 .repository-list__item-name {
   font-weight: 600;
 }
