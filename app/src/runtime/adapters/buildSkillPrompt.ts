@@ -22,6 +22,10 @@ export function buildSkillPrompt(ctx: SkillExecutionContext): string {
     sections.push("", upstream);
   }
 
+  if (ctx.rerun != null) {
+    sections.push("", formatRerunContext(ctx));
+  }
+
   return sections.join("\n");
 }
 
@@ -66,6 +70,37 @@ function formatUpstreamOutputs(
   }
   while (lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
+}
+
+function formatRerunContext(ctx: SkillExecutionContext): string {
+  const rerun = ctx.rerun!;
+  const previous = rerun.previousAttempt;
+  const exit = previous.exitCode != null ? previous.exitCode : "-";
+  const lines = [
+    "# Rerun With Previous Failure Context",
+    "",
+    "This is a new run with a new process and a new prompt, not a resume of the previous Claude/Codex session. Use the previous failure context below to avoid repeating the same failure.",
+    "",
+    `- node: ${ctx.nodeId}`,
+    `- previous status: ${previous.status}`,
+    `- previous exit: ${exit}`,
+    `- previous summary: ${previous.summary ?? "(none)"}`,
+    `- last error: ${rerun.lastError ?? "(none)"}`,
+    "",
+    "## Previous stdout tail",
+    "",
+    formatTail(rerun.stdoutTail, rerun.stdoutTruncated),
+    "",
+    "## Previous stderr tail",
+    "",
+    formatTail(rerun.stderrTail, rerun.stderrTruncated),
+  ];
+  return lines.join("\n");
+}
+
+function formatTail(text: string, truncated: boolean): string {
+  const body = text.length > 0 ? text : "(none)";
+  return truncated ? `… (truncated)\n${body}` : body;
 }
 
 function extractStdout(result: SkillExecutionResult): string {

@@ -108,6 +108,9 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
     const nodeTimeout = readNodeTimeoutMs(fullNode.input);
 
+    const { previousOutputs, rerunPreviousAttempt } =
+      splitRerunPreviousAttempt(this.previousOutputs, node.id);
+
     let ctx;
     try {
       ctx = await buildSkillExecutionContext(
@@ -116,7 +119,8 @@ export class RealWorkflowRunner implements WorkflowRunner {
           workflowId: workflowId ?? "",
           node: fullNode,
           repository: repo,
-          previousOutputs: { ...this.previousOutputs },
+          previousOutputs,
+          ...(rerunPreviousAttempt ? { rerunPreviousAttempt } : {}),
           ...(nodeTimeout != null ? { timeoutMs: nodeTimeout } : {}),
         },
         {
@@ -306,6 +310,23 @@ function readNodeIdleMs(
 
 function isWaitingForStdin(event: AgentRunEvent): boolean {
   return event.type === "stderr" && STDIN_WAITING_RE.test(event.text);
+}
+
+function splitRerunPreviousAttempt(
+  previousOutputs: Record<string, SkillExecutionResult>,
+  nodeId: string,
+): {
+  previousOutputs: Record<string, SkillExecutionResult>;
+  rerunPreviousAttempt?: SkillExecutionResult;
+} {
+  const current = previousOutputs[nodeId];
+  if (!current || current.status === "success") {
+    return { previousOutputs: { ...previousOutputs } };
+  }
+
+  const next = { ...previousOutputs };
+  delete next[nodeId];
+  return { previousOutputs: next, rerunPreviousAttempt: current };
 }
 
 function durationMs(startedAt: string, finishedAt: string): number | undefined {

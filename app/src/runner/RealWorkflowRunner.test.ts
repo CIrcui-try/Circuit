@@ -286,6 +286,47 @@ describe("RealWorkflowRunner", () => {
     expect(adapter.seenContexts[0].previousOutputs).toEqual({ a: seeded });
   });
 
+  it("passes the failed attempt for the rerun node as rerun context", async () => {
+    const upstream = workflowNode("a");
+    const rerunNode = workflowNode("b");
+    const harness = makeHarness({ nodes: [upstream, rerunNode] });
+    const adapter = new FakeAgentAdapter({ provider: "claude" });
+    harness.registry.register(adapter);
+    const upstreamResult: SkillExecutionResult = {
+      status: "success",
+      summary: "upstream ok",
+      logs: [],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+    const previousAttempt: SkillExecutionResult = {
+      status: "failed",
+      exitCode: 2,
+      summary: "rerun target failed",
+      logs: [
+        { type: "stderr", timestamp: "t", text: "previous failure\n" },
+      ],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+
+    harness.runner.seedPreviousOutputs({
+      a: upstreamResult,
+      b: previousAttempt,
+    });
+    await harness.runner.runNode(runnable(rerunNode));
+
+    expect(adapter.seenContexts[0].previousOutputs).toEqual({
+      a: upstreamResult,
+    });
+    expect(adapter.seenContexts[0].rerun?.previousAttempt).toBe(
+      previousAttempt,
+    );
+    expect(adapter.seenContexts[0].rerun?.lastError).toBe(
+      "previous failure",
+    );
+  });
+
   it("R4: stores SkillExecutionResult in runLogStore.nodeResults", async () => {
     const node = workflowNode("a");
     const harness = makeHarness({ nodes: [node] });
