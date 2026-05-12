@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../host/bridge", () => ({
@@ -284,5 +284,34 @@ describe("Sidebar", () => {
       repositoryList.compareDocumentPosition(defaultSection) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("SB10: shows enabled file actions for default skills", () => {
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      defaultSkills: [
+        {
+          id: "codex:.codex/skills/planning",
+          provider: "codex",
+          source: "default",
+          name: "planning",
+          description: "Plan the feature",
+          rootDir: ".codex/skills/planning",
+          skillFile: ".codex/skills/planning/SKILL.md",
+          skillFileAbsPath:
+            "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
+        },
+      ],
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+
+    fireEvent.contextMenu(screen.getByTestId("default-skill-list__item"));
+
+    expect(screen.getByTestId("skill-node-menu")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show in Finder" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open SKILL.md" })).not.toBeDisabled();
   });
 });

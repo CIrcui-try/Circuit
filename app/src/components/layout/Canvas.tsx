@@ -32,6 +32,7 @@ import {
   type SkillNode as SkillNodeType,
 } from "../../stores/workflowStore";
 import type { SkillInputHint } from "../../host/bridge";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
@@ -57,6 +58,7 @@ type MenuState = {
   skillFile: string;
   source?: "repository" | "default" | "system";
   skillFileAbsPath?: string;
+  systemSkillId?: string;
 };
 
 function joinPath(base: string, rel: string): string {
@@ -74,6 +76,13 @@ function resolveSkillFilePath(
       defaultSkills.find((skill) => skill.skillFile === menu.skillFile)
         ?.skillFileAbsPath ??
       null
+    );
+  }
+  if (menu.source === "system") {
+    const defaultSkillFile = defaultSkillFileForLegacySystemId(menu.systemSkillId);
+    return (
+      defaultSkills.find((skill) => skill.skillFile === defaultSkillFile)
+        ?.skillFileAbsPath ?? null
     );
   }
   return repoPath && menu.skillFile ? joinPath(repoPath, menu.skillFile) : null;
@@ -233,6 +242,7 @@ function CanvasInner() {
         skillFile: skillNode.data.skillRef.skillFile,
         source: skillNode.data.skillRef.source,
         skillFileAbsPath: skillNode.data.skillRef.skillFileAbsPath,
+        systemSkillId: skillNode.data.skillRef.systemSkillId,
       });
     },
     [],

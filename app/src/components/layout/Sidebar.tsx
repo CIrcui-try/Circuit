@@ -9,6 +9,7 @@ import {
   SkillNodeMenu,
   type SkillNodeMenuItem,
 } from "../canvas/SkillNodeMenu";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 
 type SidebarProps = {
   repoId?: string;
@@ -27,8 +28,26 @@ function joinPath(base: string, rel: string): string {
   return `${trimmedBase}/${trimmedRel}`;
 }
 
-function resolveSkillFilePath(skill: Skill, repoPath: string | null): string | null {
-  if (skill.source === "default") return skill.skillFileAbsPath ?? null;
+function resolveSkillFilePath(
+  skill: Skill,
+  repoPath: string | null,
+  defaultSkills: Skill[],
+): string | null {
+  if (skill.source === "default") {
+    return (
+      skill.skillFileAbsPath ??
+      defaultSkills.find((candidate) => candidate.skillFile === skill.skillFile)
+        ?.skillFileAbsPath ??
+      null
+    );
+  }
+  if (skill.source === "system") {
+    const defaultSkillFile = defaultSkillFileForLegacySystemId(skill.systemSkillId);
+    return (
+      defaultSkills.find((candidate) => candidate.skillFile === defaultSkillFile)
+        ?.skillFileAbsPath ?? null
+    );
+  }
   return repoPath && skill.skillFile ? joinPath(repoPath, skill.skillFile) : null;
 }
 
@@ -69,7 +88,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   };
 
   const buildMenuItems = (skill: Skill): SkillNodeMenuItem[] => {
-    const absSkillFile = resolveSkillFilePath(skill, repoPath);
+    const absSkillFile = resolveSkillFilePath(skill, repoPath, defaultSkills);
     return [
       {
         label: "Show in Finder",

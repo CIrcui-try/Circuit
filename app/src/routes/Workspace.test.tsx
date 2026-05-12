@@ -60,6 +60,8 @@ beforeEach(() => {
       dirName: "planning",
       rootDir: ".codex/skills/planning",
       skillFile: ".codex/skills/planning/SKILL.md",
+      skillFileAbsPath:
+        "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
       content: "---\nname: planning\ndescription: Plan the feature\nargument-hint: <feature request or Linear issue>\n---\n",
     },
     {
@@ -339,6 +341,8 @@ describe("Workspace", () => {
       source: "default",
       provider: "codex",
       skillFile: ".codex/skills/planning/SKILL.md",
+      skillFileAbsPath:
+        "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
     });
   });
 
