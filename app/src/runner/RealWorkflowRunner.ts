@@ -111,6 +111,14 @@ export class RealWorkflowRunner implements WorkflowRunner {
     const { previousOutputs, rerunPreviousAttempt } =
       splitRerunPreviousAttempt(this.previousOutputs, node.id);
 
+    if (rerunPreviousAttempt) {
+      this.opts.logStore.getState().appendEvent(node.id, {
+        type: "status",
+        timestamp: new Date().toISOString(),
+        status: `rerun from failed started (previous status: ${rerunPreviousAttempt.status})`,
+      });
+    }
+
     let ctx;
     try {
       ctx = await buildSkillExecutionContext(

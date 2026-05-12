@@ -325,6 +325,12 @@ describe("RealWorkflowRunner", () => {
     expect(adapter.seenContexts[0].rerun?.lastError).toBe(
       "previous failure",
     );
+    expect(useRunLogStore.getState().nodeEvents.b).toEqual([
+      expect.objectContaining({
+        type: "status",
+        status: "rerun from failed started (previous status: failed)",
+      }),
+    ]);
   });
 
   it("R4: stores SkillExecutionResult in runLogStore.nodeResults", async () => {
