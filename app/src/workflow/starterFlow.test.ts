@@ -27,7 +27,7 @@ describe("workflow/starterFlow", () => {
     expect(wf.nodes.map((node) => node.label)).toEqual([
       "planning",
       "implement-plan",
-      "review-changes",
+      "review-and-fix",
       "wrap-up",
     ]);
     expect(wf.edges.map((edge) => [edge.source, edge.target])).toEqual([
@@ -44,7 +44,7 @@ describe("workflow/starterFlow", () => {
     expect(wf.nodes.map((node) => node.skillRef.provider)).toEqual([
       "codex",
       "claude",
-      "codex",
+      "claude",
       "codex",
     ]);
     expect(wf.nodes.map((node) => node.input)).toEqual([
@@ -111,7 +111,7 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(saved)).toEqual({ ok: true });
   });
 
-  it("SF4: assigns planning, review, and wrap-up to Codex, and implementation to Claude", () => {
+  it("SF4: assigns planning and wrap-up to Codex, and mutating steps to Claude", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
       now: () => "2026-05-11T00:00:00.000Z",
@@ -129,8 +129,8 @@ describe("workflow/starterFlow", () => {
     });
     expect(wf.nodes[2].skillRef).toEqual({
       source: "default",
-      provider: "codex",
-      skillFile: ".codex/skills/review-changes/SKILL.md",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
     });
     expect(wf.nodes[3].skillRef).toEqual({
       source: "default",

@@ -11,8 +11,12 @@ import {
   TUTORIAL_REPOSITORY_NAME,
 } from "../tutorial";
 import { fromWorkflow } from "../workflow/serialize";
-import { createCodexStarterWorkflow } from "../workflow/starterFlow";
-import { saveWorkflowDraft } from "../workflow/workflowDraft";
+import {
+  CODEX_STARTER_FLOW_ID,
+  CODEX_STARTER_FLOW_NAME,
+  createCodexStarterWorkflow,
+} from "../workflow/starterFlow";
+import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 
 export function RepositoryList() {
   const repositories = useRepositoryStore((s) => s.repositories);
@@ -57,9 +61,13 @@ export function RepositoryList() {
   useEffect(() => {
     if (!hydrated) return;
     if (tutorialRepairAttempted.current) return;
-    if (!repositories.some((repo) => repo.name === TUTORIAL_REPOSITORY_NAME)) return;
+    const tutorialRepo = repositories.find(
+      (repo) => repo.name === TUTORIAL_REPOSITORY_NAME,
+    );
+    if (!tutorialRepo) return;
 
     tutorialRepairAttempted.current = true;
+    refreshTutorialStarterDraftIfNeeded(tutorialRepo.id);
     void prepareTutorialRepository().catch((err) =>
       notifyAppError(err, "Prepare tutorial failed"),
     );
@@ -289,6 +297,32 @@ function saveTutorialStarterDraft(repositoryId: string): void {
     workflowName: restored.meta.name,
     nodes: restored.nodes,
     edges: restored.edges,
+  });
+}
+
+function refreshTutorialStarterDraftIfNeeded(repositoryId: string): void {
+  const draft = loadWorkflowDraft(repositoryId);
+  if (draft && !isLegacyTutorialStarterDraft(draft)) return;
+  saveTutorialStarterDraft(repositoryId);
+}
+
+function isLegacyTutorialStarterDraft(
+  draft: NonNullable<ReturnType<typeof loadWorkflowDraft>>,
+): boolean {
+  if (
+    draft.workflowId !== CODEX_STARTER_FLOW_ID ||
+    draft.workflowName !== CODEX_STARTER_FLOW_NAME
+  ) {
+    return false;
+  }
+
+  return draft.nodes.some((node) => {
+    const skillRef = node.data.skillRef;
+    return (
+      node.id === "starter_review_and_fix" &&
+      skillRef?.provider === "codex" &&
+      skillRef?.skillFile === ".codex/skills/review-changes/SKILL.md"
+    );
   });
 }
 

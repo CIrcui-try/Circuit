@@ -21,6 +21,7 @@ import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
 
 beforeEach(() => {
+  window.localStorage.clear();
   bridgeMock.openRepositoryDialog.mockReset();
   bridgeMock.createTutorialRepository.mockReset();
   bridgeMock.scanSkills.mockReset();
@@ -123,9 +124,14 @@ describe("RepositoryList", () => {
       "starter_review_and_fix",
       "starter_wrap_up",
     ]);
+    expect(draft.nodes[2].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+    });
   });
 
-  it("R3c: pre-seeded tutorial repo is prepared again for git repair", async () => {
+  it("R3c: pre-seeded tutorial repo is prepared again and legacy starter draft is migrated", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -138,6 +144,29 @@ describe("RepositoryList", () => {
       ],
       hydrated: true,
     });
+    window.localStorage.setItem(
+      "circuit.workflowDraft.id-tutorial",
+      JSON.stringify({
+        version: 1,
+        repositoryId: "id-tutorial",
+        workflowId: "codex-starter-issue-lifecycle",
+        workflowName: "Tutorial starter flow",
+        nodes: [
+          {
+            id: "starter_review_and_fix",
+            data: {
+              skillRef: {
+                source: "default",
+                provider: "codex",
+                skillFile: ".codex/skills/review-changes/SKILL.md",
+              },
+            },
+          },
+        ],
+        edges: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    );
 
     renderWithRouter(<RepositoryList />);
 
@@ -145,6 +174,13 @@ describe("RepositoryList", () => {
       expect(bridgeMock.createTutorialRepository).toHaveBeenCalled(),
     );
     expect(screen.getByRole("link", { name: /Circuit Tutorial/ })).toBeInTheDocument();
+    const rawDraft = window.localStorage.getItem("circuit.workflowDraft.id-tutorial");
+    const draft = JSON.parse(rawDraft ?? "{}");
+    expect(draft.nodes[2].data.skillRef).toEqual({
+      source: "default",
+      provider: "claude",
+      skillFile: ".claude/skills/review-and-fix/SKILL.md",
+    });
   });
 
   it("R4: pre-seeded repositories render as links to /workspace/<id>", () => {
