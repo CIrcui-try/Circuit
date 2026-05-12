@@ -136,7 +136,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         <span className="skill-list__section-icon" aria-hidden="true">
           {defaultCollapsed ? ">" : "v"}
         </span>
-        <span>Default</span>
+        <span>Common</span>
       </button>
       {defaultCollapsed ? null : (
         <ul className="skill-list" data-testid="default-skill-list">

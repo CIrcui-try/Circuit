@@ -222,7 +222,7 @@ describe("Sidebar", () => {
     render(<Sidebar repoId="r1" />);
 
     expect(screen.getByTestId("default-skill-section")).toBeInTheDocument();
-    expect(screen.getByText("Default")).toBeInTheDocument();
+    expect(screen.getByText("Common")).toBeInTheDocument();
     expect(screen.getAllByTestId("default-skill-list__item")).toHaveLength(5);
     expect(screen.getByText("planning")).toBeInTheDocument();
     expect(screen.getByText("implement-plan")).toBeInTheDocument();
