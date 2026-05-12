@@ -62,7 +62,7 @@ beforeEach(() => {
       skillFile: ".codex/skills/planning/SKILL.md",
       skillFileAbsPath:
         "/Applications/Circuit.app/default-skills/.codex/skills/planning/SKILL.md",
-      content: "---\nname: planning\ndescription: Plan the feature\nargument-hint: <feature request or Linear issue>\n---\n",
+      content: "---\nname: planning\ndescription: Plan the feature\nargument-hint: <task, request, or issue>\n---\n",
     },
     {
       provider: "claude",

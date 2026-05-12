@@ -638,8 +638,8 @@ describe("Layout shell", () => {
             {
               kind: "command",
               key: "arguments",
-              label: "feature request or Linear issue",
-              placeholder: "<feature request or Linear issue>",
+              label: "task, request, or issue",
+              placeholder: "<task, request, or issue>",
             },
           ],
         },

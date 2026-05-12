@@ -1,7 +1,7 @@
 ---
 name: planning
 description: Plan the feature to implement and capture scope, constraints, and context.
-argument-hint: <feature request or Linear issue>
+argument-hint: <task, request, or issue>
 ---
 
 # planning
