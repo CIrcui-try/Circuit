@@ -741,7 +741,7 @@ a:hover {
 
 .run-log__line {
   display: grid;
-  grid-template-columns: 90px 60px 1fr;
+  grid-template-columns: 90px 150px 60px 1fr;
   gap: 8px;
   padding: 2px 12px;
   color: #c8c8cf;
@@ -806,7 +806,7 @@ a:hover {
 
 .run-log__summary-row {
   display: grid;
-  grid-template-columns: 90px 60px 1fr;
+  grid-template-columns: 90px 150px 60px 1fr;
   gap: 8px;
   padding: 2px 12px;
   cursor: pointer;
@@ -829,7 +829,7 @@ a:hover {
 }
 
 .run-log__raw {
-  margin: 2px 12px 6px 170px;
+  margin: 2px 12px 6px 330px;
   padding: 6px 8px;
   color: #d7d7dd;
   background: #18181c;
@@ -872,6 +872,13 @@ a:hover {
   justify-self: start;
   align-self: center;
   color: #c8c8d0;
+}
+
+.run-log__skill {
+  align-self: center;
+  max-width: 100%;
+  color: #c8c8d0;
+  font-size: 11px;
 }
 
 .run-log__type {

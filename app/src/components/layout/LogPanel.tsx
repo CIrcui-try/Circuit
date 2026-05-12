@@ -274,8 +274,13 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     events,
     new Set(approvals.map((a) => a.requestId)),
   );
-  const getNodeProvider = (nodeId: string): WorkflowSkillProvider | undefined =>
-    workflowNodes.find((n) => n.id === nodeId)?.data.skillRef.provider;
+  const getNodeMeta = (nodeId: string): LogNodeMeta => {
+    const node = workflowNodes.find((n) => n.id === nodeId);
+    return {
+      label: node?.data.label ?? nodeId,
+      provider: node?.data.skillRef.provider,
+    };
+  };
 
   const handleRespond = async (request: PendingApproval, text: string) => {
     if (!runId) return;
@@ -292,7 +297,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     if (!canCopyLog) return;
     try {
       await navigator.clipboard.writeText(
-        formatRunLogForClipboard(events, nodeResults),
+        formatRunLogForClipboard(events, nodeResults, getNodeMeta),
       );
       setCopyFeedback("Copied");
       if (copyFeedbackTimeoutRef.current != null) {
@@ -385,7 +390,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             <StreamLogGroup
               key={`ev-${i}`}
               item={item}
-              provider={getNodeProvider(item.nodeId)}
+              nodeMeta={getNodeMeta(item.nodeId)}
             />
           ) : (
             <li
@@ -393,9 +398,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
               className={`run-log__line run-log__line--${item.event.type}`}
               data-testid="run-log-line"
             >
-              <RunLogNodeBadge
+              <RunLogProviderBadge meta={getNodeMeta(item.nodeId)} />
+              <RunLogSkillName
                 nodeId={item.nodeId}
-                provider={getNodeProvider(item.nodeId)}
+                label={getNodeMeta(item.nodeId).label}
               />
               <span className="run-log__type">{formatEventType(item.event)}</span>
               <span className="run-log__payload">
@@ -408,7 +414,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           <ApprovalPrompt
             key={`approval-${approval.requestId}`}
             request={approval}
-            provider={getNodeProvider(approval.nodeId)}
+            nodeMeta={getNodeMeta(approval.nodeId)}
             onRespond={(text) => handleRespond(approval, text)}
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
@@ -419,7 +425,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}
             data-testid="run-log-result"
           >
-            <RunLogNodeBadge nodeId={nodeId} provider={getNodeProvider(nodeId)} />
+            <RunLogProviderBadge meta={getNodeMeta(nodeId)} />
+            <RunLogSkillName nodeId={nodeId} label={getNodeMeta(nodeId).label} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -433,12 +440,17 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   );
 }
 
+type LogNodeMeta = {
+  label: string;
+  provider?: WorkflowSkillProvider;
+};
+
 function StreamLogGroup({
   item,
-  provider,
+  nodeMeta,
 }: {
   item: Extract<RunLogDisplayItem, { kind: "stream" }>;
-  provider?: WorkflowSkillProvider;
+  nodeMeta: LogNodeMeta;
 }) {
   const lineCount = countStreamLines(item.events);
   const preview = summarizeStreamGroup(item.events);
@@ -451,7 +463,8 @@ function StreamLogGroup({
     >
       <details className="run-log__details">
         <summary className="run-log__summary-row">
-          <RunLogNodeBadge nodeId={item.nodeId} provider={provider} />
+          <RunLogProviderBadge meta={nodeMeta} />
+          <RunLogSkillName nodeId={item.nodeId} label={nodeMeta.label} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
             {lineCount} {lineCount === 1 ? "line" : "lines"}
@@ -466,25 +479,41 @@ function StreamLogGroup({
   );
 }
 
-function RunLogNodeBadge({
-  nodeId,
-  provider,
+function RunLogProviderBadge({
+  meta,
 }: {
-  nodeId: string;
-  provider?: WorkflowSkillProvider;
+  meta: LogNodeMeta;
 }) {
-  if (provider) {
-    return (
-      <span
-        className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${provider}`}
-        data-testid="run-log-provider"
-      >
-        {provider}
-      </span>
-    );
+  if (!meta.provider) {
+    return <span className="run-log__node run-log__provider">-</span>;
   }
 
-  return <span className="run-log__node">{nodeId}</span>;
+  return (
+    <span
+      className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${meta.provider}`}
+      data-testid="run-log-provider"
+    >
+      {meta.provider}
+    </span>
+  );
+}
+
+function RunLogSkillName({
+  nodeId,
+  label,
+}: {
+  nodeId: string;
+  label: string;
+}) {
+  return (
+    <span
+      className="run-log__node run-log__skill"
+      data-testid="run-log-skill"
+      title={nodeId}
+    >
+      {label}
+    </span>
+  );
 }
 
 function buildRunLogDisplayItems(
@@ -689,16 +718,21 @@ function formatPayload(ev: AgentRunEvent): string {
 function formatRunLogForClipboard(
   events: { nodeId: string; event: AgentRunEvent }[],
   nodeResults: Record<string, { status: string; exitCode?: number }>,
+  getNodeMeta: (nodeId: string) => LogNodeMeta,
 ): string {
   const lines = events.map((entry) =>
-    [entry.nodeId, entry.event.type, formatPayload(entry.event)].join("\t"),
+    [
+      getNodeMeta(entry.nodeId).label,
+      entry.event.type,
+      formatPayload(entry.event),
+    ].join("\t"),
   );
   for (const [nodeId, result] of Object.entries(nodeResults)) {
     const payload =
       result.exitCode != null
         ? `${result.status} (exit ${result.exitCode})`
         : result.status;
-    lines.push([nodeId, "result", payload].join("\t"));
+    lines.push([getNodeMeta(nodeId).label, "result", payload].join("\t"));
   }
   return lines.join("\n");
 }

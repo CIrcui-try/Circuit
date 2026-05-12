@@ -25,6 +25,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
 import { useRunLogStore } from "../runner/runLogStore";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import { AppErrorAlert } from "../components/AppErrorAlert";
 import { Workspace } from "./Workspace";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
@@ -416,7 +417,7 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("skill-node-input-popover")).not.toBeInTheDocument();
   });
 
-  it("W9: clicking Start previews the actual repo before running", async () => {
+  it("W9: clicking Start runs the workflow immediately", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -437,16 +438,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-
-    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
-      "Confirm actual repository run",
-    );
-    expect(screen.getByTestId("run-preview-modal")).toHaveTextContent(
-      "/Users/me/alpha",
-    );
-    expect(useRunStore.getState().status).toBe("idle");
-
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
@@ -595,7 +586,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     const alert = await screen.findByTestId("app-error-alert");
     expect(alert).toHaveTextContent("Start Circuit failed");
@@ -707,7 +697,6 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("running");
@@ -917,12 +906,6 @@ describe("Workspace", () => {
     });
     fireEvent.click(screen.getByTestId("workflow-start"));
 
-    expect(screen.getByTestId("run-preview-modal")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-root")).toHaveClass(
-      "workspace--log-collapsed",
-    );
-    fireEvent.click(screen.getByTestId("run-preview-confirm"));
-
     expect(screen.getByTestId("workspace-root")).not.toHaveClass(
       "workspace--log-collapsed",
     );
@@ -950,5 +933,146 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
+  });
+
+  it("W22: hides Rerun from failed after a successful run", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy flow",
+      repositoryId: SAMPLE.id,
+      repositoryName: SAMPLE.name,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: {
+        repository: SAMPLE,
+        workflowId: "wf-1",
+        workflowName: "Deploy flow",
+        nodes: [
+          {
+            id: "node-1",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "Foo",
+            position: { x: 10, y: 20 },
+          },
+        ],
+        edges: [],
+      },
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.queryByTestId("workflow-rerun-from-failed")).not.toBeInTheDocument();
+  });
+
+  it("W23: reruns the last failed snapshot from the failed node after preview confirmation", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    const spawnedRunIds: string[] = [];
+    const spawnedPrompts: string[] = [];
+    (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
+      createMockRuntimeBridge({
+        files: {
+          "/Users/me/alpha/.claude/skills/foo/SKILL.md":
+            "---\nname: Foo\n---\n\n# Foo\n",
+        },
+        scenario: (options) => {
+          spawnedRunIds.push(options.runId);
+          spawnedPrompts.push(options.args.join("\n"));
+          return [
+            { event: { type: "started" } },
+            { event: { type: "exited", exitCode: 0 } },
+          ];
+        },
+      });
+
+    const firstResult: SkillExecutionResult = {
+      status: "success",
+      output: { ok: true },
+      logs: [],
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:01.000Z",
+    };
+    const failedResult: SkillExecutionResult = {
+      status: "failed",
+      summary: "failed earlier",
+      logs: [
+        {
+          type: "error",
+          timestamp: "2026-05-09T00:00:02.000Z",
+          message: "boom",
+        },
+      ],
+      startedAt: "2026-05-09T00:00:01.000Z",
+      finishedAt: "2026-05-09T00:00:02.000Z",
+    };
+    useRunStore.setState({
+      status: "failed",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy flow",
+      repositoryId: SAMPLE.id,
+      repositoryName: SAMPLE.name,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:02.000Z",
+      activeNodeId: null,
+      nodeStates: { first: "success", second: "failed" },
+      nodeDebug: {},
+      snapshot: {
+        repository: SAMPLE,
+        workflowId: "wf-1",
+        workflowName: "Deploy flow",
+        nodes: [
+          {
+            id: "first",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "First",
+            position: { x: 10, y: 20 },
+          },
+          {
+            id: "second",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "Second",
+            position: { x: 100, y: 20 },
+          },
+        ],
+        edges: [{ id: "e1", source: "first", target: "second", kind: "dependency" }],
+      },
+    });
+    useRunLogStore.setState({
+      nodeResults: { first: firstResult, second: failedResult },
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    fireEvent.click(screen.getByTestId("workflow-rerun-from-failed"));
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("success");
+    });
+    expect(spawnedRunIds).toHaveLength(1);
+    expect(spawnedRunIds[0]).toMatch(/::second$/);
+    expect(spawnedPrompts[0]).toContain("# Rerun With Previous Failure Context");
+    expect(spawnedPrompts[0]).toContain("- previous status: failed");
+    expect(useRunStore.getState().nodeStates).toEqual({
+      first: "skipped",
+      second: "success",
+    });
   });
 });

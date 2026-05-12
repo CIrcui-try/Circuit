@@ -12,10 +12,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
 import type { WorkflowSummaryDTO } from "../host/bridge";
 import { fromWorkflow } from "../workflow/serialize";
-import {
-  CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES,
-  createCodexStarterWorkflow,
-} from "../workflow/starterFlow";
+import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -45,8 +42,12 @@ export function Workspace() {
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
-  const isRunning = useRunStore((s) => s.status === "running");
+  const runStatus = useRunStore((s) => s.status);
+  const isRunning = runStatus === "running";
   const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const lastRunSnapshot = useRunStore((s) => s.snapshot);
+  const lastRunNodeStates = useRunStore((s) => s.nodeStates);
+  const lastRunNodeResults = useRunLogStore((s) => s.nodeResults);
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
   const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
@@ -63,10 +64,16 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [starterGoal, setStarterGoal] = useState("");
-  const [pendingRunPreview, setPendingRunPreview] =
-    useState<WorkflowRunSnapshot | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
+
+  const rerunCandidate = buildRerunCandidate({
+    repoId: repo?.id,
+    status: runStatus,
+    snapshot: lastRunSnapshot,
+    nodeStates: lastRunNodeStates,
+    nodeResults: lastRunNodeResults,
+  });
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -146,26 +153,31 @@ export function Workspace() {
 
   const startSnapshot = useCallback(async (
     snapshot: WorkflowRunSnapshot,
-    allowCycles = false,
+    options: StartSnapshotOptions = {},
   ) => {
     setLogCollapsed(false);
     try {
       const outcome = await startWorkflowRun({
         snapshot,
-        allowCycles,
+        allowCycles: options.allowCycles,
+        startFromNodeId: options.startFromNodeId,
+        seedPreviousOutputs: options.seedPreviousOutputs,
       });
       if (outcome.kind === "rejected") {
-        notifyAppError(formatRunRejection(outcome.reason), "Start Circuit failed");
+        notifyAppError(
+          formatRunRejection(outcome.reason),
+          options.errorTitle ?? "Start Circuit failed",
+        );
         return;
       }
       if (outcome.status === "failed" || outcome.status === "timeout") {
         notifyAppError(
           describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
-          "Start Circuit failed",
+          options.errorTitle ?? "Start Circuit failed",
         );
       }
     } catch (err) {
-      notifyAppError(err, "Start Circuit failed");
+      notifyAppError(err, options.errorTitle ?? "Start Circuit failed");
     }
   }, [setLogCollapsed]);
 
@@ -180,8 +192,8 @@ export function Workspace() {
       setPendingCycleRun(snapshot);
       return;
     }
-    setPendingRunPreview(snapshot);
-  }, [repo]);
+    void startSnapshot(snapshot);
+  }, [repo, startSnapshot]);
 
   const handleAddStarterFlow = useCallback(() => {
     if (!repo) return;
@@ -306,6 +318,22 @@ export function Workspace() {
             "Start Circuit"
           )}
         </button>
+        {rerunCandidate ? (
+          <button
+            type="button"
+            data-testid="workflow-rerun-from-failed"
+            onClick={() => {
+              void startSnapshot(rerunCandidate.snapshot, {
+                startFromNodeId: rerunCandidate.startFromNodeId,
+                seedPreviousOutputs: rerunCandidate.seedPreviousOutputs,
+                errorTitle: "Rerun from failed failed",
+              });
+            }}
+            disabled={isRunning}
+          >
+            Rerun from failed
+          </button>
+        ) : null}
         <button
           type="button"
           data-testid="workflow-cancel"
@@ -345,7 +373,7 @@ export function Workspace() {
                 onClick={() => {
                   const snapshot = pendingCycleRun;
                   setPendingCycleRun(null);
-                  void startSnapshot(snapshot, true);
+                  void startSnapshot(snapshot, { allowCycles: true });
                 }}
                 data-testid="cycle-run-confirm-proceed"
               >
@@ -354,17 +382,6 @@ export function Workspace() {
             </div>
           </div>
         </div>
-      ) : null}
-      {pendingRunPreview ? (
-        <RunPreviewModal
-          snapshot={pendingRunPreview}
-          onCancel={() => setPendingRunPreview(null)}
-          onConfirm={() => {
-            const snapshot = pendingRunPreview;
-            setPendingRunPreview(null);
-            void startSnapshot(snapshot);
-          }}
-        />
       ) : null}
       {sidebarCollapsed ? (
         <button
@@ -443,72 +460,67 @@ export function Workspace() {
   );
 }
 
-function RunPreviewModal({
-  snapshot,
-  onCancel,
-  onConfirm,
-}: {
-  snapshot: WorkflowRunSnapshot;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const riskyBoundaries = CODEX_STARTER_FLOW_APPROVAL_BOUNDARIES.filter((boundary) =>
-    snapshot.nodes.some((node) => node.id === boundary.nodeId),
-  );
+type StartSnapshotOptions = {
+  allowCycles?: boolean;
+  startFromNodeId?: string;
+  seedPreviousOutputs?: Record<string, SkillExecutionResult>;
+  errorTitle?: string;
+};
 
-  return (
-    <div className="modal__backdrop">
-      <div
-        className="modal__panel modal__panel--confirm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="run-preview-title"
-        data-testid="run-preview-modal"
-      >
-        <h2 id="run-preview-title" className="modal__title">
-          Confirm actual repository run
-        </h2>
-        <p className="modal__message">
-          This workflow runs against the selected repository, not a mock or demo.
-        </p>
-        <dl className="modal__meta">
-          <dt>Repository</dt>
-          <dd>{snapshot.repository.name}</dd>
-          <dt>Path</dt>
-          <dd>
-            <code>{snapshot.repository.path}</code>
-          </dd>
-          <dt>Workflow</dt>
-          <dd>{snapshot.workflowName}</dd>
-          <dt>Nodes</dt>
-          <dd>{snapshot.nodes.length}</dd>
-        </dl>
-        {riskyBoundaries.length > 0 ? (
-          <div className="modal__warn" data-testid="run-preview-risk">
-            <strong>Changes may affect this repo.</strong>
-            <ul>
-              {riskyBoundaries.map((boundary) => (
-                <li key={boundary.nodeId}>{boundary.description}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        <div className="modal__footer">
-          <button type="button" onClick={onCancel} data-testid="run-preview-cancel">
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="button-danger"
-            onClick={onConfirm}
-            data-testid="run-preview-confirm"
-          >
-            Run on this repository
-          </button>
-        </div>
-      </div>
-    </div>
+type RerunCandidate = {
+  snapshot: WorkflowRunSnapshot;
+  startFromNodeId: string;
+  seedPreviousOutputs: Record<string, SkillExecutionResult>;
+};
+
+function buildRerunCandidate({
+  repoId,
+  status,
+  snapshot,
+  nodeStates,
+  nodeResults,
+}: {
+  repoId?: string;
+  status: ReturnType<typeof useRunStore.getState>["status"];
+  snapshot: WorkflowRunSnapshot | null;
+  nodeStates: ReturnType<typeof useRunStore.getState>["nodeStates"];
+  nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
+}): RerunCandidate | null {
+  if (!repoId || !snapshot || snapshot.repository.id !== repoId) return null;
+  if (status !== "failed" && status !== "timeout" && status !== "cancelled") {
+    return null;
+  }
+  const sorted = topoSort(
+    snapshot.nodes.map((node) => node.id),
+    snapshot.edges,
   );
+  const runOrder = sorted.cycle
+    ? snapshot.nodes.map((node) => node.id)
+    : sorted.order;
+  const failedNodeId = runOrder.find((id) =>
+    isRerunnableNodeState(nodeStates[id]),
+  );
+  if (!failedNodeId) return null;
+
+  const seedPreviousOutputs: Record<string, SkillExecutionResult> = {};
+  for (const id of runOrder) {
+    const result = nodeResults[id];
+    if (!result) continue;
+    seedPreviousOutputs[id] = result;
+    if (id === failedNodeId) break;
+  }
+
+  return {
+    snapshot,
+    startFromNodeId: failedNodeId,
+    seedPreviousOutputs,
+  };
+}
+
+function isRerunnableNodeState(
+  state: ReturnType<typeof useRunStore.getState>["nodeStates"][string],
+): boolean {
+  return state === "failed" || state === "timeout" || state === "cancelled";
 }
 
 function formatRunRejection(
