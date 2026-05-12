@@ -19,7 +19,6 @@ import {
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
-import { useRunElapsedLabel } from "../runner/runElapsed";
 import { useRunStore } from "../runner/runStore";
 import { topoSort } from "../runner/topoSort";
 import {
@@ -47,11 +46,7 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const isRunning = useRunStore((s) => s.status === "running");
-  const runStatus = useRunStore((s) => s.status);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
-  const runRepositoryName = useRunStore((s) => s.repositoryName);
-  const runWorkflowName = useRunStore((s) => s.workflowName);
-  const runElapsed = useRunElapsedLabel();
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
   const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
@@ -61,15 +56,11 @@ export function Workspace() {
   const activeRunSnapshot = useRunStore((s) =>
     s.status === "running" ? s.snapshot : null,
   );
-  const isRunHere = Boolean(
-    runStatus !== "idle" && repo?.id && runRepositoryId === repo.id,
-  );
   const isRunningHere = Boolean(
     isRunning && repo?.id && runRepositoryId === repo.id,
   );
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [starterGoal, setStarterGoal] = useState("");
   const [pendingRunPreview, setPendingRunPreview] =
@@ -84,7 +75,6 @@ export function Workspace() {
   useEffect(() => {
     resetWorkflow();
     setWorkflows([]);
-    setSaveStatus(null);
     if (!repo) return;
     if (isRunningHere && activeRunSnapshot) {
       useWorkflowStore.getState().replaceCanvas({
@@ -143,17 +133,14 @@ export function Workspace() {
 
   const handleSave = useCallback(async () => {
     if (!repo) return;
-    setSaveStatus("Saving…");
     try {
-      const result = await saveCurrent({
+      await saveCurrent({
         repoPath: repo.path,
         repositoryId: repo.id,
       });
-      setSaveStatus(`Saved ${result.name}`);
       await refreshWorkflows();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSaveStatus(`Save failed: ${message}`);
+      notifyAppError(err, "Save workflow failed");
     }
   }, [repo, refreshWorkflows]);
 
@@ -210,7 +197,6 @@ export function Workspace() {
       workflowId: restored.meta.id,
       workflowName: restored.meta.name,
     });
-    setSaveStatus("Starter flow added");
   }, [repo, starterGoal]);
 
   const handleCancel = useCallback(() => {
@@ -227,30 +213,16 @@ export function Workspace() {
       if (!repo) return;
       if (value === NEW_WORKFLOW_VALUE) {
         resetWorkflow();
-        setSaveStatus(null);
         return;
       }
       try {
         await loadById({ repoPath: repo.path, workflowId: value });
-        setSaveStatus(null);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setSaveStatus(`Load failed: ${message}`);
+        notifyAppError(err, "Load workflow failed");
       }
     },
     [repo, resetWorkflow],
   );
-
-  const toolbarStatus =
-    runStatus === "running"
-      ? saveStatus
-      : runStatusText({
-          status: runStatus,
-          isRunningHere: isRunHere,
-          repositoryName: runRepositoryName,
-          workflowName: runWorkflowName,
-          elapsedLabel: runElapsed,
-        }) ?? saveStatus;
 
   if (repoId && hydrated && !repo) {
     return (
@@ -342,11 +314,6 @@ export function Workspace() {
         >
           {cancelling ? "Cancelling…" : "Cancel"}
         </button>
-        {toolbarStatus ? (
-          <span className="workspace__toolbar-status" data-testid="workflow-save-status">
-            {toolbarStatus}
-          </span>
-        ) : null}
       </header>
       {pendingCycleRun ? (
         <div className="modal__backdrop">
@@ -610,44 +577,6 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
       ...(node.input !== undefined ? { input: node.input } : {}),
     },
   };
-}
-
-function runStatusText({
-  status,
-  isRunningHere,
-  repositoryName,
-  workflowName,
-  elapsedLabel,
-}: {
-  status: ReturnType<typeof useRunStore.getState>["status"];
-  isRunningHere: boolean;
-  repositoryName: string | null;
-  workflowName: string | null;
-  elapsedLabel: string | null;
-}): string | null {
-  if (status === "idle") return null;
-  const name = workflowName ?? "workflow";
-  const elapsed = elapsedLabel ? ` · ${elapsedLabel}` : "";
-  const label = runStatusLabel(status);
-  if (isRunningHere) return `${label}: ${name}${elapsed}`;
-  return `${label} in ${repositoryName ?? "another repository"}: ${name}${elapsed}`;
-}
-
-function runStatusLabel(status: ReturnType<typeof useRunStore.getState>["status"]): string {
-  switch (status) {
-    case "running":
-      return "Running";
-    case "success":
-      return "Success";
-    case "failed":
-      return "Failed";
-    case "cancelled":
-      return "Cancelled";
-    case "timeout":
-      return "Timed out";
-    default:
-      return "Idle";
-  }
 }
 
 function describeLastRunFailure(): string | null {

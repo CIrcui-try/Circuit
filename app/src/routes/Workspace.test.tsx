@@ -930,7 +930,7 @@ describe("Workspace", () => {
     expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
   });
 
-  it("W21: shows final elapsed time in the toolbar after a run completes", () => {
+  it("W21: leaves the toolbar status slot empty after a run completes", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
     useRunStore.setState({
       status: "success",
@@ -949,8 +949,6 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByTestId("workflow-save-status")).toHaveTextContent(
-      "Success: Deploy flow · 0:05",
-    );
+    expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
   });
 });
