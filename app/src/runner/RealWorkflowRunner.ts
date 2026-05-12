@@ -174,6 +174,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.currentAdapterRunId = null;
     this.currentNodeId = null;
     this.clearIdleTimer();
+    result = this.failIfStillWaitingForInput(node.id, result);
 
     this.opts.logStore.getState().setNodeResult(node.id, result);
     this.opts.runStore?.getState().patchNodeDebug(node.id, {
@@ -192,6 +193,29 @@ export class RealWorkflowRunner implements WorkflowRunner {
       ok: false,
       status: result.status === "failed" ? "failed" : result.status,
       reason: `${result.status}${exitSuffix}`,
+    };
+  }
+
+  private failIfStillWaitingForInput(
+    nodeId: string,
+    result: SkillExecutionResult,
+  ): SkillExecutionResult {
+    if (result.status !== "success") return result;
+    const runStore = this.opts.runStore?.getState();
+    if (runStore?.nodeStates[nodeId] !== "waiting_input") return result;
+
+    const message = "user input required but execution ended";
+    const event: AgentRunEvent = {
+      type: "error",
+      timestamp: new Date().toISOString(),
+      message,
+    };
+    this.opts.logStore.getState().appendEvent(nodeId, event);
+    return {
+      ...result,
+      status: "failed",
+      summary: message,
+      logs: [...result.logs, event],
     };
   }
 
