@@ -140,6 +140,18 @@ export function RepositoryList() {
               </li>
             );
           })}
+          <li className="repository-list__add-row">
+            <button
+              type="button"
+              className="repository-list__add-button"
+              onClick={handleAdd}
+              aria-label="Add Repository"
+              title="Add Repository"
+              data-testid="repository-list-add-button"
+            >
+              +
+            </button>
+          </li>
         </ul>
       )}
 
