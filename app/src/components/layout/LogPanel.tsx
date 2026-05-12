@@ -398,9 +398,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
               className={`run-log__line run-log__line--${item.event.type}`}
               data-testid="run-log-line"
             >
-              <RunLogSkillBadge
+              <RunLogProviderBadge meta={getNodeMeta(item.nodeId)} />
+              <RunLogSkillName
                 nodeId={item.nodeId}
-                meta={getNodeMeta(item.nodeId)}
+                label={getNodeMeta(item.nodeId).label}
               />
               <span className="run-log__type">{formatEventType(item.event)}</span>
               <span className="run-log__payload">
@@ -424,7 +425,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}
             data-testid="run-log-result"
           >
-            <RunLogSkillBadge nodeId={nodeId} meta={getNodeMeta(nodeId)} />
+            <RunLogProviderBadge meta={getNodeMeta(nodeId)} />
+            <RunLogSkillName nodeId={nodeId} label={getNodeMeta(nodeId).label} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -461,7 +463,8 @@ function StreamLogGroup({
     >
       <details className="run-log__details">
         <summary className="run-log__summary-row">
-          <RunLogSkillBadge nodeId={item.nodeId} meta={nodeMeta} />
+          <RunLogProviderBadge meta={nodeMeta} />
+          <RunLogSkillName nodeId={item.nodeId} label={nodeMeta.label} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
             {lineCount} {lineCount === 1 ? "line" : "lines"}
@@ -476,21 +479,39 @@ function StreamLogGroup({
   );
 }
 
-function RunLogSkillBadge({
-  nodeId,
+function RunLogProviderBadge({
   meta,
 }: {
-  nodeId: string;
   meta: LogNodeMeta;
 }) {
-  const providerClass = meta.provider ? ` skill-list__chip--${meta.provider}` : "";
+  if (!meta.provider) {
+    return <span className="run-log__node run-log__provider">-</span>;
+  }
+
   return (
     <span
-      className={`run-log__node run-log__skill skill-list__chip${providerClass}`}
+      className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${meta.provider}`}
+      data-testid="run-log-provider"
+    >
+      {meta.provider}
+    </span>
+  );
+}
+
+function RunLogSkillName({
+  nodeId,
+  label,
+}: {
+  nodeId: string;
+  label: string;
+}) {
+  return (
+    <span
+      className="run-log__node run-log__skill"
       data-testid="run-log-skill"
       title={nodeId}
     >
-      {meta.label}
+      {label}
     </span>
   );
 }

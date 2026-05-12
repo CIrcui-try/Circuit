@@ -37,10 +37,18 @@ export function ApprovalPrompt({
       data-testid="approval-prompt"
       data-request-id={request.requestId}
     >
+      {nodeMeta?.provider ? (
+        <span
+          className={`run-log__node run-log__provider skill-list__chip skill-list__chip--${nodeMeta.provider}`}
+          data-testid="run-log-provider"
+        >
+          {nodeMeta.provider}
+        </span>
+      ) : (
+        <span className="run-log__node run-log__provider">-</span>
+      )}
       <span
-        className={`run-log__node run-log__skill skill-list__chip${
-          nodeMeta?.provider ? ` skill-list__chip--${nodeMeta.provider}` : ""
-        }`}
+        className="run-log__node run-log__skill"
         data-testid="run-log-skill"
         title={request.nodeId}
       >
