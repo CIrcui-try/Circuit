@@ -8,7 +8,7 @@ import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import type { useRunLogStore as RunLogStore } from "./runLogStore";
 import type { useRunStore as RunStore } from "./runStore";
 import type { WorkflowRunSnapshot } from "./runStore";
-import { topoSort } from "./topoSort";
+import { analyzeWorkflowGraph, topoSort } from "./topoSort";
 
 export type RunWorkflowOptions = {
   nodes: readonly RunnableNode[];
@@ -32,7 +32,10 @@ export type RunWorkflowOptions = {
 
 export type RunWorkflowOutcome =
   | { kind: "started"; status: RunTerminalStatus }
-  | { kind: "rejected"; reason: "already-running" | "empty" | "cycle" };
+  | {
+      kind: "rejected";
+      reason: "already-running" | "empty" | "cycle" | "invalid-graph";
+    };
 
 const defaultNow = () => new Date().toISOString();
 const defaultRunId = () =>
@@ -69,12 +72,13 @@ export async function runWorkflow(
   }
 
   const nodeIds = nodes.map((n) => n.id);
+  const graph = analyzeWorkflowGraph(nodeIds, edges);
   const sorted = topoSort(nodeIds, edges);
 
   // Initialize the run state up front so the UI can show every node as queued
   // even when traversal will fail immediately.
   const runId = newRunId();
-  const isCycleRun = sorted.cycle && allowCycles;
+  const isCycleRun = graph.valid && graph.hasCycle && allowCycles;
   store.getState().beginRun({
     runId,
     workflowId,
@@ -86,6 +90,12 @@ export async function runWorkflow(
     snapshot,
   });
   logStore?.getState().beginRun({ runId, workflowId });
+
+  if (!graph.valid) {
+    for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
+    store.getState().finishRun("failed", now());
+    return { kind: "rejected", reason: "invalid-graph" };
+  }
 
   if (sorted.cycle && !allowCycles) {
     for (const id of nodeIds) store.getState().setNodeState(id, "skipped");

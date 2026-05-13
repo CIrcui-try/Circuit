@@ -33,6 +33,7 @@ import {
 } from "../../stores/workflowStore";
 import type { SkillInputHint } from "../../host/bridge";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
+import { analyzeWorkflowGraph } from "../../runner/topoSort";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
@@ -139,6 +140,20 @@ function CanvasInner() {
       })),
     [edges],
   );
+  const renderedNodes = useMemo(() => {
+    const graph = analyzeWorkflowGraph(
+      nodes.map((node) => node.id),
+      edges,
+    );
+    const rootNodeId = graph.valid ? graph.rootNodeId : null;
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        isRoot: node.id === rootNodeId,
+      },
+    }));
+  }, [edges, nodes]);
 
   useEffect(() => {
     if (!connectionWarning) return;
@@ -288,7 +303,7 @@ function CanvasInner() {
       onDrop={onDrop}
     >
       <ReactFlow
-        nodes={nodes}
+        nodes={renderedNodes}
         edges={renderedEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}

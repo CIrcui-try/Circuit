@@ -490,6 +490,101 @@ describe("Workspace", () => {
     expect(useRunStore.getState().nodeStates[fooNodeId]).toBe("success");
   });
 
+  it("shows a Root badge only on the calculated root node", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    const a = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+    const b = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Bar",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 100, y: 20 },
+    );
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId("root-badge")).toHaveLength(1);
+    });
+    expect(screen.getByTestId("root-badge").closest("[data-node-id]")).toHaveAttribute(
+      "data-node-id",
+      a,
+    );
+  });
+
+  it("blocks disconnected graphs at Start and shows an alert", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    const a = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+    const b = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Bar",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 100, y: 20 },
+    );
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Baz",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 200, y: 20 },
+    );
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    expect(screen.getByText("Start Circuit failed")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Workflow graph must have exactly one root. Connect every node into one entry flow before starting Circuit.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("cycle-run-confirm")).not.toBeInTheDocument();
+    expect(useRunStore.getState().status).toBe("idle");
+  });
+
   it("W9a: opens hello_world.html after a successful tutorial run", async () => {
     const tutorialRepo: Repository = {
       id: "id-tutorial",

@@ -1594,6 +1594,18 @@ a:hover {
   white-space: nowrap;
 }
 
+.skill-node__root-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.55);
+  background: rgba(8, 47, 73, 0.78);
+  color: #bae6fd;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.22rem 0.36rem;
+}
+
 .skill-node__description-wrap {
   position: relative;
   margin-top: 3px;

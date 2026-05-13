@@ -23,7 +23,7 @@ import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService"
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { topoSort } from "../runner/topoSort";
+import { analyzeWorkflowGraph, topoSort } from "../runner/topoSort";
 import {
   cancelWorkflowRun,
   startWorkflowRun,
@@ -202,11 +202,18 @@ export function Workspace() {
   const handleStart = useCallback(async () => {
     if (!repo) return;
     const snapshot = buildRunSnapshot(repo);
-    const hasCycle = topoSort(
+    const graph = analyzeWorkflowGraph(
       snapshot.nodes.map((node) => node.id),
       snapshot.edges,
-    ).cycle;
-    if (hasCycle) {
+    );
+    if (!graph.valid) {
+      notifyAppError(
+        formatRunRejection("invalid-graph"),
+        "Start Circuit failed",
+      );
+      return;
+    }
+    if (graph.hasCycle) {
       setPendingCycleRun(snapshot);
       return;
     }
@@ -573,6 +580,8 @@ function formatRunRejection(
       return "Add at least one skill before starting Circuit.";
     case "cycle":
       return "The workflow has a cycle. Remove the loop and try again.";
+    case "invalid-graph":
+      return "Workflow graph must have exactly one root. Connect every node into one entry flow before starting Circuit.";
     default:
       return reason;
   }
