@@ -130,8 +130,8 @@ export const tauriHostBridge: HostBridge = {
     await invoke<void>("prewarm", { userId, repoUrl, count });
   },
 
-  async setAppIconRunBadge(active: boolean) {
-    await getCurrentWindow().setBadgeLabel(active ? " " : undefined);
+  async setAppIconRunBadgeCount(count: number) {
+    await getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
   },
 
   async isAppWindowFocused() {

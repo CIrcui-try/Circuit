@@ -24,7 +24,7 @@
     },
     "dialog:allow-open",
     "dialog:allow-confirm",
-    "core:window:allow-set-badge-label",
+    "core:window:allow-set-badge-count",
     "store:default"
   ]
 }
