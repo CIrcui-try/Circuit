@@ -40,7 +40,7 @@ export type StartWorkflowRunOptions = {
   createRunner?: (args: CreateRunnerArgs) => CancellableWorkflowRunner;
 };
 
-let activeRunner: CancellableWorkflowRunner | null = null;
+const activeRunners = new Map<string, CancellableWorkflowRunner>();
 
 export async function startWorkflowRun(
   opts: StartWorkflowRunOptions,
@@ -48,8 +48,14 @@ export async function startWorkflowRun(
   const snapshot = cloneSnapshot(opts.snapshot);
   const runnableNodes = snapshot.nodes.map(toRunnableNode);
   const runnableEdges = snapshot.edges.map(toRunnableEdge);
+  const repositoryId = snapshot.repository.id;
 
-  if (useRunStore.getState().status === "running") {
+  const runState = useRunStore.getState();
+  const repositoryRun = runState.getRunForRepository(repositoryId);
+  if (
+    repositoryRun.status === "running" ||
+    (runState.repositoryId == null && runState.status === "running")
+  ) {
     return { kind: "rejected", reason: "already-running" };
   }
 
@@ -57,7 +63,7 @@ export async function startWorkflowRun(
   const getNode = (id: string) => snapshot.nodes.find((n) => n.id === id) ?? null;
   const getRepository = () => snapshot.repository;
   const getRunMeta = () => {
-    const s = useRunStore.getState();
+    const s = useRunStore.getState().getRunForRepository(repositoryId);
     return { runId: s.runId ?? "(idle)", workflowId: s.workflowId };
   };
   const runner =
@@ -65,7 +71,7 @@ export async function startWorkflowRun(
     createRealRunner({ snapshot, bridge, getNode, getRepository, getRunMeta });
 
   runner.reset?.();
-  activeRunner = runner;
+  activeRunners.set(repositoryId, runner);
   try {
     return await runWorkflow({
       nodes: runnableNodes,
@@ -89,16 +95,35 @@ export async function startWorkflowRun(
       seedPreviousOutputs: opts.seedPreviousOutputs,
     });
   } finally {
-    if (activeRunner === runner && useRunStore.getState().status !== "running") {
-      activeRunner = null;
+    if (
+      activeRunners.get(repositoryId) === runner &&
+      useRunStore.getState().getRunForRepository(repositoryId).status !== "running"
+    ) {
+      activeRunners.delete(repositoryId);
     }
   }
 }
 
-export async function cancelWorkflowRun(): Promise<boolean> {
-  if (!activeRunner?.cancel) return false;
-  await activeRunner.cancel();
+export async function cancelWorkflowRun(
+  repositoryId?: string | null,
+): Promise<boolean> {
+  const runner = resolveActiveRunner(repositoryId);
+  if (!runner?.cancel) return false;
+  await runner.cancel();
   return true;
+}
+
+function resolveActiveRunner(
+  repositoryId?: string | null,
+): CancellableWorkflowRunner | null {
+  if (repositoryId) return activeRunners.get(repositoryId) ?? null;
+  if (activeRunners.size === 1) {
+    return activeRunners.values().next().value ?? null;
+  }
+  const currentRepositoryId = useRunStore.getState().currentRepositoryId;
+  return currentRepositoryId
+    ? activeRunners.get(currentRepositoryId) ?? null
+    : null;
 }
 
 function createRealRunner(args: CreateRunnerArgs): RealWorkflowRunner {

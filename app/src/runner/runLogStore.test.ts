@@ -76,6 +76,45 @@ describe("runLogStore", () => {
     expect(useRunLogStore.getState().nodeResults).toEqual({ a: ra, b: rb });
   });
 
+  it("keeps events and results isolated by repository", () => {
+    const alphaEvent = stdout("alpha");
+    const betaEvent = stdout("beta");
+    const alphaResult = result({ summary: "alpha done" });
+    const betaResult = result({ summary: "beta done" });
+
+    useRunLogStore.getState().beginRun({
+      runId: "run-alpha",
+      workflowId: "wf",
+      repositoryId: "repo-alpha",
+    });
+    useRunLogStore.getState().beginRun({
+      runId: "run-beta",
+      workflowId: "wf",
+      repositoryId: "repo-beta",
+    });
+    useRunLogStore.getState().appendEvent("shared", alphaEvent, "repo-alpha");
+    useRunLogStore.getState().appendEvent("shared", betaEvent, "repo-beta");
+    useRunLogStore
+      .getState()
+      .setNodeResult("shared", alphaResult, "repo-alpha");
+    useRunLogStore
+      .getState()
+      .setNodeResult("shared", betaResult, "repo-beta");
+
+    expect(
+      useRunLogStore.getState().getLogForRepository("repo-alpha").events,
+    ).toEqual([{ nodeId: "shared", event: alphaEvent }]);
+    expect(
+      useRunLogStore.getState().getLogForRepository("repo-alpha").nodeResults,
+    ).toEqual({ shared: alphaResult });
+    expect(
+      useRunLogStore.getState().getLogForRepository("repo-beta").events,
+    ).toEqual([{ nodeId: "shared", event: betaEvent }]);
+    expect(
+      useRunLogStore.getState().getLogForRepository("repo-beta").nodeResults,
+    ).toEqual({ shared: betaResult });
+  });
+
   it("L4: reset returns to initial state", () => {
     useRunLogStore.getState().beginRun({ runId: "run_1", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("a", stdout("x"));

@@ -65,13 +65,20 @@ export class RealWorkflowRunner implements WorkflowRunner {
   async cancel(): Promise<void> {
     const id = this.currentAdapterRunId;
     const nodeId = this.currentNodeId;
+    const repositoryId = this.opts.getRepository()?.id;
     if (!id) return;
     if (nodeId) {
-      this.opts.logStore.getState().appendEvent(nodeId, {
-        type: "status",
-        timestamp: new Date().toISOString(),
-        status: `cancel requested for ${id}`,
-      });
+      this.opts.logStore
+        .getState()
+        .appendEvent(
+          nodeId,
+          {
+            type: "status",
+            timestamp: new Date().toISOString(),
+            status: `cancel requested for ${id}`,
+          },
+          repositoryId,
+        );
     }
     await this.opts.bridge.cancel(id);
   }
@@ -83,7 +90,10 @@ export class RealWorkflowRunner implements WorkflowRunner {
     if (this.lastSeenRunId !== runId) {
       this.previousOutputs = { ...(this.pendingPreviousOutputs ?? {}) };
       this.pendingPreviousOutputs = null;
-      if (this.opts.logStore.getState().runId !== runId) {
+      if (
+        this.opts.logStore.getState().getLogForRepository(repo?.id).runId !==
+        runId
+      ) {
         this.opts.logStore.getState().beginRun({
           runId,
           workflowId,
@@ -123,11 +133,17 @@ export class RealWorkflowRunner implements WorkflowRunner {
       splitRerunPreviousAttempt(this.previousOutputs, node.id);
 
     if (rerunPreviousAttempt) {
-      this.opts.logStore.getState().appendEvent(node.id, {
-        type: "status",
-        timestamp: new Date().toISOString(),
-        status: `rerun from failed started (previous status: ${rerunPreviousAttempt.status})`,
-      });
+      this.opts.logStore
+        .getState()
+        .appendEvent(
+          node.id,
+          {
+            type: "status",
+            timestamp: new Date().toISOString(),
+            status: `rerun from failed started (previous status: ${rerunPreviousAttempt.status})`,
+          },
+          repo.id,
+        );
     }
 
     let ctx;
@@ -162,15 +178,19 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.currentAdapterRunId = `${runId}::${node.id}`;
     this.currentNodeId = node.id;
     const idleMs = readNodeIdleMs(fullNode.input, this.opts.idleMs ?? DEFAULT_IDLE_MS);
-    this.opts.runStore?.getState().patchNodeDebug(node.id, {
-      adapter: fullNode.skillRef.provider,
-      adapterRunId: this.currentAdapterRunId,
-      idleTimeoutMs: idleMs,
-    });
+    this.opts.runStore?.getState().patchNodeDebug(
+      node.id,
+      {
+        adapter: fullNode.skillRef.provider,
+        adapterRunId: this.currentAdapterRunId,
+        idleTimeoutMs: idleMs,
+      },
+      repo.id,
+    );
 
     const sink = (event: AgentRunEvent): void => {
-      this.opts.logStore.getState().appendEvent(node.id, event);
-      this.recordDebugEvent(node.id, event, idleMs);
+      this.opts.logStore.getState().appendEvent(node.id, event, repo.id);
+      this.recordDebugEvent(node.id, event, idleMs, repo.id);
     };
 
     let result: SkillExecutionResult;
@@ -185,14 +205,18 @@ export class RealWorkflowRunner implements WorkflowRunner {
     this.currentAdapterRunId = null;
     this.currentNodeId = null;
     this.clearIdleTimer();
-    result = this.failIfStillWaitingForInput(node.id, result);
+    result = this.failIfStillWaitingForInput(node.id, result, repo.id);
 
-    this.opts.logStore.getState().setNodeResult(node.id, result);
-    this.opts.runStore?.getState().patchNodeDebug(node.id, {
-      durationMs: durationMs(result.startedAt, result.finishedAt),
-      exitCode: result.exitCode,
-      lastLogAt: lastLogTimestamp(result.logs),
-    });
+    this.opts.logStore.getState().setNodeResult(node.id, result, repo.id);
+    this.opts.runStore?.getState().patchNodeDebug(
+      node.id,
+      {
+        durationMs: durationMs(result.startedAt, result.finishedAt),
+        exitCode: result.exitCode,
+        lastLogAt: lastLogTimestamp(result.logs),
+      },
+      repo.id,
+    );
     this.previousOutputs[node.id] = result;
 
     await this.persistCurrentLog(repo);
@@ -210,10 +234,16 @@ export class RealWorkflowRunner implements WorkflowRunner {
   private failIfStillWaitingForInput(
     nodeId: string,
     result: SkillExecutionResult,
+    repositoryId: string,
   ): SkillExecutionResult {
     if (result.status !== "success") return result;
     const runStore = this.opts.runStore?.getState();
-    if (runStore?.nodeStates[nodeId] !== "waiting_input") return result;
+    if (
+      runStore?.getRunForRepository(repositoryId).nodeStates[nodeId] !==
+      "waiting_input"
+    ) {
+      return result;
+    }
 
     const message = "user input required but execution ended";
     const event: AgentRunEvent = {
@@ -221,7 +251,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
       timestamp: new Date().toISOString(),
       message,
     };
-    this.opts.logStore.getState().appendEvent(nodeId, event);
+    this.opts.logStore.getState().appendEvent(nodeId, event, repositoryId);
     return {
       ...result,
       status: "failed",
@@ -234,50 +264,82 @@ export class RealWorkflowRunner implements WorkflowRunner {
     nodeId: string,
     event: AgentRunEvent,
     idleMs: number,
+    repositoryId: string,
   ): void {
     this.clearIdleTimer();
-    this.opts.runStore?.getState().patchNodeDebug(nodeId, {
-      lastLogAt: event.timestamp,
-      idleSince: undefined,
-    });
+    this.opts.runStore?.getState().patchNodeDebug(
+      nodeId,
+      {
+        lastLogAt: event.timestamp,
+        idleSince: undefined,
+      },
+      repositoryId,
+    );
     if (event.type === "start") {
-      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
-        command: event.command,
-        args: event.args,
-        spawnType: event.spawnType,
-        startedAt: event.timestamp,
-      });
+      this.opts.runStore?.getState().patchNodeDebug(
+        nodeId,
+        {
+          command: event.command,
+          args: event.args,
+          spawnType: event.spawnType,
+          startedAt: event.timestamp,
+        },
+        repositoryId,
+      );
     }
     if (event.type === "finish") {
-      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
-        exitCode: event.exitCode,
-      });
+      this.opts.runStore?.getState().patchNodeDebug(
+        nodeId,
+        {
+          exitCode: event.exitCode,
+        },
+        repositoryId,
+      );
       return;
     }
     if (event.type === "approval_required" || isWaitingForStdin(event)) {
-      this.opts.runStore?.getState().setNodeState(nodeId, "waiting_input");
+      this.opts.runStore
+        ?.getState()
+        .setNodeState(nodeId, "waiting_input", repositoryId);
       return;
     }
     const runStore = this.opts.runStore?.getState();
-    if (runStore?.nodeStates[nodeId] === "waiting_input") {
-      runStore.setNodeState(nodeId, "running");
+    if (
+      runStore?.getRunForRepository(repositoryId).nodeStates[nodeId] ===
+      "waiting_input"
+    ) {
+      runStore.setNodeState(nodeId, "running", repositoryId);
     }
-    this.scheduleIdleTimer(nodeId, idleMs);
+    this.scheduleIdleTimer(nodeId, idleMs, repositoryId);
   }
 
-  private scheduleIdleTimer(nodeId: string, idleMs: number): void {
+  private scheduleIdleTimer(
+    nodeId: string,
+    idleMs: number,
+    repositoryId: string,
+  ): void {
     if (idleMs <= 0) return;
     this.idleTimer = setTimeout(() => {
       const timestamp = new Date().toISOString();
-      this.opts.runStore?.getState().patchNodeDebug(nodeId, {
-        idleSince: timestamp,
-        idleTimeoutMs: idleMs,
-      });
-      this.opts.logStore.getState().appendEvent(nodeId, {
-        type: "status",
-        timestamp,
-        status: `idle for ${idleMs}ms`,
-      });
+      this.opts.runStore?.getState().patchNodeDebug(
+        nodeId,
+        {
+          idleSince: timestamp,
+          idleTimeoutMs: idleMs,
+        },
+        repositoryId,
+      );
+      this.opts.logStore
+        .getState()
+        .appendEvent(
+          nodeId,
+          {
+            type: "status",
+            timestamp,
+            status: `idle for ${idleMs}ms`,
+          },
+          repositoryId,
+        );
     }, idleMs);
   }
 
@@ -294,14 +356,22 @@ export class RealWorkflowRunner implements WorkflowRunner {
   ): Promise<RunResult> {
     const timestamp = new Date().toISOString();
     const event: AgentRunEvent = { type: "error", timestamp, message: reason };
-    const existing = this.opts.logStore.getState().nodeEvents[nodeId] ?? [];
-    this.opts.logStore.getState().appendEvent(nodeId, event);
-    this.opts.logStore.getState().setNodeResult(nodeId, {
-      status: "failed",
-      logs: [...existing, event],
-      startedAt: timestamp,
-      finishedAt: timestamp,
-    });
+    const repositoryId = repo?.id;
+    const existing =
+      this.opts.logStore.getState().getLogForRepository(repositoryId).nodeEvents[
+        nodeId
+      ] ?? [];
+    this.opts.logStore.getState().appendEvent(nodeId, event, repositoryId);
+    this.opts.logStore.getState().setNodeResult(
+      nodeId,
+      {
+        status: "failed",
+        logs: [...existing, event],
+        startedAt: timestamp,
+        finishedAt: timestamp,
+      },
+      repositoryId,
+    );
     if (repo) await this.persistCurrentLog(repo);
     return { ok: false, status: "failed", reason };
   }
@@ -312,7 +382,9 @@ export class RealWorkflowRunner implements WorkflowRunner {
   ): Promise<RunResult> {
     const timestamp = new Date().toISOString();
     const maxIterations = readLoopLimit(node.input);
-    const iteration = this.opts.runStore?.getState().iteration ?? 1;
+    const iteration =
+      this.opts.runStore?.getState().getRunForRepository(repo.id).iteration ??
+      1;
     if (maxIterations == null) {
       return await this.recordNodeFailure(
         node.id,
@@ -328,7 +400,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
     const event: AgentRunEvent = exceeded
       ? { type: "error", timestamp, message: summary }
       : { type: "status", timestamp, status: summary };
-    this.opts.logStore.getState().appendEvent(node.id, event);
+    this.opts.logStore.getState().appendEvent(node.id, event, repo.id);
     const result: SkillExecutionResult = {
       status: exceeded ? "failed" : "success",
       output: { iteration, maxIterations, exceeded },
@@ -337,7 +409,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
       startedAt: timestamp,
       finishedAt: timestamp,
     };
-    this.opts.logStore.getState().setNodeResult(node.id, result);
+    this.opts.logStore.getState().setNodeResult(node.id, result, repo.id);
     this.previousOutputs[node.id] = result;
     await this.persistCurrentLog(repo);
 
@@ -348,7 +420,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
   private async persistCurrentLog(repo: RunnerRepository): Promise<void> {
     if (!this.opts.persistRunLog) return;
     const { runId, workflowId } = this.opts.getRunMeta();
-    const log = this.opts.logStore.getState();
+    const log = this.opts.logStore.getState().getLogForRepository(repo.id);
     try {
       await this.opts.persistRunLog({
         runId,

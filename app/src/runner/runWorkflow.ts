@@ -64,8 +64,16 @@ export async function runWorkflow(
     startFromNodeId,
     seedPreviousOutputs,
   } = opts;
+  const repositoryId = repository?.id ?? snapshot?.repository.id ?? null;
+  const runState = store.getState();
+  const currentRun = repositoryId
+    ? runState.getRunForRepository(repositoryId)
+    : runState;
 
-  if (store.getState().status === "running") {
+  if (
+    currentRun.status === "running" ||
+    (repositoryId && runState.repositoryId == null && runState.status === "running")
+  ) {
     return { kind: "rejected", reason: "already-running" };
   }
 
@@ -94,18 +102,22 @@ export async function runWorkflow(
   logStore?.getState().beginRun({
     runId,
     workflowId,
-    repositoryId: repository?.id,
+    repositoryId,
   });
 
   if (!graph.valid) {
-    for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
-    store.getState().finishRun("failed", now());
+    for (const id of nodeIds) {
+      store.getState().setNodeState(id, "skipped", repositoryId);
+    }
+    store.getState().finishRun("failed", now(), repositoryId);
     return { kind: "rejected", reason: "invalid-graph" };
   }
 
   if (sorted.cycle && !allowCycles) {
-    for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
-    store.getState().finishRun("failed", now());
+    for (const id of nodeIds) {
+      store.getState().setNodeState(id, "skipped", repositoryId);
+    }
+    store.getState().finishRun("failed", now(), repositoryId);
     return { kind: "rejected", reason: "cycle" };
   }
 
@@ -115,8 +127,9 @@ export async function runWorkflow(
       byId: new Map(nodes.map((n) => [n.id, n])),
       runner,
       store,
+      repositoryId,
     });
-    store.getState().finishRun(status, now());
+    store.getState().finishRun(status, now(), repositoryId);
     return { kind: "started", status };
   }
 
@@ -132,22 +145,22 @@ export async function runWorkflow(
   for (let i = 0; i < order.length; i++) {
     const id = order[i];
     if (i < firstRunnableIndex) {
-      store.getState().setNodeState(id, "skipped");
+      store.getState().setNodeState(id, "skipped", repositoryId);
       continue;
     }
     if (failureSeen) {
-      store.getState().setNodeState(id, "skipped");
+      store.getState().setNodeState(id, "skipped", repositoryId);
       continue;
     }
     const node = byId.get(id);
     if (!node) {
-      store.getState().setNodeState(id, "skipped");
+      store.getState().setNodeState(id, "skipped", repositoryId);
       failureSeen = true;
       finalStatus = "failed";
       continue;
     }
-    store.getState().setActiveNode(id);
-    store.getState().setNodeState(id, "running");
+    store.getState().setActiveNode(id, repositoryId);
+    store.getState().setNodeState(id, "running", repositoryId);
     let result;
     try {
       result = await runner.runNode(node);
@@ -159,9 +172,9 @@ export async function runWorkflow(
       };
     }
     if (result.ok) {
-      store.getState().setNodeState(id, "success");
+      store.getState().setNodeState(id, "success", repositoryId);
     } else {
-      store.getState().setNodeState(id, result.status);
+      store.getState().setNodeState(id, result.status, repositoryId);
       if (result.status !== "failed" || !continueOnFailure) {
         failureSeen = true;
       }
@@ -169,7 +182,7 @@ export async function runWorkflow(
     }
   }
 
-  store.getState().finishRun(finalStatus, now());
+  store.getState().finishRun(finalStatus, now(), repositoryId);
   return { kind: "started", status: finalStatus };
 }
 
@@ -178,24 +191,28 @@ async function runCycleWorkflow({
   byId,
   runner,
   store,
+  repositoryId,
 }: {
   order: string[];
   byId: Map<string, RunnableNode>;
   runner: WorkflowRunner;
   store: typeof RunStore;
+  repositoryId: string | null;
 }): Promise<RunTerminalStatus> {
   for (let iteration = 1; ; iteration += 1) {
-    store.getState().setIteration(iteration);
-    for (const id of order) store.getState().setNodeState(id, "queued");
+    store.getState().setIteration(iteration, repositoryId);
+    for (const id of order) {
+      store.getState().setNodeState(id, "queued", repositoryId);
+    }
 
     for (let i = 0; i < order.length; i += 1) {
       const id = order[i];
       const node = byId.get(id);
-      store.getState().setActiveNode(id);
-      store.getState().setNodeState(id, "running");
+      store.getState().setActiveNode(id, repositoryId);
+      store.getState().setNodeState(id, "running", repositoryId);
       if (!node) {
-        store.getState().setNodeState(id, "failed");
-        markRemainingSkipped(store, order, i + 1);
+        store.getState().setNodeState(id, "failed", repositoryId);
+        markRemainingSkipped(store, order, i + 1, repositoryId);
         return "failed";
       }
 
@@ -211,12 +228,12 @@ async function runCycleWorkflow({
       }
 
       if (result.ok) {
-        store.getState().setNodeState(id, "success");
+        store.getState().setNodeState(id, "success", repositoryId);
         continue;
       }
 
-      store.getState().setNodeState(id, result.status);
-      markRemainingSkipped(store, order, i + 1);
+      store.getState().setNodeState(id, result.status, repositoryId);
+      markRemainingSkipped(store, order, i + 1, repositoryId);
       return result.status;
     }
   }
@@ -226,8 +243,9 @@ function markRemainingSkipped(
   store: typeof RunStore,
   order: string[],
   startIndex: number,
+  repositoryId: string | null,
 ): void {
   for (let i = startIndex; i < order.length; i += 1) {
-    store.getState().setNodeState(order[i], "skipped");
+    store.getState().setNodeState(order[i], "skipped", repositoryId);
   }
 }

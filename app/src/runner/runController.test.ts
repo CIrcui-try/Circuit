@@ -117,6 +117,60 @@ describe("runController", () => {
     expect(createRunner).not.toHaveBeenCalled();
   });
 
+  it("allows a second repository to start while the first is running", async () => {
+    let release!: () => void;
+    const blocker = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = snapshot();
+    const second = snapshot();
+    second.repository = {
+      id: "repo-2",
+      name: "repo 2",
+      path: "/Users/me/repo-2",
+    };
+
+    const firstRun = startWorkflowRun({
+      snapshot: first,
+      bridge: createMockRuntimeBridge(),
+      newRunId: () => "run-1",
+      createRunner: () => ({
+        async runNode(): Promise<RunResult> {
+          await blocker;
+          return { ok: true };
+        },
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        useRunStore.getState().getRunForRepository("repo-1").status,
+      ).toBe("running");
+    });
+
+    await expect(
+      startWorkflowRun({
+        snapshot: second,
+        bridge: createMockRuntimeBridge(),
+        newRunId: () => "run-2",
+        createRunner: () => ({
+          async runNode(): Promise<RunResult> {
+            return { ok: true };
+          },
+        }),
+      }),
+    ).resolves.toEqual({ kind: "started", status: "success" });
+    expect(useRunStore.getState().getRunForRepository("repo-2").status).toBe(
+      "success",
+    );
+
+    release();
+    await expect(firstRun).resolves.toEqual({
+      kind: "started",
+      status: "success",
+    });
+  });
+
   it("passes rerun start options into the workflow runner", async () => {
     const seeded: SkillExecutionResult = {
       status: "success",
