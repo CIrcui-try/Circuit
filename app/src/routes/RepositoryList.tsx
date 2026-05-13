@@ -39,6 +39,7 @@ export function RepositoryList() {
   const byRepo = useSkillStore((s) => s.byRepo);
   const loading = useSkillStore((s) => s.loading);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const runsByRepositoryId = useRunStore((s) => s.runsByRepositoryId);
   const runStatus = useRunStore((s) => s.status);
   const runId = useRunStore((s) => s.runId);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
@@ -164,12 +165,21 @@ export function RepositoryList() {
           {repositories.map((repo) => {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
-            const isRunRepo = runStatus === "running" && runRepositoryId === repo.id;
+            const runRecord =
+              runsByRepositoryId[repo.id] ??
+              (runRepositoryId === repo.id
+                ? {
+                    status: runStatus,
+                    runId,
+                    workflowName: runWorkflowName,
+                    acknowledgedRunId,
+                  }
+                : null);
+            const isRunRepo = runRecord?.status === "running";
             const isDoneRepo =
-              runStatus === "success" &&
-              runRepositoryId === repo.id &&
-              runId != null &&
-              acknowledgedRunId !== runId;
+              runRecord?.status === "success" &&
+              runRecord.runId != null &&
+              runRecord.acknowledgedRunId !== runRecord.runId;
             const isTutorialRepo = repo.name === TUTORIAL_REPOSITORY_NAME;
             return (
               <li key={repo.id} className="repository-list__row">
@@ -197,7 +207,7 @@ export function RepositoryList() {
                       <span
                         className="repository-list__progress-badge"
                         data-testid="badge-in-progress"
-                        title={runWorkflowName ?? "Workflow is running"}
+                        title={runRecord?.workflowName ?? "Workflow is running"}
                         aria-label="In progress"
                       >
                         <span
@@ -210,7 +220,7 @@ export function RepositoryList() {
                       <span
                         className="repository-list__done-badge"
                         data-testid="badge-done"
-                        title={runWorkflowName ?? "Workflow completed"}
+                        title={runRecord?.workflowName ?? "Workflow completed"}
                       >
                         Done
                       </span>

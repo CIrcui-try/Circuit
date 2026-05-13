@@ -382,6 +382,54 @@ describe("RepositoryList", () => {
     );
   });
 
+  it("shows progress badges for multiple running repositories", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "id-beta",
+          name: "beta",
+          path: "/Users/me/beta",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-alpha",
+      workflowId: "wf-alpha",
+      workflowName: "Alpha flow",
+      repository: { id: "id-alpha", name: "alpha" },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-beta",
+      workflowId: "wf-beta",
+      workflowName: "Beta flow",
+      repository: { id: "id-beta", name: "beta" },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:01.000Z",
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getAllByTestId("badge-in-progress")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /alpha/ })).toHaveAccessibleName(
+      /In progress/,
+    );
+    expect(screen.getByRole("link", { name: /beta/ })).toHaveAccessibleName(
+      /In progress/,
+    );
+  });
+
   it("R4c: keeps a Done pill for an unacknowledged successful run", () => {
     useRepositoryStore.setState({
       repositories: [

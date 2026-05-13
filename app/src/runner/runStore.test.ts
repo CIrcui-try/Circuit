@@ -104,6 +104,33 @@ describe("runStore", () => {
     expect(useRunStore.getState().nodeStates.n2).toBe("waiting_input");
   });
 
+  it("keeps node states isolated by repository", () => {
+    useRunStore.getState().beginRun({
+      runId: "r1",
+      workflowId: null,
+      repository: { id: "repo-1", name: "alpha" },
+      nodeIds: ["shared"],
+      startedAt: "t",
+    });
+    useRunStore.getState().beginRun({
+      runId: "r2",
+      workflowId: null,
+      repository: { id: "repo-2", name: "beta" },
+      nodeIds: ["shared"],
+      startedAt: "t",
+    });
+
+    useRunStore.getState().setNodeState("shared", "running", "repo-1");
+    useRunStore.getState().setNodeState("shared", "success", "repo-2");
+
+    expect(
+      useRunStore.getState().getRunForRepository("repo-1").nodeStates.shared,
+    ).toBe("running");
+    expect(
+      useRunStore.getState().getRunForRepository("repo-2").nodeStates.shared,
+    ).toBe("success");
+  });
+
   it("RS3: tracks active node and debug metadata", () => {
     useRunStore.getState().beginRun({
       runId: "r",

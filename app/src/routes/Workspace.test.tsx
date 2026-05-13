@@ -1049,6 +1049,7 @@ describe("Workspace", () => {
     ]);
     expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-start")).toBeDisabled();
+    expect(screen.getByTestId("workflow-start")).toHaveTextContent("Running");
   });
 
   it("W14b: hides another repository's active run state in this workspace", async () => {
@@ -1123,7 +1124,7 @@ describe("Workspace", () => {
         "idle",
       );
     });
-    expect(screen.getByTestId("workflow-start")).toBeDisabled();
+    expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     expect(screen.getByTestId("workflow-start")).toHaveTextContent(
       "Start Circuit",
     );

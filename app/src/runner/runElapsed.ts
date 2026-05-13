@@ -41,10 +41,11 @@ export function getRunElapsedLabel({
   return formatElapsed((end - start) / SECOND_MS);
 }
 
-export function useRunElapsedLabel(): string | null {
-  const status = useRunStore((s) => s.status);
-  const startedAt = useRunStore((s) => s.startedAt);
-  const finishedAt = useRunStore((s) => s.finishedAt);
+export function useRunElapsedLabel(repositoryId?: string | null): string | null {
+  const record = useRunStore((s) =>
+    repositoryId ? s.getRunForRepository(repositoryId) : s,
+  );
+  const { status, startedAt, finishedAt } = record;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

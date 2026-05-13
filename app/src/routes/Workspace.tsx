@@ -51,26 +51,27 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const setContinueOnFailure = useWorkflowStore((s) => s.setContinueOnFailure);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
-  const runStatus = useRunStore((s) => s.status);
-  const isRunning = runStatus === "running";
-  const runId = useRunStore((s) => s.runId);
-  const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const runRecord = useRunStore((s) =>
+    repo?.id ? s.getRunForRepository(repo.id) : s,
+  );
+  const logRecord = useRunLogStore((s) =>
+    repo?.id ? s.getLogForRepository(repo.id) : s,
+  );
+  const runStatus = runRecord.status;
+  const isRunningHere = runStatus === "running";
+  const runId = runRecord.runId;
   const acknowledgeRun = useRunStore((s) => s.acknowledgeRun);
-  const lastRunSnapshot = useRunStore((s) => s.snapshot);
-  const lastRunNodeStates = useRunStore((s) => s.nodeStates);
-  const lastRunNodeResults = useRunLogStore((s) => s.nodeResults);
+  const lastRunSnapshot = runRecord.snapshot;
+  const lastRunNodeStates = runRecord.nodeStates;
+  const lastRunNodeResults = logRecord.nodeResults;
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
   const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
   const setPropsCollapsed = useLayoutStore((s) => s.setPropsCollapsed);
   const logCollapsed = useLayoutStore((s) => s.logCollapsed);
   const setLogCollapsed = useLayoutStore((s) => s.setLogCollapsed);
-  const activeRunSnapshot = useRunStore((s) =>
-    s.status === "running" ? s.snapshot : null,
-  );
-  const isRunningHere = Boolean(
-    isRunning && repo?.id && runRepositoryId === repo.id,
-  );
+  const activeRunSnapshot =
+    runRecord.status === "running" ? runRecord.snapshot : null;
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [cancelling, setCancelling] = useState(false);
@@ -96,9 +97,8 @@ export function Workspace() {
   useEffect(() => {
     if (!repo?.id || !runId) return;
     if (runStatus !== "success") return;
-    if (runRepositoryId !== repo.id) return;
-    acknowledgeRun(runId);
-  }, [acknowledgeRun, repo?.id, runId, runRepositoryId, runStatus]);
+    acknowledgeRun(runId, repo.id);
+  }, [acknowledgeRun, repo?.id, runId, runStatus]);
 
   useEffect(() => {
     resetWorkflow();
@@ -216,7 +216,8 @@ export function Workspace() {
       }
       if (outcome.status === "failed" || outcome.status === "timeout") {
         notifyAppError(
-          describeLastRunFailure() ?? "Workflow failed. Check the run log for details.",
+          describeLastRunFailure(snapshot.repository.id) ??
+            "Workflow failed. Check the run log for details.",
           options.errorTitle ?? "Start Circuit failed",
         );
       }
@@ -271,8 +272,8 @@ export function Workspace() {
   const handleCancel = useCallback(() => {
     if (!isRunningHere) return;
     setCancelling(true);
-    void cancelWorkflowRun();
-  }, [isRunningHere]);
+    void cancelWorkflowRun(repo?.id);
+  }, [isRunningHere, repo?.id]);
 
   useEffect(() => {
     if (!isRunningHere) setCancelling(false);
@@ -399,7 +400,7 @@ export function Workspace() {
           data-testid="workflow-start"
           className="workspace__toolbar-start"
           onClick={() => void handleStart()}
-          disabled={!repo || isRunning || nodeCount === 0}
+          disabled={!repo || isRunningHere || nodeCount === 0}
         >
           {isRunningHere ? (
             <>
@@ -425,7 +426,7 @@ export function Workspace() {
                 errorTitle: "Rerun from failed failed",
               });
             }}
-            disabled={isRunning}
+            disabled={isRunningHere}
           >
             Rerun from failed
           </button>
@@ -716,8 +717,9 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
   };
 }
 
-function describeLastRunFailure(): string | null {
-  const { nodeResults, events } = useRunLogStore.getState();
+function describeLastRunFailure(repositoryId: string): string | null {
+  const { nodeResults, events } =
+    useRunLogStore.getState().getLogForRepository(repositoryId);
   for (const [nodeId, result] of Object.entries(nodeResults)) {
     if (result.status === "success") continue;
     return describeNodeFailure(nodeId, result);

@@ -18,7 +18,7 @@ export type PendingApproval = {
   createdAt: string;
 };
 
-export type RunLogStoreState = {
+export type RunLogRecord = {
   runId: string | null;
   workflowId: string | null;
   repositoryId: string | null;
@@ -26,28 +26,46 @@ export type RunLogStoreState = {
   nodeEvents: Record<string, AgentRunEvent[]>;
   nodeResults: Record<string, SkillExecutionResult>;
   pendingApprovals: Record<string, PendingApproval>;
-
-  beginRun: (args: {
-    runId: string;
-    workflowId: string | null;
-    repositoryId?: string | null;
-  }) => void;
-  appendEvent: (nodeId: string, event: AgentRunEvent) => void;
-  setNodeResult: (nodeId: string, result: SkillExecutionResult) => void;
-  resolvePendingApproval: (requestId: string) => void;
-  reset: () => void;
 };
 
-const INITIAL: Pick<
-  RunLogStoreState,
-  | "runId"
-  | "workflowId"
-  | "repositoryId"
-  | "events"
-  | "nodeEvents"
-  | "nodeResults"
-  | "pendingApprovals"
-> = {
+type BeginLogArgs = {
+  runId: string;
+  workflowId: string | null;
+  repositoryId?: string | null;
+};
+
+type RunLogStoreSet = (
+  partial:
+    | Partial<RunLogStoreState>
+    | ((state: RunLogStoreState) => Partial<RunLogStoreState>),
+  replace?: false,
+) => void;
+
+export type RunLogStoreState = RunLogRecord & {
+  currentRepositoryId: string | null;
+  logsByRepositoryId: Record<string, RunLogRecord>;
+
+  getLogForRepository: (repositoryId?: string | null) => RunLogRecord;
+  beginRun: (args: BeginLogArgs) => void;
+  appendEvent: (
+    nodeId: string,
+    event: AgentRunEvent,
+    repositoryId?: string | null,
+  ) => void;
+  setNodeResult: (
+    nodeId: string,
+    result: SkillExecutionResult,
+    repositoryId?: string | null,
+  ) => void;
+  resolvePendingApproval: (
+    requestId: string,
+    repositoryId?: string | null,
+  ) => void;
+  resetRepository: (repositoryId: string) => void;
+  reset: (repositoryId?: string | null) => void;
+};
+
+const INITIAL_RECORD: RunLogRecord = {
   runId: null,
   workflowId: null,
   repositoryId: null,
@@ -57,11 +75,28 @@ const INITIAL: Pick<
   pendingApprovals: {},
 };
 
-export const useRunLogStore = create<RunLogStoreState>((set) => ({
-  ...INITIAL,
+const EMPTY_RECORD = cloneLogRecord(INITIAL_RECORD);
+
+export const useRunLogStore = create<RunLogStoreState>((set, get) => ({
+  ...cloneLogRecord(INITIAL_RECORD),
+  currentRepositoryId: null,
+  logsByRepositoryId: {},
+
+  getLogForRepository: (repositoryId) => {
+    if (repositoryId) {
+      const state = get();
+      return (
+        state.logsByRepositoryId[repositoryId] ??
+        (state.repositoryId === repositoryId || state.repositoryId == null
+          ? state
+          : EMPTY_RECORD)
+      );
+    }
+    return selectCurrentRecord(get());
+  },
 
   beginRun: ({ runId, workflowId, repositoryId }) => {
-    set({
+    const record: RunLogRecord = {
       runId,
       workflowId,
       repositoryId: repositoryId ?? null,
@@ -69,19 +104,21 @@ export const useRunLogStore = create<RunLogStoreState>((set) => ({
       nodeEvents: {},
       nodeResults: {},
       pendingApprovals: {},
-    });
+    };
+    set((s) => mirrorRecord(s, repositoryId ?? null, record, true));
   },
 
-  appendEvent: (nodeId, event) => {
-    set((s) => {
-      const prior = s.nodeEvents[nodeId] ?? [];
-      const next: Partial<RunLogStoreState> = {
-        events: [...s.events, { nodeId, event }],
-        nodeEvents: { ...s.nodeEvents, [nodeId]: [...prior, event] },
+  appendEvent: (nodeId, event, repositoryId) => {
+    updateRecord(set, repositoryId, (record) => {
+      const prior = record.nodeEvents[nodeId] ?? [];
+      const next: RunLogRecord = {
+        ...record,
+        events: [...record.events, { nodeId, event }],
+        nodeEvents: { ...record.nodeEvents, [nodeId]: [...prior, event] },
       };
       if (event.type === "approval_required") {
         next.pendingApprovals = {
-          ...s.pendingApprovals,
+          ...record.pendingApprovals,
           [event.requestId]: {
             requestId: event.requestId,
             nodeId,
@@ -91,39 +128,156 @@ export const useRunLogStore = create<RunLogStoreState>((set) => ({
           },
         };
       }
-      return next as RunLogStoreState;
+      return next;
     });
   },
 
-  setNodeResult: (nodeId, result) => {
-    set((s) => {
-      // When a node finishes, clear any approvals that were still pending for
-      // it — the child died before the user could respond, so the prompt is no
-      // longer actionable.
+  setNodeResult: (nodeId, result, repositoryId) => {
+    updateRecord(set, repositoryId, (record) => {
       const filteredApprovals: Record<string, PendingApproval> = {};
-      for (const [id, p] of Object.entries(s.pendingApprovals)) {
+      for (const [id, p] of Object.entries(record.pendingApprovals)) {
         if (p.nodeId !== nodeId) filteredApprovals[id] = p;
       }
       return {
-        nodeResults: { ...s.nodeResults, [nodeId]: result },
+        ...record,
+        nodeResults: { ...record.nodeResults, [nodeId]: result },
         pendingApprovals: filteredApprovals,
       };
     });
   },
 
-  resolvePendingApproval: (requestId) => {
-    set((s) => {
-      if (!(requestId in s.pendingApprovals)) return {} as Partial<RunLogStoreState>;
-      const next = { ...s.pendingApprovals };
+  resolvePendingApproval: (requestId, repositoryId) => {
+    updateRecord(set, repositoryId, (record) => {
+      if (!(requestId in record.pendingApprovals)) return record;
+      const next = { ...record.pendingApprovals };
       delete next[requestId];
-      return { pendingApprovals: next } as Partial<RunLogStoreState>;
+      return { ...record, pendingApprovals: next };
     });
   },
 
-  reset: () => {
-    set({ ...INITIAL });
+  resetRepository: (repositoryId) => {
+    set((s) => {
+      const nextLogs = { ...s.logsByRepositoryId };
+      delete nextLogs[repositoryId];
+      if (s.currentRepositoryId !== repositoryId) {
+        return { logsByRepositoryId: nextLogs };
+      }
+      return {
+        ...cloneLogRecord(INITIAL_RECORD),
+        currentRepositoryId: null,
+        logsByRepositoryId: nextLogs,
+      };
+    });
+  },
+
+  reset: (repositoryId) => {
+    if (repositoryId) {
+      get().resetRepository(repositoryId);
+      return;
+    }
+    set({
+      ...cloneLogRecord(INITIAL_RECORD),
+      currentRepositoryId: null,
+      logsByRepositoryId: {},
+    });
   },
 }));
+
+function updateRecord(
+  set: RunLogStoreSet,
+  repositoryId: string | null | undefined,
+  update: (record: RunLogRecord) => RunLogRecord,
+): void {
+  set((s) => {
+    const resolvedRepositoryId = resolveTargetRepositoryId(s, repositoryId);
+    const base = resolvedRepositoryId
+      ? s.logsByRepositoryId[resolvedRepositoryId] ??
+        recordFromTopLevel(s, resolvedRepositoryId)
+      : recordFromTopLevel(s, null);
+    return mirrorRecord(s, resolvedRepositoryId, update(base), false);
+  });
+}
+
+function mirrorRecord(
+  state: RunLogStoreState,
+  repositoryId: string | null,
+  record: RunLogRecord,
+  makeCurrent: boolean,
+): Partial<RunLogStoreState> {
+  if (!repositoryId) {
+    return {
+      ...cloneLogRecord(record),
+      currentRepositoryId: null,
+    };
+  }
+  const nextRecord = cloneLogRecord(record);
+  const shouldMirror =
+    makeCurrent ||
+    state.currentRepositoryId === repositoryId ||
+    state.currentRepositoryId == null;
+  return {
+    logsByRepositoryId: {
+      ...state.logsByRepositoryId,
+      [repositoryId]: nextRecord,
+    },
+    ...(shouldMirror
+      ? {
+          ...cloneLogRecord(nextRecord),
+          currentRepositoryId: repositoryId,
+        }
+      : {}),
+  };
+}
+
+function resolveTargetRepositoryId(
+  state: RunLogStoreState,
+  repositoryId: string | null | undefined,
+): string | null {
+  if (repositoryId !== undefined) return repositoryId;
+  return state.currentRepositoryId ?? state.repositoryId;
+}
+
+function selectCurrentRecord(state: RunLogStoreState): RunLogRecord {
+  if (state.currentRepositoryId) {
+    return state.logsByRepositoryId[state.currentRepositoryId] ?? state;
+  }
+  return state;
+}
+
+function recordFromTopLevel(
+  state: RunLogStoreState,
+  repositoryId: string | null,
+): RunLogRecord {
+  if (state.repositoryId === repositoryId || state.repositoryId == null) {
+    return {
+      runId: state.runId,
+      workflowId: state.workflowId,
+      repositoryId,
+      events: state.events,
+      nodeEvents: state.nodeEvents,
+      nodeResults: state.nodeResults,
+      pendingApprovals: state.pendingApprovals,
+    };
+  }
+  return { ...cloneLogRecord(INITIAL_RECORD), repositoryId };
+}
+
+function cloneLogRecord(record: RunLogRecord): RunLogRecord {
+  return {
+    runId: record.runId,
+    workflowId: record.workflowId,
+    repositoryId: record.repositoryId,
+    events: [...record.events],
+    nodeEvents: Object.fromEntries(
+      Object.entries(record.nodeEvents).map(([nodeId, events]) => [
+        nodeId,
+        [...events],
+      ]),
+    ),
+    nodeResults: { ...record.nodeResults },
+    pendingApprovals: { ...record.pendingApprovals },
+  };
+}
 
 if (typeof window !== "undefined") {
   (window as unknown as { __RUN_LOG_STORE__?: unknown }).__RUN_LOG_STORE__ =

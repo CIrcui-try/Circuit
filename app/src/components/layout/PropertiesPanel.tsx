@@ -4,6 +4,7 @@ import type { SkillInputHint } from "../../host/bridge";
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 import { useRunStore } from "../../runner/runStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
@@ -20,11 +21,18 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
       : null,
   );
   const selectedNodeId = selectedNode?.id ?? null;
+  const selectedRepositoryId = useRepositoryStore((s) => s.selectedId);
   const runState = useRunStore((s) =>
-    selectedNodeId ? s.nodeStates[selectedNodeId] ?? "idle" : "idle",
+    selectedNodeId
+      ? s.getRunForRepository(selectedRepositoryId).nodeStates[selectedNodeId] ??
+        "idle"
+      : "idle",
   );
   const debug = useRunStore((s) =>
-    selectedNodeId ? s.nodeDebug[selectedNodeId] ?? null : null,
+    selectedNodeId
+      ? s.getRunForRepository(selectedRepositoryId).nodeDebug[selectedNodeId] ??
+        null
+      : null,
   );
   const selectedInput = asRecord(selectedNode?.data.input);
   const selectedInputHints = useSkillStore((state) =>

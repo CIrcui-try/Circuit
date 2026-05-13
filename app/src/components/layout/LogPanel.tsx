@@ -274,45 +274,34 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     startWidth: number;
   } | null>(null);
   const copyFeedbackTimeoutRef = useRef<number | null>(null);
-  const events = useRunLogStore((s) => s.events);
-  const nodeResults = useRunLogStore((s) => s.nodeResults);
-  const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
-  const runId = useRunLogStore((s) => s.runId);
-  const logRepositoryId = useRunLogStore((s) => s.repositoryId);
-  const resetLog = useRunLogStore((s) => s.reset);
-  const resolvePendingApproval = useRunLogStore(
-    (s) => s.resolvePendingApproval,
-  );
-  const runStatus = useRunStore((s) => s.status);
-  const runStoreRunId = useRunStore((s) => s.runId);
-  const runRepositoryId = useRunStore((s) => s.repositoryId);
-  const runMode = useRunStore((s) => s.runMode);
-  const iteration = useRunStore((s) => s.iteration);
-  const activeNodeId = useRunStore((s) => s.activeNodeId);
-  const nodeStates = useRunStore((s) => s.nodeStates);
-  const nodeDebug = useRunStore((s) => s.nodeDebug);
-  const elapsedLabel = useRunElapsedLabel();
   const repo = useRepositoryStore((s) =>
     s.selectedId
       ? s.repositories.find((r) => r.id === s.selectedId) ?? null
       : null,
   );
+  const logRecord = useRunLogStore((s) =>
+    repo?.id ? s.getLogForRepository(repo.id) : s,
+  );
+  const runRecord = useRunStore((s) =>
+    repo?.id ? s.getRunForRepository(repo.id) : s,
+  );
+  const resetLog = useRunLogStore((s) => s.reset);
+  const resolvePendingApproval = useRunLogStore(
+    (s) => s.resolvePendingApproval,
+  );
+  const elapsedLabel = useRunElapsedLabel(repo?.id);
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
   const workflowNodes = useWorkflowStore((s) => s.nodes);
 
-  const runBelongsToCurrentRepo =
-    !repo || !runRepositoryId || runRepositoryId === repo.id;
-  const logBelongsToCurrentRepo =
-    !repo || !logRepositoryId || logRepositoryId === repo.id;
-  const visibleRunStatus = runBelongsToCurrentRepo ? runStatus : "idle";
-  const visibleRunId = runBelongsToCurrentRepo ? runStoreRunId : null;
-  const visibleLogRunId = logBelongsToCurrentRepo ? runId : null;
-  const visibleEvents = logBelongsToCurrentRepo ? events : [];
-  const visibleNodeResults = logBelongsToCurrentRepo ? nodeResults : {};
-  const visiblePendingApprovals = logBelongsToCurrentRepo ? pendingApprovals : {};
-  const visibleActiveNodeId = runBelongsToCurrentRepo ? activeNodeId : null;
-  const visibleNodeStates = runBelongsToCurrentRepo ? nodeStates : {};
-  const visibleNodeDebug = runBelongsToCurrentRepo ? nodeDebug : {};
+  const visibleRunStatus = runRecord.status;
+  const visibleRunId = runRecord.runId;
+  const visibleLogRunId = logRecord.runId;
+  const visibleEvents = logRecord.events;
+  const visibleNodeResults = logRecord.nodeResults;
+  const visiblePendingApprovals = logRecord.pendingApprovals;
+  const visibleActiveNodeId = runRecord.activeNodeId;
+  const visibleNodeStates = runRecord.nodeStates;
+  const visibleNodeDebug = runRecord.nodeDebug;
   const showPicker = repo && workflowId;
   const approvals = Object.values(visiblePendingApprovals);
   const activeNodeLabel = visibleActiveNodeId
@@ -326,8 +315,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     ? Boolean(visibleNodeDebug[visibleActiveNodeId]?.idleSince)
     : false;
   const headerRunId = visibleRunId ?? visibleLogRunId;
-  const loopLabel = runBelongsToCurrentRepo ? formatLoopLabel(runMode, iteration) : null;
-  const visibleElapsedLabel = runBelongsToCurrentRepo ? elapsedLabel : null;
+  const loopLabel = formatLoopLabel(runRecord.runMode, runRecord.iteration);
+  const visibleElapsedLabel = elapsedLabel;
   const canCopyLog =
     visibleEvents.length > 0 || Object.keys(visibleNodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
@@ -403,7 +392,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     } catch (err) {
       console.error("[LogPanel] sendInput failed", err);
     }
-    resolvePendingApproval(request.requestId);
+    resolvePendingApproval(request.requestId, repo?.id);
   };
 
   const handleCopyLog = async () => {
@@ -436,7 +425,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
 
   const handleClearLog = () => {
     if (!canClearLog) return;
-    resetLog();
+    resetLog(repo?.id);
   };
 
   if (
