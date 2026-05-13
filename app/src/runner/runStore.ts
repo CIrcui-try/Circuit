@@ -127,7 +127,9 @@ export const useRunStore = create<RunStoreState>((set, get) => ({
       const state = get();
       return (
         state.runsByRepositoryId[repositoryId] ??
-        (state.repositoryId === repositoryId ? state : EMPTY_RECORD)
+        (state.repositoryId === repositoryId || state.repositoryId == null
+          ? state
+          : EMPTY_RECORD)
       );
     }
     return selectCurrentRecord(get());
