@@ -94,6 +94,11 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   ): Promise<string>;
   loadLayout?(): Promise<LayoutPrefsDTO | null>;
   saveLayout?(prefs: LayoutPrefsDTO): Promise<void>;
+  setAppIconRunBadge?(active: boolean): Promise<void>;
+  isAppWindowFocused?(): Promise<boolean>;
+  onAppWindowFocusChanged?(
+    handler: (focused: boolean) => void,
+  ): Promise<() => void>;
 }
 
 declare global {
