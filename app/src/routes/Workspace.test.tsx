@@ -36,6 +36,7 @@ import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import { AppErrorAlert } from "../components/AppErrorAlert";
 import { Workspace } from "./Workspace";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
+import { markStarterFlowPromptPending } from "../workflow/starterFlowPrompt";
 
 const SAMPLE: Repository = {
   id: "id-alpha",
@@ -310,12 +311,10 @@ describe("Workspace", () => {
 
   it("W8d: adds the tutorial starter flow to an empty selected repo and saves as a regular workflow", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    markStarterFlowPromptPending(SAMPLE.id);
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
-      "Actual repository",
-    );
     expect(screen.getByTestId("starter-flow-empty")).toHaveTextContent(
       "/Users/me/alpha",
     );
@@ -364,8 +363,42 @@ describe("Workspace", () => {
     });
   });
 
+  it("shows the starter flow prompt only once for a newly added empty repo", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    markStarterFlowPromptPending(SAMPLE.id);
+
+    const first = renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("starter-flow-empty")).toBeInTheDocument();
+    first.unmount();
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
+  });
+
+  it("dismisses the starter flow prompt without adding nodes", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    markStarterFlowPromptPending(SAMPLE.id);
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("starter-flow-dismiss"));
+
+    expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+  });
+
+  it("does not show the starter flow prompt for a plain empty workspace", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
+  });
+
   it("W8e: adds the mixed starter flow even when the feature prompt is blank", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    markStarterFlowPromptPending(SAMPLE.id);
 
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("starter-flow-add"));

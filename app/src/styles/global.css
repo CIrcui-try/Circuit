@@ -391,6 +391,7 @@ a:hover {
   align-self: center;
   justify-self: center;
   z-index: 4;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -400,6 +401,26 @@ a:hover {
   border-radius: 8px;
   background: rgba(38, 38, 43, 0.96);
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.36);
+}
+
+.starter-flow-empty__dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #a7a7b0;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.starter-flow-empty__dismiss:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .starter-flow-empty__eyebrow {
