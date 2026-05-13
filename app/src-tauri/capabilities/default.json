@@ -24,6 +24,7 @@
     },
     "dialog:allow-open",
     "dialog:allow-confirm",
+    "core:window:allow-set-badge-label",
     "store:default"
   ]
 }

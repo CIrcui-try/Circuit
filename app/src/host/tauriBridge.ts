@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type {
@@ -127,5 +128,19 @@ export const tauriHostBridge: HostBridge = {
 
   async prewarm(userId: string, repoUrl: string, count: number) {
     await invoke<void>("prewarm", { userId, repoUrl, count });
+  },
+
+  async setAppIconRunBadge(active: boolean) {
+    await getCurrentWindow().setBadgeLabel(active ? " " : undefined);
+  },
+
+  async isAppWindowFocused() {
+    return await getCurrentWindow().isFocused();
+  },
+
+  async onAppWindowFocusChanged(handler: (focused: boolean) => void) {
+    return await getCurrentWindow().onFocusChanged(({ payload }) => {
+      handler(payload);
+    });
   },
 };

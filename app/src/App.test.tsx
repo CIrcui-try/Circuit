@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -11,6 +11,11 @@ const bridgeMock = vi.hoisted(() => ({
   listWorkflows: vi.fn(async () => []),
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
+  setAppIconRunBadge: vi.fn(async () => {}),
+  isAppWindowFocused: vi.fn(async () => true),
+  onAppWindowFocusChanged: vi.fn(
+    async (_handler: (focused: boolean) => void) => () => {},
+  ),
 }));
 
 const runControllerMock = vi.hoisted(() => ({
@@ -34,10 +39,16 @@ beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.loadRepositories.mockReset();
   bridgeMock.saveRepositories.mockReset();
+  bridgeMock.setAppIconRunBadge.mockReset();
+  bridgeMock.isAppWindowFocused.mockReset();
+  bridgeMock.onAppWindowFocusChanged.mockReset();
   bridgeMock.openRepositoryDialog.mockResolvedValue(null);
   bridgeMock.scanSkills.mockResolvedValue([]);
   bridgeMock.loadRepositories.mockResolvedValue(null);
   bridgeMock.saveRepositories.mockResolvedValue(undefined);
+  bridgeMock.setAppIconRunBadge.mockResolvedValue(undefined);
+  bridgeMock.isAppWindowFocused.mockResolvedValue(true);
+  bridgeMock.onAppWindowFocusChanged.mockResolvedValue(() => {});
   runControllerMock.cancelWorkflowRun.mockClear();
   runControllerMock.cancelWorkflowRun.mockResolvedValue(true);
 
@@ -246,5 +257,87 @@ describe("App routing", () => {
     );
     expect(screen.queryByTestId("approval-prompt")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+  });
+
+  it("A6: marks the app icon badge when a workflow finishes in the background", async () => {
+    bridgeMock.isAppWindowFocused.mockResolvedValue(false);
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: null,
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00Z",
+      finishedAt: "2026-05-09T00:00:05Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(bridgeMock.setAppIconRunBadge).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("A7: leaves the app icon badge clear when a workflow finishes while focused", async () => {
+    bridgeMock.isAppWindowFocused.mockResolvedValue(true);
+    useRunStore.setState({
+      status: "failed",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: null,
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00Z",
+      finishedAt: "2026-05-09T00:00:05Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "failed" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(bridgeMock.setAppIconRunBadge).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("A8: clears the app icon badge when the app regains focus", async () => {
+    let focusHandler: ((focused: boolean) => void) | null = null;
+    bridgeMock.onAppWindowFocusChanged.mockImplementation(async (handler) => {
+      focusHandler = handler;
+      return () => {};
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(focusHandler).not.toBeNull();
+    });
+
+    act(() => {
+      focusHandler?.(true);
+    });
+
+    await waitFor(() => {
+      expect(bridgeMock.setAppIconRunBadge).toHaveBeenCalledWith(false);
+    });
   });
 });
