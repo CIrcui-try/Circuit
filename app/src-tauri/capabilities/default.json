@@ -24,6 +24,7 @@
     },
     "dialog:allow-open",
     "dialog:allow-confirm",
+    "notification:default",
     "core:window:allow-set-badge-count",
     "store:default"
   ]
