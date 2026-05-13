@@ -382,8 +382,10 @@ export class RealWorkflowRunner implements WorkflowRunner {
   ): Promise<RunResult> {
     const timestamp = new Date().toISOString();
     const maxIterations = readLoopLimit(node.input);
+    const runStore = this.opts.runStore?.getState();
     const iteration =
-      this.opts.runStore?.getState().getRunForRepository(repo.id).iteration ??
+      runStore?.getRunForRepository(repo.id).iteration ??
+      runStore?.iteration ??
       1;
     if (maxIterations == null) {
       return await this.recordNodeFailure(
