@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { AppErrorAlert } from "./components/AppErrorAlert";
+import { AppIconRunBadge } from "./components/AppIconRunBadge";
 import { RepositoryList } from "./routes/RepositoryList";
 import { Workspace } from "./routes/Workspace";
 import { useLayoutStore } from "./stores/layoutStore";
@@ -15,6 +16,7 @@ export default function App() {
   return (
     <>
       <AppErrorAlert />
+      <AppIconRunBadge />
       <Routes>
         <Route path="/" element={<RepositoryList />} />
         <Route path="/workspace/:repoId?" element={<Workspace />} />
