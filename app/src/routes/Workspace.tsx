@@ -269,13 +269,14 @@ export function Workspace() {
   }, [repo, starterGoal]);
 
   const handleCancel = useCallback(() => {
+    if (!isRunningHere) return;
     setCancelling(true);
     void cancelWorkflowRun();
-  }, []);
+  }, [isRunningHere]);
 
   useEffect(() => {
-    if (!isRunning) setCancelling(false);
-  }, [isRunning]);
+    if (!isRunningHere) setCancelling(false);
+  }, [isRunningHere]);
 
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
@@ -400,7 +401,7 @@ export function Workspace() {
           onClick={() => void handleStart()}
           disabled={!repo || isRunning || nodeCount === 0}
         >
-          {isRunning ? (
+          {isRunningHere ? (
             <>
               <span
                 className="cli-status-spinner cli-status-spinner--inline"
@@ -433,7 +434,7 @@ export function Workspace() {
           type="button"
           data-testid="workflow-cancel"
           onClick={handleCancel}
-          disabled={!isRunning || cancelling}
+          disabled={!isRunningHere || cancelling}
         >
           {cancelling ? "Cancelling…" : "Cancel"}
         </button>

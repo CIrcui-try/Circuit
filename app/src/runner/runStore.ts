@@ -203,8 +203,16 @@ function cloneInput(input: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
 }
 
-export function useNodeRunState(id: string): NodeRunState {
-  return useRunStore((s) => s.nodeStates[id] ?? "idle");
+export function useNodeRunState(
+  id: string,
+  repositoryId?: string | null,
+): NodeRunState {
+  return useRunStore((s) => {
+    if (repositoryId && s.repositoryId && s.repositoryId !== repositoryId) {
+      return "idle";
+    }
+    return s.nodeStates[id] ?? "idle";
+  });
 }
 
 if (typeof window !== "undefined") {
