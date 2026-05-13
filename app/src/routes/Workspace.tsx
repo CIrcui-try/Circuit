@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
@@ -21,9 +21,10 @@ import { fromWorkflow } from "../workflow/serialize";
 import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
+import { consumeStarterFlowPrompt } from "../workflow/starterFlowPrompt";
 import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { topoSort } from "../runner/topoSort";
+import { analyzeWorkflowGraph, topoSort } from "../runner/topoSort";
 import {
   cancelWorkflowRun,
   startWorkflowRun,
@@ -70,6 +71,8 @@ export function Workspace() {
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const [starterGoal, setStarterGoal] = useState("");
+  const [showStarterFlowPrompt, setShowStarterFlowPrompt] = useState(false);
+  const consumedStarterPromptRepoIds = useRef(new Set<string>());
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
 
@@ -88,6 +91,7 @@ export function Workspace() {
   useEffect(() => {
     resetWorkflow();
     setWorkflows([]);
+    setShowStarterFlowPrompt(false);
     if (!repo) return;
     if (isRunningHere && activeRunSnapshot) {
       useWorkflowStore.getState().replaceCanvas({
@@ -99,7 +103,16 @@ export function Workspace() {
       return;
     }
     const draft = loadWorkflowDraft(repo.id);
-    if (!draft) return;
+    if (!draft) {
+      const shouldShowStarterPrompt =
+        consumedStarterPromptRepoIds.current.has(repo.id) ||
+        consumeStarterFlowPrompt(repo.id);
+      if (shouldShowStarterPrompt) {
+        consumedStarterPromptRepoIds.current.add(repo.id);
+      }
+      setShowStarterFlowPrompt(shouldShowStarterPrompt);
+      return;
+    }
     useWorkflowStore.getState().replaceCanvas({
       nodes: draft.nodes,
       edges: draft.edges,
@@ -202,11 +215,18 @@ export function Workspace() {
   const handleStart = useCallback(async () => {
     if (!repo) return;
     const snapshot = buildRunSnapshot(repo);
-    const hasCycle = topoSort(
+    const graph = analyzeWorkflowGraph(
       snapshot.nodes.map((node) => node.id),
       snapshot.edges,
-    ).cycle;
-    if (hasCycle) {
+    );
+    if (!graph.valid) {
+      notifyAppError(
+        formatRunRejection("invalid-graph"),
+        "Start Circuit failed",
+      );
+      return;
+    }
+    if (graph.hasCycle) {
       setPendingCycleRun(snapshot);
       return;
     }
@@ -227,6 +247,8 @@ export function Workspace() {
       workflowId: restored.meta.id,
       workflowName: restored.meta.name,
     });
+    consumedStarterPromptRepoIds.current.delete(repo.id);
+    setShowStarterFlowPrompt(false);
   }, [repo, starterGoal]);
 
   const handleCancel = useCallback(() => {
@@ -427,9 +449,20 @@ export function Workspace() {
         />
       )}
       <Canvas />
-      {repo && nodeCount === 0 ? (
+      {repo && nodeCount === 0 && showStarterFlowPrompt ? (
         <section className="starter-flow-empty" data-testid="starter-flow-empty">
-          <div className="starter-flow-empty__eyebrow">Actual repository</div>
+          <button
+            type="button"
+            className="starter-flow-empty__dismiss"
+            data-testid="starter-flow-dismiss"
+            aria-label="Dismiss starter flow prompt"
+            onClick={() => {
+              consumedStarterPromptRepoIds.current.delete(repo.id);
+              setShowStarterFlowPrompt(false);
+            }}
+          >
+            ×
+          </button>
           <h2 className="starter-flow-empty__title">Add starter flow</h2>
           <p className="starter-flow-empty__copy">
             This flow will run against <strong>{repo.name}</strong> at{" "}
@@ -573,6 +606,8 @@ function formatRunRejection(
       return "Add at least one skill before starting Circuit.";
     case "cycle":
       return "The workflow has a cycle. Remove the loop and try again.";
+    case "invalid-graph":
+      return "Workflow graph must have exactly one root. Connect every node into one entry flow before starting Circuit.";
     default:
       return reason;
   }

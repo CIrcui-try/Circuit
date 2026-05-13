@@ -119,6 +119,11 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       <Handle type="target" position={Position.Top} />
       <div className="skill-node__row">
         <span className="skill-node__name">{data.label}</span>
+        {data.isRoot === true ? (
+          <span className="skill-node__root-badge" data-testid="root-badge">
+            Root
+          </span>
+        ) : null}
         <span className={`skill-list__chip skill-list__chip--${provider}`}>
           {provider}
         </span>

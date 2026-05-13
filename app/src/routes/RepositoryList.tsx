@@ -18,6 +18,7 @@ import {
   type StarterNodePrompts,
 } from "../workflow/starterFlow";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
+import { markStarterFlowPromptPending } from "../workflow/starterFlowPrompt";
 
 const TUTORIAL_STARTER_NODE_PROMPTS: StarterNodePrompts = {
   starter_taxiing:
@@ -102,6 +103,7 @@ export function RepositoryList() {
     if (selected) {
       const added = await addRepository(selected);
       if (added) {
+        markStarterFlowPromptPending(added.id);
         scanRepository(added.id, added.path);
       }
     }

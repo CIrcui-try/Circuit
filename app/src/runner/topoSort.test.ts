@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunnableEdge } from "./runner";
-import { topoSort } from "./topoSort";
+import { analyzeWorkflowGraph, topoSort } from "./topoSort";
 
 const edge = (id: string, source: string, target: string): RunnableEdge => ({
   id,
@@ -53,5 +53,87 @@ describe("topoSort", () => {
 
   it("TS5: empty input returns empty order", () => {
     expect(topoSort([], [])).toEqual({ cycle: false, order: [] });
+  });
+});
+
+describe("analyzeWorkflowGraph", () => {
+  it("accepts a linear chain and reports its root", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c"],
+        [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      ),
+    ).toEqual({ valid: true, hasCycle: false, rootNodeId: "a" });
+  });
+
+  it("accepts a diamond graph with one root", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c", "d"],
+        [
+          edge("e1", "a", "b"),
+          edge("e2", "a", "c"),
+          edge("e3", "b", "d"),
+          edge("e4", "c", "d"),
+        ],
+      ),
+    ).toEqual({ valid: true, hasCycle: false, rootNodeId: "a" });
+  });
+
+  it("rejects a chain plus an isolated node", () => {
+    expect(
+      analyzeWorkflowGraph(["a", "b", "c"], [edge("e1", "a", "b")]),
+    ).toEqual({
+      valid: false,
+      hasCycle: false,
+      reason: "multiple-roots",
+      rootNodeIds: ["a", "c"],
+    });
+  });
+
+  it("rejects two roots pointing at the same node", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c"],
+        [edge("e1", "a", "c"), edge("e2", "b", "c")],
+      ),
+    ).toEqual({
+      valid: false,
+      hasCycle: false,
+      reason: "multiple-roots",
+      rootNodeIds: ["a", "b"],
+    });
+  });
+
+  it("accepts a pure cycle and chooses a stable representative root", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c"],
+        [edge("e1", "a", "b"), edge("e2", "b", "c"), edge("e3", "c", "a")],
+      ),
+    ).toEqual({ valid: true, hasCycle: true, rootNodeId: "a" });
+  });
+
+  it("rejects a disconnected cycle plus a chain", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c", "d"],
+        [edge("e1", "a", "b"), edge("e2", "c", "d"), edge("e3", "d", "c")],
+      ),
+    ).toEqual({
+      valid: false,
+      hasCycle: true,
+      reason: "multiple-roots",
+      rootNodeIds: ["a", "c"],
+    });
+  });
+
+  it("accepts a root that enters a cycle", () => {
+    expect(
+      analyzeWorkflowGraph(
+        ["a", "b", "c"],
+        [edge("e1", "a", "b"), edge("e2", "b", "c"), edge("e3", "c", "b")],
+      ),
+    ).toEqual({ valid: true, hasCycle: true, rootNodeId: "a" });
   });
 });

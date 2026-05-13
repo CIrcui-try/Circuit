@@ -176,6 +176,48 @@ describe("runWorkflow", () => {
     expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
   });
 
+  it("rejects disconnected graphs before invoking the runner", async () => {
+    const runner: WorkflowRunner = {
+      runNode: vi.fn(async () => ({ ok: true as const })),
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "rejected", reason: "invalid-graph" });
+    expect(runner.runNode).not.toHaveBeenCalled();
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      nodeStates: { a: "skipped", b: "skipped", c: "skipped" },
+    });
+  });
+
+  it("rejects multiple-root graphs before invoking the runner", async () => {
+    const runner: WorkflowRunner = {
+      runNode: vi.fn(async () => ({ ok: true as const })),
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "c"), edge("e2", "b", "c")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "rejected", reason: "invalid-graph" });
+    expect(runner.runNode).not.toHaveBeenCalled();
+  });
+
   it("RW4b: an allowed cycle repeats nodes until a skill stops it", async () => {
     const order: string[] = [];
     const runner: WorkflowRunner = {

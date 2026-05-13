@@ -19,6 +19,7 @@ import { useSkillStore } from "../stores/skillStore";
 import { useRunStore } from "../runner/runStore";
 import { RepositoryList } from "./RepositoryList";
 import { renderWithRouter } from "../test/utils";
+import { consumeStarterFlowPrompt } from "../workflow/starterFlowPrompt";
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -118,6 +119,10 @@ describe("RepositoryList", () => {
     expect(item).toBeInTheDocument();
     expect(screen.getByText("/Users/me/projects/alpha")).toBeInTheDocument();
     expect(screen.getByTestId("repository-list")).toBeInTheDocument();
+    const added = useRepositoryStore
+      .getState()
+      .repositories.find((repo) => repo.name === "alpha");
+    expect(added && consumeStarterFlowPrompt(added.id)).toBe(true);
   });
 
   it("R3: cancelling the picker leaves the seeded tutorial repo intact", async () => {
