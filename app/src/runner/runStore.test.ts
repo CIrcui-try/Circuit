@@ -28,6 +28,7 @@ describe("runStore", () => {
     expect(s.activeNodeId).toBeNull();
     expect(s.nodeStates).toEqual({ n1: "queued", n2: "queued" });
     expect(s.nodeDebug).toEqual({});
+    expect(s.acknowledgedRunId).toBeNull();
   });
 
   it("RS1c: beginRun tracks cycle iteration metadata", () => {
@@ -168,6 +169,19 @@ describe("runStore", () => {
     );
   });
 
+  it("RS4c: tracks the acknowledged run id", () => {
+    useRunStore.getState().beginRun({
+      runId: "r",
+      workflowId: null,
+      nodeIds: ["n1"],
+      startedAt: "t",
+    });
+    useRunStore.getState().finishRun("success", "t1");
+    useRunStore.getState().acknowledgeRun("r");
+
+    expect(useRunStore.getState().acknowledgedRunId).toBe("r");
+  });
+
   it("RS5: reset returns the store to idle with no node states", () => {
     useRunStore.getState().beginRun({
       runId: "r",
@@ -193,5 +207,6 @@ describe("runStore", () => {
     expect(s.nodeStates).toEqual({});
     expect(s.nodeDebug).toEqual({});
     expect(s.snapshot).toBeNull();
+    expect(s.acknowledgedRunId).toBeNull();
   });
 });

@@ -44,6 +44,7 @@ export type RunStoreState = {
   nodeStates: Record<string, NodeRunState>;
   nodeDebug: Record<string, NodeDebugInfo>;
   snapshot: WorkflowRunSnapshot | null;
+  acknowledgedRunId: string | null;
 
   beginRun: (args: {
     runId: string;
@@ -63,6 +64,7 @@ export type RunStoreState = {
   setNodeState: (id: string, state: NodeRunState) => void;
   patchNodeDebug: (id: string, patch: NodeDebugInfo) => void;
   finishRun: (status: RunTerminalStatus, finishedAt?: string) => void;
+  acknowledgeRun: (runId: string) => void;
   reset: () => void;
 };
 
@@ -82,6 +84,7 @@ const INITIAL: Pick<
   | "nodeStates"
   | "nodeDebug"
   | "snapshot"
+  | "acknowledgedRunId"
 > = {
   status: "idle",
   runMode: "dag",
@@ -97,6 +100,7 @@ const INITIAL: Pick<
   nodeStates: {},
   nodeDebug: {},
   snapshot: null,
+  acknowledgedRunId: null,
 };
 
 export const useRunStore = create<RunStoreState>((set) => ({
@@ -161,6 +165,10 @@ export const useRunStore = create<RunStoreState>((set) => ({
       finishedAt: finishedAt ?? new Date().toISOString(),
       activeNodeId: null,
     });
+  },
+
+  acknowledgeRun: (runId) => {
+    set({ acknowledgedRunId: runId });
   },
 
   reset: () => {

@@ -40,8 +40,10 @@ export function RepositoryList() {
   const loading = useSkillStore((s) => s.loading);
   const scanRepository = useSkillStore((s) => s.scanRepository);
   const runStatus = useRunStore((s) => s.status);
+  const runId = useRunStore((s) => s.runId);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
   const runWorkflowName = useRunStore((s) => s.workflowName);
+  const acknowledgedRunId = useRunStore((s) => s.acknowledgedRunId);
   const [pendingRemoval, setPendingRemoval] = useState<{
     id: string;
     name: string;
@@ -163,6 +165,11 @@ export function RepositoryList() {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
             const isRunRepo = runStatus === "running" && runRepositoryId === repo.id;
+            const isDoneRepo =
+              runStatus === "success" &&
+              runRepositoryId === repo.id &&
+              runId != null &&
+              acknowledgedRunId !== runId;
             const isTutorialRepo = repo.name === TUTORIAL_REPOSITORY_NAME;
             return (
               <li key={repo.id} className="repository-list__row">
@@ -191,8 +198,21 @@ export function RepositoryList() {
                         className="repository-list__progress-badge"
                         data-testid="badge-in-progress"
                         title={runWorkflowName ?? "Workflow is running"}
+                        aria-label="In progress"
                       >
-                        In progress
+                        <span
+                          className="repository-list__progress-spinner"
+                          aria-hidden="true"
+                        />
+                      </span>
+                    ) : null}
+                    {isDoneRepo ? (
+                      <span
+                        className="repository-list__done-badge"
+                        data-testid="badge-done"
+                        title={runWorkflowName ?? "Workflow completed"}
+                      >
+                        Done
                       </span>
                     ) : null}
                   </span>

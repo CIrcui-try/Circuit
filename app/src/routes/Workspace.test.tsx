@@ -184,6 +184,30 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
   });
 
+  it("W1d: acknowledges a successful run when opening its workspace", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy",
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().acknowledgedRunId).toBe("run-1");
+    });
+  });
+
   it("W1a: opens the selected repository folder in Finder", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 

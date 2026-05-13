@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const bridgeMock = vi.hoisted(() => ({
@@ -367,19 +367,61 @@ describe("RepositoryList", () => {
 
     expect(screen.queryByTestId("repository-run-summary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("badge-running")).not.toBeInTheDocument();
-    expect(screen.getByTestId("badge-in-progress")).toHaveTextContent(
+    expect(screen.getByTestId("badge-in-progress")).toHaveAccessibleName(
       "In progress",
     );
     expect(screen.getByTestId("badge-in-progress")).toHaveAttribute(
       "title",
       "Deploy",
     );
-    expect(screen.getByRole("link", { name: /alpha/ })).toHaveTextContent(
-      "In progress",
+    expect(screen.getByRole("link", { name: /alpha/ })).toHaveAccessibleName(
+      /In progress/,
     );
     expect(screen.getByRole("link", { name: /beta/ })).not.toHaveTextContent(
       "In progress",
     );
+  });
+
+  it("R4c: keeps a Done pill for an unacknowledged successful run", () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    useRunStore.setState({
+      status: "success",
+      runId: "run-1",
+      workflowId: "wf-1",
+      workflowName: "Deploy",
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getByTestId("badge-done")).toHaveTextContent("Done");
+    expect(screen.getByRole("link", { name: /alpha/ })).toHaveTextContent(
+      "Done",
+    );
+
+    act(() => {
+      useRunStore.getState().acknowledgeRun("run-1");
+    });
+
+    expect(screen.queryByTestId("badge-done")).not.toBeInTheDocument();
   });
 
   it("R6: shows Claude/Codex count badges once scan resolves", async () => {

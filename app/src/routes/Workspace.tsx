@@ -53,7 +53,9 @@ export function Workspace() {
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const runStatus = useRunStore((s) => s.status);
   const isRunning = runStatus === "running";
+  const runId = useRunStore((s) => s.runId);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
+  const acknowledgeRun = useRunStore((s) => s.acknowledgeRun);
   const lastRunSnapshot = useRunStore((s) => s.snapshot);
   const lastRunNodeStates = useRunStore((s) => s.nodeStates);
   const lastRunNodeResults = useRunLogStore((s) => s.nodeResults);
@@ -90,6 +92,13 @@ export function Workspace() {
   useEffect(() => {
     selectRepository(repoId ?? null);
   }, [repoId, selectRepository]);
+
+  useEffect(() => {
+    if (!repo?.id || !runId) return;
+    if (runStatus !== "success") return;
+    if (runRepositoryId !== repo.id) return;
+    acknowledgeRun(runId);
+  }, [acknowledgeRun, repo?.id, runId, runRepositoryId, runStatus]);
 
   useEffect(() => {
     resetWorkflow();
