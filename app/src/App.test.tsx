@@ -11,6 +11,7 @@ const bridgeMock = vi.hoisted(() => ({
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
   setAppIconRunBadgeCount: vi.fn(async (_count: number) => {}),
+  notifyRunFinished: vi.fn(async (_notification: { title: string; body?: string }) => {}),
   isAppWindowFocused: vi.fn(async () => true),
   onAppWindowFocusChanged: vi.fn(
     async (_handler: (focused: boolean) => void) => () => {},
@@ -32,6 +33,7 @@ beforeEach(() => {
   bridgeMock.loadRepositories.mockReset();
   bridgeMock.saveRepositories.mockReset();
   bridgeMock.setAppIconRunBadgeCount.mockReset();
+  bridgeMock.notifyRunFinished.mockReset();
   bridgeMock.isAppWindowFocused.mockReset();
   bridgeMock.onAppWindowFocusChanged.mockReset();
   bridgeMock.openRepositoryDialog.mockResolvedValue(null);
@@ -39,6 +41,7 @@ beforeEach(() => {
   bridgeMock.loadRepositories.mockResolvedValue(null);
   bridgeMock.saveRepositories.mockResolvedValue(undefined);
   bridgeMock.setAppIconRunBadgeCount.mockResolvedValue(undefined);
+  bridgeMock.notifyRunFinished.mockResolvedValue(undefined);
   bridgeMock.isAppWindowFocused.mockResolvedValue(true);
   bridgeMock.onAppWindowFocusChanged.mockResolvedValue(() => {});
 
@@ -244,6 +247,125 @@ describe("App routing", () => {
 
     await waitFor(() => {
       expect(bridgeMock.setAppIconRunBadgeCount).toHaveBeenCalledWith(0);
+    });
+  });
+
+  it.each([
+    ["success", "Workflow completed"],
+    ["failed", "Workflow failed"],
+    ["cancelled", "Workflow cancelled"],
+    ["timeout", "Workflow timed out"],
+  ] as const)(
+    "A10: sends a run completion notification for background %s runs",
+    async (status, title) => {
+      bridgeMock.isAppWindowFocused.mockResolvedValue(false);
+      useRunStore.setState({
+        status,
+        runId: `run-${status}`,
+        workflowId: "wf-1",
+        workflowName: "Release flow",
+        repositoryId: "id-alpha",
+        repositoryName: "alpha",
+        startedAt: "2026-05-09T00:00:00Z",
+        finishedAt: "2026-05-09T00:00:05Z",
+        activeNodeId: null,
+        nodeStates: { "node-1": status },
+        nodeDebug: {},
+        snapshot: null,
+      });
+
+      render(
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(bridgeMock.notifyRunFinished).toHaveBeenCalledWith({
+          title,
+          body: "Release flow in alpha",
+        });
+      });
+    },
+  );
+
+  it("A11: skips run completion notifications while focused", async () => {
+    bridgeMock.isAppWindowFocused.mockResolvedValue(true);
+    useRunStore.setState({
+      status: "success",
+      runId: "run-focused",
+      workflowId: "wf-1",
+      workflowName: "Release flow",
+      repositoryId: "id-alpha",
+      repositoryName: "alpha",
+      startedAt: "2026-05-09T00:00:00Z",
+      finishedAt: "2026-05-09T00:00:05Z",
+      activeNodeId: null,
+      nodeStates: { "node-1": "success" },
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(bridgeMock.isAppWindowFocused).toHaveBeenCalled();
+    });
+    expect(bridgeMock.notifyRunFinished).not.toHaveBeenCalled();
+  });
+
+  it("A12: sends only one run completion notification per run", async () => {
+    bridgeMock.isAppWindowFocused.mockResolvedValue(false);
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    act(() => {
+      useRunStore.setState({
+        status: "success",
+        runId: "run-once",
+        workflowId: "wf-1",
+        workflowName: "Release flow",
+        repositoryId: "id-alpha",
+        repositoryName: "alpha",
+        startedAt: "2026-05-09T00:00:00Z",
+        finishedAt: "2026-05-09T00:00:05Z",
+        activeNodeId: null,
+        nodeStates: { "node-1": "success" },
+        nodeDebug: {},
+        snapshot: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(bridgeMock.notifyRunFinished).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      useRunStore.setState({
+        status: "failed",
+        runId: "run-once",
+        workflowId: "wf-1",
+        workflowName: "Release flow",
+        repositoryId: "id-alpha",
+        repositoryName: "alpha",
+        startedAt: "2026-05-09T00:00:00Z",
+        finishedAt: "2026-05-09T00:00:06Z",
+        activeNodeId: null,
+        nodeStates: { "node-1": "failed" },
+        nodeDebug: {},
+        snapshot: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(bridgeMock.notifyRunFinished).toHaveBeenCalledTimes(1);
     });
   });
 });

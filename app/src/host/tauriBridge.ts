@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type {
   HostBridge,
@@ -132,6 +137,17 @@ export const tauriHostBridge: HostBridge = {
 
   async setAppIconRunBadgeCount(count: number) {
     await getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
+  },
+
+  async notifyRunFinished(notification) {
+    let permissionGranted = await isPermissionGranted();
+    if (!permissionGranted) {
+      const permission = await requestPermission();
+      permissionGranted = permission === "granted";
+    }
+    if (!permissionGranted) return;
+
+    sendNotification(notification);
   },
 
   async isAppWindowFocused() {

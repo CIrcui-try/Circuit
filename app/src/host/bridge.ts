@@ -43,6 +43,11 @@ export type LayoutPrefsDTO = {
   logHeight: number;
 };
 
+export type RunCompletionNotification = {
+  title: string;
+  body?: string;
+};
+
 export type WorkspaceDTO = {
   id: string;
   path: string;
@@ -95,6 +100,7 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   loadLayout?(): Promise<LayoutPrefsDTO | null>;
   saveLayout?(prefs: LayoutPrefsDTO): Promise<void>;
   setAppIconRunBadgeCount?(count: number): Promise<void>;
+  notifyRunFinished?(notification: RunCompletionNotification): Promise<void>;
   isAppWindowFocused?(): Promise<boolean>;
   onAppWindowFocusChanged?(
     handler: (focused: boolean) => void,
