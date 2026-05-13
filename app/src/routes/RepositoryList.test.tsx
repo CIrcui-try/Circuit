@@ -344,6 +344,13 @@ describe("RepositoryList", () => {
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
+        {
+          id: "id-beta",
+          name: "beta",
+          path: "/Users/me/beta",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
       ],
       hydrated: true,
     });
@@ -358,15 +365,20 @@ describe("RepositoryList", () => {
 
     renderWithRouter(<RepositoryList />);
 
-    expect(screen.getByTestId("repository-run-summary")).toHaveTextContent(
-      "alpha · Deploy",
+    expect(screen.queryByTestId("repository-run-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("badge-running")).not.toBeInTheDocument();
+    expect(screen.getByTestId("badge-in-progress")).toHaveTextContent(
+      "In progress",
     );
-    expect(screen.getByTestId("repository-run-summary")).toHaveAttribute(
-      "href",
-      "/workspace/id-alpha",
+    expect(screen.getByTestId("badge-in-progress")).toHaveAttribute(
+      "title",
+      "Deploy",
     );
-    expect(screen.getByTestId("badge-running")).toHaveTextContent(
-      "Running · Deploy",
+    expect(screen.getByRole("link", { name: /alpha/ })).toHaveTextContent(
+      "In progress",
+    );
+    expect(screen.getByRole("link", { name: /beta/ })).not.toHaveTextContent(
+      "In progress",
     );
   });
 
