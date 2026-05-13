@@ -26,6 +26,7 @@ export type RunWorkflowOptions = {
   now?: () => string;
   newRunId?: () => string;
   allowCycles?: boolean;
+  continueOnFailure?: boolean;
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
 };
@@ -59,6 +60,7 @@ export async function runWorkflow(
     now = defaultNow,
     newRunId = defaultRunId,
     allowCycles = false,
+    continueOnFailure = false,
     startFromNodeId,
     seedPreviousOutputs,
   } = opts;
@@ -156,7 +158,9 @@ export async function runWorkflow(
       store.getState().setNodeState(id, "success");
     } else {
       store.getState().setNodeState(id, result.status);
-      failureSeen = true;
+      if (result.status !== "failed" || !continueOnFailure) {
+        failureSeen = true;
+      }
       finalStatus = result.status;
     }
   }

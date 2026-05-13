@@ -22,13 +22,14 @@ export type DeserializedWorkflow = {
     id: string;
     name: string;
     repositoryId: string;
+    continueOnFailure: boolean;
     createdAt: string;
     updatedAt: string;
   };
 };
 
 export function toWorkflow(
-  state: { nodes: SkillNode[]; edges: Edge[] },
+  state: { nodes: SkillNode[]; edges: Edge[]; continueOnFailure?: boolean },
   meta: SerializeMeta,
   now: () => string = () => new Date().toISOString(),
 ): Workflow {
@@ -61,6 +62,7 @@ export function toWorkflow(
     id: meta.id,
     repositoryId: meta.repositoryId,
     name: meta.name,
+    ...(state.continueOnFailure ? { continueOnFailure: true } : {}),
     nodes,
     edges,
     createdAt: meta.createdAt,
@@ -116,6 +118,7 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
       id: wf.id,
       name: wf.name,
       repositoryId: wf.repositoryId,
+      continueOnFailure: wf.continueOnFailure === true,
       createdAt: wf.createdAt,
       updatedAt: wf.updatedAt,
     },

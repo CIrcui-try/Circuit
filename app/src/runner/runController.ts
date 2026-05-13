@@ -33,6 +33,7 @@ export type StartWorkflowRunOptions = {
   now?: () => string;
   newRunId?: () => string;
   allowCycles?: boolean;
+  continueOnFailure?: boolean;
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
   bridge?: RuntimeBridge;
@@ -82,6 +83,8 @@ export async function startWorkflowRun(
       now: opts.now,
       newRunId: opts.newRunId,
       allowCycles: opts.allowCycles,
+      continueOnFailure:
+        opts.continueOnFailure ?? snapshot.continueOnFailure === true,
       startFromNodeId: opts.startFromNodeId,
       seedPreviousOutputs: opts.seedPreviousOutputs,
     });
@@ -155,6 +158,7 @@ function cloneSnapshot(snapshot: WorkflowRunSnapshot): WorkflowRunSnapshot {
     repository: { ...snapshot.repository },
     workflowId: snapshot.workflowId,
     workflowName: snapshot.workflowName,
+    continueOnFailure: snapshot.continueOnFailure === true,
     nodes: snapshot.nodes.map((node) => ({
       id: node.id,
       type: "skill",

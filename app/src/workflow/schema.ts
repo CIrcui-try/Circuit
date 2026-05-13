@@ -48,6 +48,7 @@ export type Workflow = {
   id: string;
   repositoryId: string;
   name: string;
+  continueOnFailure?: boolean;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   createdAt: string;

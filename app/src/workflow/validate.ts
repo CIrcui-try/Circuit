@@ -58,6 +58,12 @@ export function validateWorkflow(value: unknown): ValidationResult {
   if (typeof value.repositoryId !== "string" || value.repositoryId.length === 0) {
     errors.push("workflow.repositoryId is required (non-empty string)");
   }
+  if (
+    value.continueOnFailure !== undefined &&
+    typeof value.continueOnFailure !== "boolean"
+  ) {
+    errors.push("workflow.continueOnFailure must be a boolean when present");
+  }
   if (!Array.isArray(value.nodes)) {
     errors.push("workflow.nodes must be an array");
   }

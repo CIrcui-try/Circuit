@@ -9,6 +9,7 @@ export type WorkflowDraft = {
   repositoryId: string;
   workflowId: string | null;
   workflowName: string;
+  continueOnFailure: boolean;
   nodes: SkillNode[];
   edges: Edge[];
   updatedAt: string;
@@ -17,6 +18,7 @@ export type WorkflowDraft = {
 export type SaveWorkflowDraftArgs = {
   workflowId: string | null;
   workflowName: string;
+  continueOnFailure?: boolean;
   nodes: SkillNode[];
   edges: Edge[];
 };
@@ -40,7 +42,16 @@ export function loadWorkflowDraft(repositoryId: string): WorkflowDraft | null {
     }
     if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) return null;
     if (typeof parsed.updatedAt !== "string") return null;
-    return parsed as WorkflowDraft;
+    if (
+      parsed.continueOnFailure !== undefined &&
+      typeof parsed.continueOnFailure !== "boolean"
+    ) {
+      return null;
+    }
+    return {
+      ...(parsed as WorkflowDraft),
+      continueOnFailure: parsed.continueOnFailure === true,
+    };
   } catch {
     return null;
   }
@@ -58,6 +69,7 @@ export function saveWorkflowDraft(
     repositoryId,
     workflowId: args.workflowId,
     workflowName: args.workflowName,
+    continueOnFailure: args.continueOnFailure === true,
     nodes: args.nodes,
     edges: args.edges,
     updatedAt: new Date().toISOString(),

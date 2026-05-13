@@ -313,6 +313,7 @@ function saveTutorialStarterDraft(repositoryId: string): void {
   saveWorkflowDraft(repositoryId, {
     workflowId: restored.meta.id,
     workflowName: restored.meta.name,
+    continueOnFailure: restored.meta.continueOnFailure,
     nodes: restored.nodes,
     edges: restored.edges,
   });

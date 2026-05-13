@@ -105,4 +105,19 @@ describe("workflow/validate", () => {
       expect(result.errors.some((e) => e.includes("must be omitted"))).toBe(true);
     }
   });
+
+  it("V11: continueOnFailure accepts booleans and rejects other values", () => {
+    expect(validateWorkflow({ ...sampleWorkflow, continueOnFailure: true })).toEqual({
+      ok: true,
+    });
+
+    const result = validateWorkflow({
+      ...sampleWorkflow,
+      continueOnFailure: "true",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.includes("continueOnFailure"))).toBe(true);
+    }
+  });
 });
