@@ -11,7 +11,7 @@ import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
-import type { WorkflowSummaryDTO } from "../host/bridge";
+import type { RepositoryEnvironmentCheck, WorkflowSummaryDTO } from "../host/bridge";
 import { getHostBridge } from "../host/bridge";
 import {
   isTutorialRepositoryPath,
@@ -231,6 +231,18 @@ export function Workspace() {
 
   const handleStart = useCallback(async () => {
     if (!repo) return;
+    const environmentChecker = getHostBridge().checkRepositoryEnvironment;
+    if (environmentChecker) {
+      const environmentError = await checkRepositoryEnvironment(
+        environmentChecker,
+        repo.path,
+      );
+      if (environmentError) {
+        notifyAppError(environmentError, "Start Circuit failed");
+        return;
+      }
+    }
+
     const snapshot = buildRunSnapshot(repo);
     const graph = analyzeWorkflowGraph(
       snapshot.nodes.map((node) => node.id),
@@ -695,6 +707,51 @@ function buildRunSnapshot(repo: {
       kind: "dependency",
     })),
   };
+}
+
+async function checkRepositoryEnvironment(
+  checker: (repoPath: string) => Promise<RepositoryEnvironmentCheck>,
+  repoPath: string,
+): Promise<string | null> {
+  try {
+    return formatRepositoryEnvironmentError(await checker(repoPath));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Repository environment check failed: ${message}`;
+  }
+}
+
+function formatRepositoryEnvironmentError(
+  check: RepositoryEnvironmentCheck,
+): string | null {
+  const failures: string[] = [];
+
+  if (!check.repoRoot.ok) {
+    failures.push(
+      `Repository folder is not ready. ${formatCheckMessage(check.repoRoot)}`,
+    );
+  }
+  if (!check.gitCommonDir.ok) {
+    failures.push(
+      `Circuit/Codex cannot write this repository's git metadata. Check macOS Full Disk Access or folder permissions. ${formatCheckMessage(check.gitCommonDir)}`,
+    );
+  }
+  if (!check.codexStateDir.ok) {
+    failures.push(
+      `Circuit workflow state path is not writable. Check .codex/state permissions. ${formatCheckMessage(check.codexStateDir)}`,
+    );
+  }
+  if (!check.githubCliAuth.ok) {
+    failures.push(
+      `GitHub CLI authentication is required. Run \`gh auth login -h github.com\`. ${formatCheckMessage(check.githubCliAuth)}`,
+    );
+  }
+
+  return failures.length > 0 ? failures.join("\n") : null;
+}
+
+function formatCheckMessage(item: { message?: string | null }): string {
+  return item.message?.trim() || "No additional details.";
 }
 
 function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {

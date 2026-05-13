@@ -8,6 +8,9 @@ const bridgeMock = vi.hoisted(() => ({
   scanSkills: vi.fn(async () => []),
   scanDefaultSkills: vi.fn(async (): Promise<RawSkill[]> => []),
   pathExists: vi.fn(async () => false),
+  checkRepositoryEnvironment: undefined as
+    | undefined
+    | ReturnType<typeof vi.fn>,
   loadRepositories: vi.fn(async () => null),
   saveRepositories: vi.fn(async () => {}),
   listWorkflows: vi.fn(async () => []),
@@ -124,6 +127,7 @@ beforeEach(() => {
   ]);
   bridgeMock.pathExists.mockReset();
   bridgeMock.pathExists.mockResolvedValue(false);
+  bridgeMock.checkRepositoryEnvironment = undefined;
   openerMock.openPath.mockReset();
   openerMock.openPath.mockResolvedValue(undefined);
   bridgeMock.listWorkflows.mockReset();
@@ -677,6 +681,40 @@ describe("Workspace", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("cycle-run-confirm")).not.toBeInTheDocument();
+    expect(useRunStore.getState().status).toBe("idle");
+  });
+
+  it("blocks Start before spawn when repository preflight fails", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    bridgeMock.checkRepositoryEnvironment = vi.fn(async () => ({
+      repoRoot: { ok: true },
+      gitCommonDir: { ok: false, message: "Operation not permitted" },
+      codexStateDir: { ok: true },
+      githubCliAuth: { ok: true },
+    }));
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-start"));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Start Circuit failed");
+    expect(alert).toHaveTextContent("git metadata");
+    expect(alert).toHaveTextContent("Operation not permitted");
     expect(useRunStore.getState().status).toBe("idle");
   });
 

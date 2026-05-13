@@ -48,6 +48,18 @@ export type RunCompletionNotification = {
   body?: string;
 };
 
+export type RepositoryEnvironmentCheckItem = {
+  ok: boolean;
+  message?: string | null;
+};
+
+export type RepositoryEnvironmentCheck = {
+  repoRoot: RepositoryEnvironmentCheckItem;
+  gitCommonDir: RepositoryEnvironmentCheckItem;
+  codexStateDir: RepositoryEnvironmentCheckItem;
+  githubCliAuth: RepositoryEnvironmentCheckItem;
+};
+
 export type WorkspaceDTO = {
   id: string;
   path: string;
@@ -74,6 +86,9 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   openRepositoryDialog(): Promise<string | null>;
   createTutorialRepository?(): Promise<string>;
   pathExists?(path: string): Promise<boolean>;
+  checkRepositoryEnvironment?(
+    repoPath: string,
+  ): Promise<RepositoryEnvironmentCheck>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
   scanDefaultSkills?(): Promise<RawSkill[]>;
   scanSystemSkills?(): Promise<RawSystemSkill[]>;

@@ -68,8 +68,8 @@ function defaultBuildCommand(
 ): CodexCommand {
   return {
     command: "codex",
-    args: ["exec", prompt],
-    stdinMode: "null",
+    args: ["-a", "on-request", "-s", "workspace-write", "exec", prompt],
+    stdinMode: "piped",
   };
 }
 
