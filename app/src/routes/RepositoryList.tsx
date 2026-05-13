@@ -41,7 +41,6 @@ export function RepositoryList() {
   const scanRepository = useSkillStore((s) => s.scanRepository);
   const runStatus = useRunStore((s) => s.status);
   const runRepositoryId = useRunStore((s) => s.repositoryId);
-  const runRepositoryName = useRunStore((s) => s.repositoryName);
   const runWorkflowName = useRunStore((s) => s.workflowName);
   const [pendingRemoval, setPendingRemoval] = useState<{
     id: string;
@@ -146,20 +145,6 @@ export function RepositoryList() {
           <button type="button" onClick={handleRefreshAll}>Refresh</button>
         )}
       </div>
-      {runStatus === "running" && runRepositoryId ? (
-        <Link
-          to={`/workspace/${runRepositoryId}`}
-          className="repository-list__run-summary"
-          data-testid="repository-run-summary"
-        >
-          <span className="repository-list__run-summary-label">Running</span>
-          <span>
-            {runRepositoryName ?? "Repository"}
-            {runWorkflowName ? ` · ${runWorkflowName}` : ""}
-          </span>
-        </Link>
-      ) : null}
-
       {repositories.length === 0 ? (
         <p className="repository-list__hint">
           {isPreparingTutorial ? (
@@ -201,6 +186,15 @@ export function RepositoryList() {
                         Start here
                       </span>
                     ) : null}
+                    {isRunRepo ? (
+                      <span
+                        className="repository-list__progress-badge"
+                        data-testid="badge-in-progress"
+                        title={runWorkflowName ?? "Workflow is running"}
+                      >
+                        In progress
+                      </span>
+                    ) : null}
                   </span>
                   <span className="repository-list__item-path">{repo.path}</span>
                   <span className="repository-list__badges">
@@ -214,14 +208,6 @@ export function RepositoryList() {
                       skills={skills}
                       loading={isLoading}
                     />
-                    {isRunRepo ? (
-                      <span
-                        className="repository-list__badge repository-list__badge--running"
-                        data-testid="badge-running"
-                      >
-                        Running{runWorkflowName ? ` · ${runWorkflowName}` : ""}
-                      </span>
-                    ) : null}
                   </span>
                 </Link>
                 <button
