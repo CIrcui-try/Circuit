@@ -29,15 +29,20 @@ beforeEach(() => {
 });
 
 describe("runLogStore", () => {
-  it("L1: beginRun resets events / nodeEvents / nodeResults and sets runId", () => {
+  it("L1: beginRun resets events / nodeEvents / nodeResults and sets run metadata", () => {
     useRunLogStore.getState().appendEvent("a", stdout("stale"));
     useRunLogStore.getState().setNodeResult("a", result());
 
-    useRunLogStore.getState().beginRun({ runId: "run_1", workflowId: "wf" });
+    useRunLogStore.getState().beginRun({
+      runId: "run_1",
+      workflowId: "wf",
+      repositoryId: "repo_1",
+    });
 
     const s = useRunLogStore.getState();
     expect(s.runId).toBe("run_1");
     expect(s.workflowId).toBe("wf");
+    expect(s.repositoryId).toBe("repo_1");
     expect(s.events).toEqual([]);
     expect(s.nodeEvents).toEqual({});
     expect(s.nodeResults).toEqual({});
@@ -81,6 +86,7 @@ describe("runLogStore", () => {
     const s = useRunLogStore.getState();
     expect(s.runId).toBeNull();
     expect(s.workflowId).toBeNull();
+    expect(s.repositoryId).toBeNull();
     expect(s.events).toEqual([]);
     expect(s.nodeEvents).toEqual({});
     expect(s.nodeResults).toEqual({});

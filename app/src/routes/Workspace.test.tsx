@@ -46,6 +46,14 @@ const SAMPLE: Repository = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const BETA: Repository = {
+  id: "id-beta",
+  name: "beta",
+  path: "/Users/me/beta",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 function renderAt(route: string) {
   return render(
     <MemoryRouter initialEntries={[route]}>
@@ -1041,6 +1049,88 @@ describe("Workspace", () => {
     ]);
     expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-start")).toBeDisabled();
+  });
+
+  it("W14b: hides another repository's active run state in this workspace", async () => {
+    useRepositoryStore.setState({
+      repositories: [SAMPLE, BETA],
+      hydrated: true,
+    });
+    saveWorkflowDraft(SAMPLE.id, {
+      workflowId: "alpha-wf",
+      workflowName: "Alpha draft",
+      nodes: [
+        {
+          id: "shared-node",
+          type: "skill",
+          position: { x: 10, y: 20 },
+          data: {
+            label: "Alpha node",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [],
+    });
+    useRunStore.getState().beginRun({
+      runId: "run-beta",
+      workflowId: "beta-wf",
+      workflowName: "Beta active run",
+      repository: { id: BETA.id, name: BETA.name },
+      nodeIds: ["shared-node"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+      snapshot: {
+        repository: BETA,
+        workflowId: "beta-wf",
+        workflowName: "Beta active run",
+        continueOnFailure: false,
+        nodes: [
+          {
+            id: "shared-node",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "Beta node",
+            position: { x: 30, y: 40 },
+          },
+        ],
+        edges: [],
+      },
+    });
+    useRunStore.getState().setActiveNode("shared-node");
+    useRunStore.getState().setNodeState("shared-node", "running");
+    useRunLogStore.getState().beginRun({
+      runId: "run-beta",
+      workflowId: "beta-wf",
+      repositoryId: BETA.id,
+    });
+    useRunLogStore.getState().appendEvent("shared-node", {
+      type: "status",
+      timestamp: "2026-05-09T00:00:01.000Z",
+      status: "running beta node",
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-node")).toHaveAttribute(
+        "data-run-state",
+        "idle",
+      );
+    });
+    expect(screen.getByTestId("workflow-start")).toBeDisabled();
+    expect(screen.getByTestId("workflow-start")).toHaveTextContent(
+      "Start Circuit",
+    );
+    expect(screen.getByTestId("workflow-cancel")).toBeDisabled();
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent("idle");
+    expect(screen.getByText("No runs yet.")).toBeInTheDocument();
+    expect(screen.queryByText("running beta node")).not.toBeInTheDocument();
   });
 
   it("W15: collapses and restores the skills sidebar without a sidebar resize handle", () => {

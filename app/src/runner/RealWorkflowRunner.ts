@@ -78,17 +78,21 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
   async runNode(node: RunnableNode): Promise<RunResult> {
     const { runId, workflowId } = this.opts.getRunMeta();
+    const repo = this.opts.getRepository();
 
     if (this.lastSeenRunId !== runId) {
       this.previousOutputs = { ...(this.pendingPreviousOutputs ?? {}) };
       this.pendingPreviousOutputs = null;
       if (this.opts.logStore.getState().runId !== runId) {
-        this.opts.logStore.getState().beginRun({ runId, workflowId });
+        this.opts.logStore.getState().beginRun({
+          runId,
+          workflowId,
+          repositoryId: repo?.id,
+        });
       }
       this.lastSeenRunId = runId;
     }
 
-    const repo = this.opts.getRepository();
     if (!repo) {
       return await this.recordNodeFailure(node.id, "no repository selected");
     }

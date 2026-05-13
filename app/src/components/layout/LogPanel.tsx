@@ -183,10 +183,12 @@ function LogHeader({
 }
 
 function PastRunsPicker({
+  repositoryId,
   repoPath,
   workflowId,
   isRunning,
 }: {
+  repositoryId: string;
   repoPath: string;
   workflowId: string;
   isRunning: boolean;
@@ -224,7 +226,7 @@ function PastRunsPicker({
       const jsonl = await host.loadRunLog(repoPath, workflowId, runId);
       const parsed = parseRunLogJsonl(jsonl);
       const store = useRunLogStore.getState();
-      store.beginRun({ runId, workflowId });
+      store.beginRun({ runId, workflowId, repositoryId });
       for (const e of parsed.events) {
         store.appendEvent(e.nodeId, e.event);
       }
@@ -276,19 +278,20 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const nodeResults = useRunLogStore((s) => s.nodeResults);
   const pendingApprovals = useRunLogStore((s) => s.pendingApprovals);
   const runId = useRunLogStore((s) => s.runId);
+  const logRepositoryId = useRunLogStore((s) => s.repositoryId);
   const resetLog = useRunLogStore((s) => s.reset);
   const resolvePendingApproval = useRunLogStore(
     (s) => s.resolvePendingApproval,
   );
   const runStatus = useRunStore((s) => s.status);
   const runStoreRunId = useRunStore((s) => s.runId);
+  const runRepositoryId = useRunStore((s) => s.repositoryId);
   const runMode = useRunStore((s) => s.runMode);
   const iteration = useRunStore((s) => s.iteration);
   const activeNodeId = useRunStore((s) => s.activeNodeId);
   const nodeStates = useRunStore((s) => s.nodeStates);
   const nodeDebug = useRunStore((s) => s.nodeDebug);
   const elapsedLabel = useRunElapsedLabel();
-  const isRunning = runStatus === "running";
   const repo = useRepositoryStore((s) =>
     s.selectedId
       ? s.repositories.find((r) => r.id === s.selectedId) ?? null
@@ -296,25 +299,41 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   );
   const workflowId = useWorkflowStore((s) => s.currentWorkflowId);
   const workflowNodes = useWorkflowStore((s) => s.nodes);
-  const activeNodeLabel = useWorkflowStore((s) => {
-    if (!activeNodeId) return null;
-    return s.nodes.find((n) => n.id === activeNodeId)?.data.label ?? activeNodeId;
-  });
 
+  const runBelongsToCurrentRepo =
+    !repo || !runRepositoryId || runRepositoryId === repo.id;
+  const logBelongsToCurrentRepo =
+    !repo || !logRepositoryId || logRepositoryId === repo.id;
+  const visibleRunStatus = runBelongsToCurrentRepo ? runStatus : "idle";
+  const visibleRunId = runBelongsToCurrentRepo ? runStoreRunId : null;
+  const visibleLogRunId = logBelongsToCurrentRepo ? runId : null;
+  const visibleEvents = logBelongsToCurrentRepo ? events : [];
+  const visibleNodeResults = logBelongsToCurrentRepo ? nodeResults : {};
+  const visiblePendingApprovals = logBelongsToCurrentRepo ? pendingApprovals : {};
+  const visibleActiveNodeId = runBelongsToCurrentRepo ? activeNodeId : null;
+  const visibleNodeStates = runBelongsToCurrentRepo ? nodeStates : {};
+  const visibleNodeDebug = runBelongsToCurrentRepo ? nodeDebug : {};
   const showPicker = repo && workflowId;
-  const approvals = Object.values(pendingApprovals);
-  const activeNodeState = activeNodeId ? nodeStates[activeNodeId] ?? null : null;
-  const activeNodeIdle = activeNodeId
-    ? Boolean(nodeDebug[activeNodeId]?.idleSince)
+  const approvals = Object.values(visiblePendingApprovals);
+  const activeNodeLabel = visibleActiveNodeId
+    ? workflowNodes.find((n) => n.id === visibleActiveNodeId)?.data.label ??
+      visibleActiveNodeId
+    : null;
+  const activeNodeState = visibleActiveNodeId
+    ? visibleNodeStates[visibleActiveNodeId] ?? null
+    : null;
+  const activeNodeIdle = visibleActiveNodeId
+    ? Boolean(visibleNodeDebug[visibleActiveNodeId]?.idleSince)
     : false;
-  const headerRunId = runStoreRunId ?? runId;
-  const loopLabel = formatLoopLabel(runMode, iteration);
+  const headerRunId = visibleRunId ?? visibleLogRunId;
+  const loopLabel = runBelongsToCurrentRepo ? formatLoopLabel(runMode, iteration) : null;
+  const visibleElapsedLabel = runBelongsToCurrentRepo ? elapsedLabel : null;
   const canCopyLog =
-    events.length > 0 || Object.keys(nodeResults).length > 0;
+    visibleEvents.length > 0 || Object.keys(visibleNodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
-  const canClearLog = hasLogContent && !isRunning;
+  const canClearLog = hasLogContent && visibleRunStatus !== "running";
   const displayItems = buildRunLogDisplayItems(
-    events,
+    visibleEvents,
     new Set(approvals.map((a) => a.requestId)),
   );
   const getNodeMeta = (nodeId: string): RunLogNodeMeta => {
@@ -377,10 +396,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     };
 
   const handleRespond = async (request: PendingApproval, text: string) => {
-    if (!runId) return;
+    if (!visibleLogRunId) return;
     const bridge = runtimeBridgeOverride ?? getRuntimeBridge();
     try {
-      await bridge.sendInput(runId, text);
+      await bridge.sendInput(visibleLogRunId, text);
     } catch (err) {
       console.error("[LogPanel] sendInput failed", err);
     }
@@ -391,7 +410,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     if (!canCopyLog) return;
     try {
       await navigator.clipboard.writeText(
-        formatRunLogForClipboard(events, nodeResults, getNodeMeta),
+        formatRunLogForClipboard(visibleEvents, visibleNodeResults, getNodeMeta),
       );
       setCopyFeedback("Copied");
       if (copyFeedbackTimeoutRef.current != null) {
@@ -421,21 +440,21 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   };
 
   if (
-    events.length === 0 &&
-    Object.keys(nodeResults).length === 0 &&
+    visibleEvents.length === 0 &&
+    Object.keys(visibleNodeResults).length === 0 &&
     approvals.length === 0
   ) {
     return (
       <footer className="workspace__log">
         <LogHeader
-          isRunning={isRunning}
-          status={runStatus}
+          isRunning={visibleRunStatus === "running"}
+          status={visibleRunStatus}
           runId={headerRunId}
           loopLabel={loopLabel}
           activeNodeLabel={activeNodeLabel}
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
-          elapsedLabel={elapsedLabel}
+          elapsedLabel={visibleElapsedLabel}
           copyDisabled={!canCopyLog}
           copyFeedback={copyFeedback}
           onCopyLog={handleCopyLog}
@@ -445,9 +464,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         />
         {showPicker ? (
           <PastRunsPicker
+            repositoryId={repo.id}
             repoPath={repo.path}
             workflowId={workflowId}
-            isRunning={isRunning}
+            isRunning={visibleRunStatus === "running"}
           />
         ) : null}
         <div className="empty-state">No runs yet.</div>
@@ -458,14 +478,14 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   return (
     <footer className="workspace__log">
       <LogHeader
-        isRunning={isRunning}
-        status={runStatus}
+        isRunning={visibleRunStatus === "running"}
+        status={visibleRunStatus}
         runId={headerRunId}
         loopLabel={loopLabel}
         activeNodeLabel={activeNodeLabel}
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
-        elapsedLabel={elapsedLabel}
+        elapsedLabel={visibleElapsedLabel}
         copyDisabled={!canCopyLog}
         copyFeedback={copyFeedback}
         onCopyLog={handleCopyLog}
@@ -475,9 +495,10 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
       />
       {showPicker ? (
         <PastRunsPicker
+          repositoryId={repo.id}
           repoPath={repo.path}
           workflowId={workflowId}
-          isRunning={isRunning}
+          isRunning={visibleRunStatus === "running"}
         />
       ) : null}
       <ul className="run-log" data-testid="run-log" style={logColumnStyle}>
@@ -520,7 +541,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
         ))}
-        {Object.entries(nodeResults).map(([nodeId, r]) => (
+        {Object.entries(visibleNodeResults).map(([nodeId, r]) => (
           <li
             key={`result-${nodeId}`}
             className={`run-log__line run-log__line--result run-log__line--result-${r.status}`}

@@ -21,12 +21,17 @@ export type PendingApproval = {
 export type RunLogStoreState = {
   runId: string | null;
   workflowId: string | null;
+  repositoryId: string | null;
   events: RunLogEntry[];
   nodeEvents: Record<string, AgentRunEvent[]>;
   nodeResults: Record<string, SkillExecutionResult>;
   pendingApprovals: Record<string, PendingApproval>;
 
-  beginRun: (args: { runId: string; workflowId: string | null }) => void;
+  beginRun: (args: {
+    runId: string;
+    workflowId: string | null;
+    repositoryId?: string | null;
+  }) => void;
   appendEvent: (nodeId: string, event: AgentRunEvent) => void;
   setNodeResult: (nodeId: string, result: SkillExecutionResult) => void;
   resolvePendingApproval: (requestId: string) => void;
@@ -37,6 +42,7 @@ const INITIAL: Pick<
   RunLogStoreState,
   | "runId"
   | "workflowId"
+  | "repositoryId"
   | "events"
   | "nodeEvents"
   | "nodeResults"
@@ -44,6 +50,7 @@ const INITIAL: Pick<
 > = {
   runId: null,
   workflowId: null,
+  repositoryId: null,
   events: [],
   nodeEvents: {},
   nodeResults: {},
@@ -53,10 +60,11 @@ const INITIAL: Pick<
 export const useRunLogStore = create<RunLogStoreState>((set) => ({
   ...INITIAL,
 
-  beginRun: ({ runId, workflowId }) => {
+  beginRun: ({ runId, workflowId, repositoryId }) => {
     set({
       runId,
       workflowId,
+      repositoryId: repositoryId ?? null,
       events: [],
       nodeEvents: {},
       nodeResults: {},

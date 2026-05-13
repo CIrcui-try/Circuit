@@ -9,6 +9,7 @@ import {
 import { createPortal } from "react-dom";
 import { HoverTooltip } from "../HoverTooltip";
 import { useNodeRunState } from "../../runner/runStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
@@ -44,7 +45,8 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const description = storedDescription || scannedDescription;
   const inputHints = readInputHints(data.inputHints) ?? scannedInputHints;
   const argumentsHint = inputHints.find((hint) => hint.key === "arguments");
-  const runState = useNodeRunState(id);
+  const selectedRepositoryId = useRepositoryStore((state) => state.selectedId);
+  const runState = useNodeRunState(id, selectedRepositoryId);
   const inputSummary = summarizeInput(data.input);
   const stackInputSummary = shouldStackInputSummary(inputSummary.items);
   const editButtonRef = useRef<HTMLButtonElement>(null);

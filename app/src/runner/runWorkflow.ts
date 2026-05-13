@@ -91,7 +91,11 @@ export async function runWorkflow(
     runMode: isCycleRun ? "cycle" : "dag",
     snapshot,
   });
-  logStore?.getState().beginRun({ runId, workflowId });
+  logStore?.getState().beginRun({
+    runId,
+    workflowId,
+    repositoryId: repository?.id,
+  });
 
   if (!graph.valid) {
     for (const id of nodeIds) store.getState().setNodeState(id, "skipped");
