@@ -4,6 +4,8 @@
 
 # Circuit
 
+[한국어 README](README_kr.md)
+
 Circuit is a local-first desktop app for turning Claude and Codex skills into visual workflows.
 
 Circuit grew out of a problem that shows up quickly in personal projects: agent automation is powerful, but it becomes hard to steer once it is running outside your direct attention. Long command chains and TUI sessions can hide what the agent is doing, what already finished, and where the next decision point should be.
