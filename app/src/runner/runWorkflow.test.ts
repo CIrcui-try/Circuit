@@ -81,6 +81,126 @@ describe("runWorkflow", () => {
     });
   });
 
+  it("continues after failed nodes when continueOnFailure is enabled", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (n.id === "b") {
+          return { ok: false, status: "failed", reason: "boom" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "c"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+      c: "success",
+    });
+  });
+
+  it("stops on cancelled even when continueOnFailure is enabled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "cancelled", reason: "cancelled" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "cancelled",
+      c: "skipped",
+    });
+  });
+
+  it("stops on timeout even when continueOnFailure is enabled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "timeout", reason: "timeout" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "timeout" });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "timeout",
+      c: "skipped",
+    });
+  });
+
+  it("continues after thrown runner errors when continueOnFailure is enabled", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (n.id === "b") throw new Error("boom");
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "c"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+      c: "success",
+    });
+  });
+
   it("starts from the requested node and seeds previous outputs", async () => {
     const order: string[] = [];
     const seeded: SkillExecutionResult = {
@@ -424,6 +544,7 @@ describe("runWorkflow", () => {
       repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
       workflowId: "wf-1",
       workflowName: "Release flow",
+      continueOnFailure: false,
       nodes: [
         {
           id: "a",
@@ -483,6 +604,7 @@ describe("runWorkflow", () => {
       repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
       workflowId: "wf-1",
       workflowName: "Release flow",
+      continueOnFailure: true,
       nodes: [
         {
           id: "a",
@@ -520,5 +642,6 @@ describe("runWorkflow", () => {
     expect(useRunStore.getState().snapshot?.nodes[0].input).toEqual({
       arguments: "CIR-46",
     });
+    expect(useRunStore.getState().snapshot?.continueOnFailure).toBe(true);
   });
 });

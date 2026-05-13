@@ -70,6 +70,7 @@ describe("workflow/serialize", () => {
       id: "wf-abc",
       name: "Sample workflow",
       repositoryId: "repo-xyz",
+      continueOnFailure: false,
       createdAt: "2026-04-01T00:00:00.000Z",
       updatedAt: "2026-04-30T00:00:00.000Z",
     });
@@ -249,5 +250,16 @@ describe("workflow/serialize", () => {
       skillFile: "",
       systemSkillId: "codex:imagegen",
     });
+  });
+
+  it("SR10: preserves continueOnFailure as a workflow-level setting", () => {
+    const wf = toWorkflow(
+      { nodes: sampleNodes, edges: sampleEdges, continueOnFailure: true },
+      meta,
+      () => "2026-05-02T00:00:00Z",
+    );
+
+    expect(wf.continueOnFailure).toBe(true);
+    expect(fromWorkflow(wf).meta.continueOnFailure).toBe(true);
   });
 });

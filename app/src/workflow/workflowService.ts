@@ -18,7 +18,11 @@ export async function saveCurrent(args: {
   const now = new Date().toISOString();
   const createdAt = state.currentWorkflowId ? now : now; // first save: same as updatedAt
   const workflow = toWorkflow(
-    { nodes: state.nodes, edges: state.edges },
+    {
+      nodes: state.nodes,
+      edges: state.edges,
+      continueOnFailure: state.continueOnFailure,
+    },
     {
       id,
       repositoryId: args.repositoryId,
@@ -49,6 +53,7 @@ export async function loadById(args: {
     edges,
     workflowId: meta.id,
     workflowName: meta.name,
+    continueOnFailure: meta.continueOnFailure,
   });
 }
 

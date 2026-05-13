@@ -35,6 +35,7 @@ export type ReplaceCanvasArgs = {
   edges: Edge[];
   workflowId: string | null;
   workflowName: string;
+  continueOnFailure?: boolean;
 };
 
 export type WorkflowConnectionWarning = {
@@ -49,6 +50,7 @@ type WorkflowState = {
   selectedEdgeId: string | null;
   workflowName: string;
   currentWorkflowId: string | null;
+  continueOnFailure: boolean;
   connectionWarning: WorkflowConnectionWarning | null;
 
   onNodesChange: (changes: NodeChange[]) => void;
@@ -63,6 +65,7 @@ type WorkflowState = {
   deleteSelected: () => void;
   resetWorkflow: () => void;
   setWorkflowName: (name: string) => void;
+  setContinueOnFailure: (enabled: boolean) => void;
   replaceCanvas: (args: ReplaceCanvasArgs) => void;
   clearConnectionWarning: (id?: string) => void;
 };
@@ -88,6 +91,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   selectedEdgeId: null,
   workflowName: DEFAULT_WORKFLOW_NAME,
   currentWorkflowId: null,
+  continueOnFailure: false,
   connectionWarning: null,
 
   onNodesChange: (changes) => {
@@ -243,6 +247,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       selectedEdgeId: null,
       workflowName: DEFAULT_WORKFLOW_NAME,
       currentWorkflowId: null,
+      continueOnFailure: false,
       connectionWarning: null,
     });
   },
@@ -251,7 +256,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({ workflowName: name });
   },
 
-  replaceCanvas: ({ nodes, edges, workflowId, workflowName }) => {
+  setContinueOnFailure: (enabled) => {
+    set({ continueOnFailure: enabled });
+  },
+
+  replaceCanvas: ({
+    nodes,
+    edges,
+    workflowId,
+    workflowName,
+    continueOnFailure,
+  }) => {
     set({
       nodes: nodes.map((n) => ({ ...n, selected: false })) as SkillNode[],
       edges: edges.map((e) => ({ ...e, selected: false })),
@@ -259,6 +274,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       selectedEdgeId: null,
       workflowName,
       currentWorkflowId: workflowId,
+      continueOnFailure: continueOnFailure === true,
       connectionWarning: null,
     });
   },

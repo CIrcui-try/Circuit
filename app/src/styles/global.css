@@ -198,6 +198,37 @@ a:hover {
   margin-right: 16px;
 }
 
+.workspace__repository-label {
+  color: #8a8a92;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace__settings {
+  position: relative;
+}
+
+.workspace__settings-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #26262b;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.workspace__settings-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
 .workspace__toolbar-spacer {
   flex: 1;
 }

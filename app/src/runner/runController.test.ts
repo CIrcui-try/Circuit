@@ -11,6 +11,7 @@ function snapshot(): WorkflowRunSnapshot {
     repository: { id: "repo-1", name: "repo", path: "/Users/me/repo" },
     workflowId: "wf-1",
     workflowName: "Release flow",
+    continueOnFailure: false,
     nodes: [
       {
         id: "a",
@@ -147,6 +148,34 @@ describe("runController", () => {
     expect(seedPreviousOutputs).toHaveBeenCalledWith({ a: seeded });
     expect(useRunStore.getState().nodeStates).toEqual({
       a: "skipped",
+      b: "success",
+    });
+  });
+
+  it("passes continueOnFailure from the snapshot into the workflow runner", async () => {
+    const source = snapshot();
+    source.continueOnFailure = true;
+    const seen: string[] = [];
+
+    await expect(
+      startWorkflowRun({
+        snapshot: source,
+        bridge: createMockRuntimeBridge(),
+        createRunner: () => ({
+          async runNode(node): Promise<RunResult> {
+            seen.push(node.id);
+            if (node.id === "a") {
+              return { ok: false, status: "failed", reason: "boom" };
+            }
+            return { ok: true };
+          },
+        }),
+      }),
+    ).resolves.toEqual({ kind: "started", status: "failed" });
+
+    expect(seen).toEqual(["a", "b"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "failed",
       b: "success",
     });
   });

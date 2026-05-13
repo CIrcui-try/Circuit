@@ -244,13 +244,15 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().workflowName).toBe("My flow");
   });
 
-  it("WS13: resetWorkflow clears workflowName and currentWorkflowId", () => {
+  it("WS13: resetWorkflow clears workflowName, currentWorkflowId, and settings", () => {
     useWorkflowStore.getState().setWorkflowName("Temp");
+    useWorkflowStore.getState().setContinueOnFailure(true);
     useWorkflowStore.setState({ currentWorkflowId: "wf-1" });
     useWorkflowStore.getState().resetWorkflow();
     const s = useWorkflowStore.getState();
     expect(s.workflowName).toBe(DEFAULT_WORKFLOW_NAME);
     expect(s.currentWorkflowId).toBeNull();
+    expect(s.continueOnFailure).toBe(false);
     expect(s.connectionWarning).toBeNull();
   });
 
@@ -280,6 +282,7 @@ describe("workflowStore", () => {
       edges: newEdges,
       workflowId: "wf-loaded",
       workflowName: "Loaded flow",
+      continueOnFailure: true,
     });
 
     const s = useWorkflowStore.getState();
@@ -289,6 +292,12 @@ describe("workflowStore", () => {
     expect(s.selectedEdgeId).toBeNull();
     expect(s.currentWorkflowId).toBe("wf-loaded");
     expect(s.workflowName).toBe("Loaded flow");
+    expect(s.continueOnFailure).toBe(true);
+  });
+
+  it("WS14b: setContinueOnFailure updates the workflow setting", () => {
+    useWorkflowStore.getState().setContinueOnFailure(true);
+    expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
   });
 
   it("WS15: setNodeInput stores input on the targeted node only", () => {

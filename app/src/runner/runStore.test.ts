@@ -51,6 +51,7 @@ describe("runStore", () => {
       repository: { id: "repo_1", name: "alpha", path: "/repo" },
       workflowId: "wf_1",
       workflowName: "Release flow",
+      continueOnFailure: true,
       nodes: [
         {
           id: "n1",
@@ -79,6 +80,7 @@ describe("runStore", () => {
 
     const s = useRunStore.getState();
     expect(s.snapshot?.workflowName).toBe("Release flow");
+    expect(s.snapshot?.continueOnFailure).toBe(true);
     expect(s.snapshot?.nodes[0].label).toBe("Foo");
   });
 

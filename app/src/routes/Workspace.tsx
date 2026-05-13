@@ -47,7 +47,9 @@ export function Workspace() {
   const resetWorkflow = useWorkflowStore((s) => s.resetWorkflow);
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
+  const continueOnFailure = useWorkflowStore((s) => s.continueOnFailure);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
+  const setContinueOnFailure = useWorkflowStore((s) => s.setContinueOnFailure);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const runStatus = useRunStore((s) => s.status);
   const isRunning = runStatus === "running";
@@ -72,6 +74,7 @@ export function Workspace() {
   const [cancelling, setCancelling] = useState(false);
   const [starterGoal, setStarterGoal] = useState("");
   const [showStarterFlowPrompt, setShowStarterFlowPrompt] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const consumedStarterPromptRepoIds = useRef(new Set<string>());
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
@@ -99,6 +102,7 @@ export function Workspace() {
         edges: activeRunSnapshot.edges.map((edge) => ({ ...edge })),
         workflowId: activeRunSnapshot.workflowId,
         workflowName: activeRunSnapshot.workflowName,
+        continueOnFailure: activeRunSnapshot.continueOnFailure,
       });
       return;
     }
@@ -118,6 +122,7 @@ export function Workspace() {
       edges: draft.edges,
       workflowId: draft.workflowId,
       workflowName: draft.workflowName,
+      continueOnFailure: draft.continueOnFailure,
     });
   }, [repoId, repo, resetWorkflow]);
 
@@ -127,6 +132,7 @@ export function Workspace() {
       saveWorkflowDraft(repo.id, {
         workflowId: state.currentWorkflowId,
         workflowName: state.workflowName,
+        continueOnFailure: state.continueOnFailure,
         nodes: state.nodes,
         edges: state.edges,
       });
@@ -190,6 +196,7 @@ export function Workspace() {
         allowCycles: options.allowCycles,
         startFromNodeId: options.startFromNodeId,
         seedPreviousOutputs: options.seedPreviousOutputs,
+        continueOnFailure: snapshot.continueOnFailure,
       });
       if (outcome.kind === "rejected") {
         notifyAppError(
@@ -246,6 +253,7 @@ export function Workspace() {
       edges: restored.edges,
       workflowId: restored.meta.id,
       workflowName: restored.meta.name,
+      continueOnFailure: restored.meta.continueOnFailure,
     });
     consumedStarterPromptRepoIds.current.delete(repo.id);
     setShowStarterFlowPrompt(false);
@@ -303,9 +311,39 @@ export function Workspace() {
       <header className="workspace__toolbar">
         <Link to="/" aria-label="Back to repository list">←</Link>
         <span className="workspace__toolbar-title">Circuit</span>
-        <span style={{ color: "#8a8a92" }}>
+        <span className="workspace__repository-label">
           {repo ? `Repository: ${repo.name}` : "No repository selected"}
         </span>
+        <div className="workspace__settings">
+          <button
+            type="button"
+            data-testid="workflow-settings"
+            aria-haspopup="menu"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+            disabled={!repo}
+          >
+            Settings
+          </button>
+          {settingsOpen && repo ? (
+            <div
+              className="workspace__settings-menu"
+              role="menu"
+              data-testid="workflow-settings-menu"
+            >
+              <label className="workspace__settings-option">
+                <input
+                  type="checkbox"
+                  checked={continueOnFailure}
+                  onChange={(event) =>
+                    setContinueOnFailure(event.currentTarget.checked)
+                  }
+                />
+                <span>Continue on failure</span>
+              </label>
+            </div>
+          ) : null}
+        </div>
         <button
           type="button"
           data-testid="show-repository-in-finder"
@@ -618,11 +656,13 @@ function buildRunSnapshot(repo: {
   name: string;
   path: string;
 }): WorkflowRunSnapshot {
-  const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
+  const { nodes, edges, currentWorkflowId, continueOnFailure } =
+    useWorkflowStore.getState();
   return {
     repository: { id: repo.id, name: repo.name, path: repo.path },
     workflowId: currentWorkflowId,
     workflowName: useWorkflowStore.getState().workflowName,
+    continueOnFailure,
     nodes: nodes.map((n) => ({
       id: n.id,
       type: "skill",

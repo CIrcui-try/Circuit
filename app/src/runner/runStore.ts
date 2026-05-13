@@ -24,6 +24,7 @@ export type WorkflowRunSnapshot = {
   };
   workflowId: string | null;
   workflowName: string;
+  continueOnFailure: boolean;
   nodes: WorkflowSkillNode[];
   edges: WorkflowEdge[];
 };
@@ -172,6 +173,7 @@ function cloneRunSnapshot(snapshot: WorkflowRunSnapshot): WorkflowRunSnapshot {
     repository: { ...snapshot.repository },
     workflowId: snapshot.workflowId,
     workflowName: snapshot.workflowName,
+    continueOnFailure: snapshot.continueOnFailure === true,
     nodes: snapshot.nodes.map((node) => ({
       id: node.id,
       type: "skill",

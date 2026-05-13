@@ -173,6 +173,17 @@ describe("Workspace", () => {
     expect(useRepositoryStore.getState().selectedId).toBe("id-alpha");
   });
 
+  it("W1c: toggles Continue on failure from the repository settings menu", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByLabelText("Continue on failure"));
+
+    expect(screen.getByTestId("workflow-settings-menu")).toBeInTheDocument();
+    expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
+  });
+
   it("W1a: opens the selected repository folder in Finder", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
@@ -307,6 +318,25 @@ describe("Workspace", () => {
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
     });
+  });
+
+  it("W8b: saves Continue on failure with the workflow", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByLabelText("Continue on failure"));
+    fireEvent.click(screen.getByTestId("workflow-save"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
+    });
+    const [, , payload] = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+    ];
+    expect(JSON.parse(payload).continueOnFailure).toBe(true);
   });
 
   it("W8d: adds the tutorial starter flow to an empty selected repo and saves as a regular workflow", async () => {
@@ -831,6 +861,7 @@ describe("Workspace", () => {
     saveWorkflowDraft(SAMPLE.id, {
       workflowId: null,
       workflowName: "Unsaved draft",
+      continueOnFailure: true,
       nodes: [
         {
           id: "draft-node",
@@ -852,6 +883,7 @@ describe("Workspace", () => {
 
     expect(useWorkflowStore.getState().nodes).toHaveLength(1);
     expect(useWorkflowStore.getState().nodes[0].id).toBe("draft-node");
+    expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
     expect(screen.getByTestId("workflow-name-input")).toHaveValue("Unsaved draft");
   });
 
@@ -860,6 +892,7 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
     useWorkflowStore.getState().setWorkflowName("Local autosave");
+    useWorkflowStore.getState().setContinueOnFailure(true);
     useWorkflowStore.getState().addSkillNode(
       {
         id: "claude:.claude/skills/foo",
@@ -874,6 +907,7 @@ describe("Workspace", () => {
 
     const draft = loadWorkflowDraft(SAMPLE.id);
     expect(draft?.workflowName).toBe("Local autosave");
+    expect(draft?.continueOnFailure).toBe(true);
     expect(draft?.nodes).toHaveLength(1);
     expect(draft?.nodes[0].data.label).toBe("Foo");
   });
@@ -956,6 +990,7 @@ describe("Workspace", () => {
         repository: SAMPLE,
         workflowId: "run-wf",
         workflowName: "Active run",
+        continueOnFailure: true,
         nodes: [
           {
             id: "run-node",
@@ -976,6 +1011,7 @@ describe("Workspace", () => {
 
     expect(useWorkflowStore.getState().currentWorkflowId).toBe("run-wf");
     expect(useWorkflowStore.getState().workflowName).toBe("Active run");
+    expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
     expect(useWorkflowStore.getState().nodes.map((n) => n.id)).toEqual([
       "run-node",
     ]);
@@ -1166,6 +1202,7 @@ describe("Workspace", () => {
         repository: SAMPLE,
         workflowId: "wf-1",
         workflowName: "Deploy flow",
+        continueOnFailure: false,
         nodes: [
           {
             id: "node-1",
@@ -1243,6 +1280,7 @@ describe("Workspace", () => {
         repository: SAMPLE,
         workflowId: "wf-1",
         workflowName: "Deploy flow",
+        continueOnFailure: true,
         nodes: [
           {
             id: "first",
@@ -1288,5 +1326,6 @@ describe("Workspace", () => {
       first: "skipped",
       second: "success",
     });
+    expect(useRunStore.getState().snapshot?.continueOnFailure).toBe(true);
   });
 });
