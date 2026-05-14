@@ -355,6 +355,10 @@ export function Workspace() {
                     void handleShowRepositoryInFinder();
                   }}
                 >
+                  <span
+                    className="workspace__settings-item-icon workspace__settings-item-icon--finder"
+                    aria-hidden="true"
+                  />
                   Show in Finder
                 </button>
               </div>
@@ -366,6 +370,10 @@ export function Workspace() {
                     onChange={(event) =>
                       setContinueOnFailure(event.currentTarget.checked)
                     }
+                  />
+                  <span
+                    className="workspace__settings-item-icon workspace__settings-item-icon--continue"
+                    aria-hidden="true"
                   />
                   <span>Continue on failure</span>
                 </label>

@@ -215,10 +215,15 @@ a:hover {
   width: 30px;
   height: 30px;
   padding: 0;
+  background: transparent;
+  border: 0;
 }
 
+.workspace__settings-trigger:hover,
+.workspace__settings-trigger:focus-visible,
 .workspace__settings-trigger[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #ffffff;
 }
 
 .workspace__settings-dots {
@@ -268,6 +273,7 @@ a:hover {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 8px;
   min-height: 30px;
   padding: 5px 6px;
   color: inherit;
@@ -281,6 +287,49 @@ a:hover {
 .workspace__settings-action:hover,
 .workspace__settings-action:focus-visible {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.workspace__settings-item-icon {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: #a7a7b0;
+}
+
+.workspace__settings-item-icon--finder {
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.workspace__settings-item-icon--finder::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 1px;
+  width: 7px;
+  height: 4px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+}
+
+.workspace__settings-item-icon--continue {
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+}
+
+.workspace__settings-item-icon--continue::before {
+  content: "";
+  position: absolute;
+  right: -1px;
+  bottom: 0;
+  width: 4px;
+  height: 4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-12deg);
 }
 
 .workspace__toolbar-spacer {
