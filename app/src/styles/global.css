@@ -60,11 +60,21 @@ button:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+.app-error-alert--success {
+  border-color: #2f6f4f;
+  background: #183528;
+  color: #d7f8e6;
+}
+
 .app-error-alert__content {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+
+.app-error-alert__content[role="button"] {
+  cursor: pointer;
 }
 
 .app-error-alert__title {
@@ -76,6 +86,10 @@ button:hover {
   font-size: 12px;
   color: #f2b9b9;
   overflow-wrap: anywhere;
+}
+
+.app-error-alert--success .app-error-alert__message {
+  color: #aee8c8;
 }
 
 .app-error-alert__dismiss {

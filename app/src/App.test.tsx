@@ -11,7 +11,22 @@ const bridgeMock = vi.hoisted(() => ({
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
   setAppIconRunBadgeCount: vi.fn(async (_count: number) => {}),
-  notifyRunFinished: vi.fn(async (_notification: { title: string; body?: string }) => {}),
+  notifyRunFinished: vi.fn(
+    async (_notification: {
+      title: string;
+      body?: string;
+      repositoryId?: string;
+    }) => {},
+  ),
+  notificationClickHandler: null as ((repositoryId: string) => void) | null,
+  onRunCompletionNotificationClicked: vi.fn(
+    async (handler: (repositoryId: string) => void) => {
+      bridgeMock.notificationClickHandler = handler;
+      return () => {
+        bridgeMock.notificationClickHandler = null;
+      };
+    },
+  ),
   isAppWindowFocused: vi.fn(async () => true),
   onAppWindowFocusChanged: vi.fn(
     async (_handler: (focused: boolean) => void) => () => {},
@@ -34,6 +49,7 @@ beforeEach(() => {
   bridgeMock.saveRepositories.mockReset();
   bridgeMock.setAppIconRunBadgeCount.mockReset();
   bridgeMock.notifyRunFinished.mockReset();
+  bridgeMock.onRunCompletionNotificationClicked.mockReset();
   bridgeMock.isAppWindowFocused.mockReset();
   bridgeMock.onAppWindowFocusChanged.mockReset();
   bridgeMock.openRepositoryDialog.mockResolvedValue(null);
@@ -42,6 +58,13 @@ beforeEach(() => {
   bridgeMock.saveRepositories.mockResolvedValue(undefined);
   bridgeMock.setAppIconRunBadgeCount.mockResolvedValue(undefined);
   bridgeMock.notifyRunFinished.mockResolvedValue(undefined);
+  bridgeMock.notificationClickHandler = null;
+  bridgeMock.onRunCompletionNotificationClicked.mockImplementation(async (handler) => {
+    bridgeMock.notificationClickHandler = handler;
+    return () => {
+      bridgeMock.notificationClickHandler = null;
+    };
+  });
   bridgeMock.isAppWindowFocused.mockResolvedValue(true);
   bridgeMock.onAppWindowFocusChanged.mockResolvedValue(() => {});
 
@@ -285,13 +308,58 @@ describe("App routing", () => {
         expect(bridgeMock.notifyRunFinished).toHaveBeenCalledWith({
           title,
           body: "Release flow in alpha",
+          repositoryId: "id-alpha",
         });
       });
     },
   );
 
-  it("A11: skips run completion notifications while focused", async () => {
+  it("A13: navigates to the repository workspace when a run notification is clicked", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(bridgeMock.notificationClickHandler).not.toBeNull();
+    });
+
+    act(() => {
+      bridgeMock.notificationClickHandler?.("id-alpha");
+    });
+
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Repository: alpha")).not.toBeInTheDocument();
+  });
+
+  it("A11: shows an in-app completion alert while focused", async () => {
     bridgeMock.isAppWindowFocused.mockResolvedValue(true);
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
     useRunStore.setState({
       status: "success",
       runId: "run-focused",
@@ -308,7 +376,7 @@ describe("App routing", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter initialEntries={["/workspace/id-alpha"]}>
         <App />
       </MemoryRouter>,
     );
@@ -317,6 +385,12 @@ describe("App routing", () => {
       expect(bridgeMock.isAppWindowFocused).toHaveBeenCalled();
     });
     expect(bridgeMock.notifyRunFinished).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("app-error-alert")).toHaveTextContent(
+      "Workflow completed",
+    );
+    expect(screen.getByTestId("app-error-alert")).toHaveTextContent(
+      "Release flow in alpha",
+    );
   });
 
   it("A12: sends only one run completion notification per run", async () => {
