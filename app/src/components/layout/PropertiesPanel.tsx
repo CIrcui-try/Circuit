@@ -120,162 +120,164 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
       {!selectedNode ? (
         <div className="empty-state">Select a node or edge to inspect.</div>
       ) : (
-        <dl className="properties">
-          <dt>Label</dt>
-          <dd>{selectedNode.data.label}</dd>
-          <dt>Provider</dt>
-          <dd>{selectedNode.data.skillRef.provider}</dd>
-          <dt>
-            {selectedNode.data.skillRef.source === "system"
-              ? "System Skill"
-              : "Skill File"}
-          </dt>
-          <dd>
-            <code>
+        <div className="properties__body">
+          <dl className="properties">
+            <dt>Label</dt>
+            <dd>{selectedNode.data.label}</dd>
+            <dt>Provider</dt>
+            <dd>{selectedNode.data.skillRef.provider}</dd>
+            <dt>
               {selectedNode.data.skillRef.source === "system"
-                ? selectedNode.data.skillRef.systemSkillId
-                : selectedNode.data.skillRef.skillFile}
-            </code>
-          </dd>
-          <dt>Input</dt>
-          <dd className="properties__field">
-            <div className="properties__input-editor">
-              <div
-                className="properties__segmented"
-                role="group"
-                aria-label="Input editor mode"
-              >
-                <button
-                  type="button"
-                  className={inputMode === "friendly" ? "is-active" : ""}
-                  data-testid="node-input-mode-friendly"
-                  aria-pressed={inputMode === "friendly"}
-                  onClick={() => {
-                    setInputMode("friendly");
-                    setJsonError(null);
-                  }}
+                ? "System Skill"
+                : "Skill File"}
+            </dt>
+            <dd>
+              <code>
+                {selectedNode.data.skillRef.source === "system"
+                  ? selectedNode.data.skillRef.systemSkillId
+                  : selectedNode.data.skillRef.skillFile}
+              </code>
+            </dd>
+            <dt>Input</dt>
+            <dd className="properties__field">
+              <div className="properties__input-editor">
+                <div
+                  className="properties__segmented"
+                  role="group"
+                  aria-label="Input editor mode"
                 >
-                  Friendly
-                </button>
-                <button
-                  type="button"
-                  className={inputMode === "json" ? "is-active" : ""}
-                  data-testid="node-input-mode-json"
-                  aria-pressed={inputMode === "json"}
-                  onClick={() => {
-                    setInputMode("json");
-                    setJsonDraft(selectedInputJson);
-                    setJsonError(null);
-                  }}
-                >
-                  JSON
-                </button>
-              </div>
-              {inputMode === "friendly" ? (
-                <div className="properties__friendly-fields">
-                  <label className="properties__input-field">
-                    <span>{argumentsHint?.label ?? "Arguments"}</span>
-                    <textarea
-                      data-testid="node-input-arguments"
-                      className="properties__textarea"
-                      aria-label={
-                        argumentsHint
-                          ? `Node input ${argumentsHint.label}`
-                          : "Node input arguments"
-                      }
-                      placeholder={argumentsHint?.placeholder ?? "Arguments"}
-                      value={argumentsValue}
-                      onChange={(e) =>
-                        handleFriendlyChange("arguments", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="properties__input-field">
-                    <span>Prompt</span>
-                    <textarea
-                      data-testid="node-input-prompt"
-                      className="properties__textarea"
-                      aria-label="Node input prompt"
-                      placeholder="Prompt"
-                      value={promptValue}
-                      onChange={(e) =>
-                        handleFriendlyChange("prompt", e.target.value)
-                      }
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    className={inputMode === "friendly" ? "is-active" : ""}
+                    data-testid="node-input-mode-friendly"
+                    aria-pressed={inputMode === "friendly"}
+                    onClick={() => {
+                      setInputMode("friendly");
+                      setJsonError(null);
+                    }}
+                  >
+                    Friendly
+                  </button>
+                  <button
+                    type="button"
+                    className={inputMode === "json" ? "is-active" : ""}
+                    data-testid="node-input-mode-json"
+                    aria-pressed={inputMode === "json"}
+                    onClick={() => {
+                      setInputMode("json");
+                      setJsonDraft(selectedInputJson);
+                      setJsonError(null);
+                    }}
+                  >
+                    JSON
+                  </button>
                 </div>
-              ) : (
-                <>
-                  <textarea
-                    data-testid="node-input-json"
-                    className="properties__textarea properties__textarea--json"
-                    aria-label="Node input JSON"
-                    aria-invalid={jsonError !== null}
-                    value={jsonDraft}
-                    onChange={(e) => handleJsonChange(e.target.value)}
-                  />
-                  {jsonError ? (
-                    <div className="properties__error" role="alert">
-                      {jsonError}
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </dd>
-          <dt>Run Status</dt>
-          <dd data-testid="node-run-status">{formatRunState(runState)}</dd>
-          {debug?.adapter ? (
-            <>
-              <dt>Adapter</dt>
-              <dd>{debug.adapter}</dd>
-            </>
-          ) : null}
-          {debug?.command ? (
-            <>
-              <dt>Command</dt>
-              <dd>
-                <code>{debug.command}</code>
-              </dd>
-            </>
-          ) : null}
-          {debug?.spawnType ? (
-            <>
-              <dt>Spawn</dt>
-              <dd>{debug.spawnType}</dd>
-            </>
-          ) : null}
-          {debug?.startedAt ? (
-            <>
-              <dt>Started</dt>
-              <dd>{debug.startedAt}</dd>
-            </>
-          ) : null}
-          {debug?.durationMs != null ? (
-            <>
-              <dt>Duration</dt>
-              <dd>{debug.durationMs}ms</dd>
-            </>
-          ) : null}
-          {debug?.exitCode != null ? (
-            <>
-              <dt>Exit Code</dt>
-              <dd>{debug.exitCode}</dd>
-            </>
-          ) : null}
-          {debug?.lastLogAt ? (
-            <>
-              <dt>Last Log</dt>
-              <dd>{debug.lastLogAt}</dd>
-            </>
-          ) : null}
-          {debug?.idleSince ? (
-            <>
-              <dt>Idle Since</dt>
-              <dd>{debug.idleSince}</dd>
-            </>
-          ) : null}
-        </dl>
+                {inputMode === "friendly" ? (
+                  <div className="properties__friendly-fields">
+                    <label className="properties__input-field">
+                      <span>{argumentsHint?.label ?? "Arguments"}</span>
+                      <textarea
+                        data-testid="node-input-arguments"
+                        className="properties__textarea"
+                        aria-label={
+                          argumentsHint
+                            ? `Node input ${argumentsHint.label}`
+                            : "Node input arguments"
+                        }
+                        placeholder={argumentsHint?.placeholder ?? "Arguments"}
+                        value={argumentsValue}
+                        onChange={(e) =>
+                          handleFriendlyChange("arguments", e.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="properties__input-field">
+                      <span>Prompt</span>
+                      <textarea
+                        data-testid="node-input-prompt"
+                        className="properties__textarea"
+                        aria-label="Node input prompt"
+                        placeholder="Prompt"
+                        value={promptValue}
+                        onChange={(e) =>
+                          handleFriendlyChange("prompt", e.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      data-testid="node-input-json"
+                      className="properties__textarea properties__textarea--json"
+                      aria-label="Node input JSON"
+                      aria-invalid={jsonError !== null}
+                      value={jsonDraft}
+                      onChange={(e) => handleJsonChange(e.target.value)}
+                    />
+                    {jsonError ? (
+                      <div className="properties__error" role="alert">
+                        {jsonError}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </dd>
+            <dt>Run Status</dt>
+            <dd data-testid="node-run-status">{formatRunState(runState)}</dd>
+            {debug?.adapter ? (
+              <>
+                <dt>Adapter</dt>
+                <dd>{debug.adapter}</dd>
+              </>
+            ) : null}
+            {debug?.command ? (
+              <>
+                <dt>Command</dt>
+                <dd>
+                  <code>{debug.command}</code>
+                </dd>
+              </>
+            ) : null}
+            {debug?.spawnType ? (
+              <>
+                <dt>Spawn</dt>
+                <dd>{debug.spawnType}</dd>
+              </>
+            ) : null}
+            {debug?.startedAt ? (
+              <>
+                <dt>Started</dt>
+                <dd>{debug.startedAt}</dd>
+              </>
+            ) : null}
+            {debug?.durationMs != null ? (
+              <>
+                <dt>Duration</dt>
+                <dd>{debug.durationMs}ms</dd>
+              </>
+            ) : null}
+            {debug?.exitCode != null ? (
+              <>
+                <dt>Exit Code</dt>
+                <dd>{debug.exitCode}</dd>
+              </>
+            ) : null}
+            {debug?.lastLogAt ? (
+              <>
+                <dt>Last Log</dt>
+                <dd>{debug.lastLogAt}</dd>
+              </>
+            ) : null}
+            {debug?.idleSince ? (
+              <>
+                <dt>Idle Since</dt>
+                <dd>{debug.idleSince}</dd>
+              </>
+            ) : null}
+          </dl>
+        </div>
       )}
     </aside>
   );

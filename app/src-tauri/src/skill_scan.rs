@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSkill {
     pub provider: String,
@@ -76,12 +76,49 @@ const SYSTEM_SKILL_CATALOG: [SystemSkillCatalogEntry; 6] = [
 
 #[tauri::command]
 pub fn scan_skills(repo_path: String) -> Result<Vec<RawSkill>, String> {
-    let repo = PathBuf::from(&repo_path);
-    if !repo.is_dir() {
-        return Err("repository path does not exist".into());
-    }
+    let repo = resolve_repo_path(&repo_path)?;
 
     scan_skill_root(&repo, "repository")
+}
+
+#[tauri::command]
+pub fn create_repository_skill(
+    repo_path: String,
+    provider: String,
+    slug: String,
+    name: String,
+    description: String,
+) -> Result<RawSkill, String> {
+    let repo = resolve_repo_path(&repo_path)?;
+    let provider = validate_provider(&provider)?;
+    let slug = validate_slug(&slug)?;
+    let name = validate_required_text(&name, "skill name")?;
+    let description = normalize_description(&description);
+
+    let provider_root = repo.join(format!(".{provider}"));
+    ensure_existing_path_inside_repo(&repo, &provider_root)?;
+    let skills_dir = provider_root.join("skills");
+    ensure_existing_path_inside_repo(&repo, &skills_dir)?;
+
+    let skill_dir = skills_dir.join(&slug);
+    if skill_dir.exists() {
+        return Err(format!("skill already exists: .{provider}/skills/{slug}"));
+    }
+
+    fs::create_dir_all(&skills_dir)
+        .map_err(|e| format!("failed to create {}: {e}", skills_dir.display()))?;
+    ensure_existing_path_inside_repo(&repo, &skills_dir)?;
+
+    fs::create_dir(&skill_dir)
+        .map_err(|e| format!("failed to create {}: {e}", skill_dir.display()))?;
+
+    let skill_file_path = skill_dir.join("SKILL.md");
+    let content = render_skill_template(&name, &description);
+    fs::write(&skill_file_path, content)
+        .map_err(|e| format!("failed to write {}: {e}", skill_file_path.display()))?;
+
+    read_skill_dir(provider, "repository", &skill_dir)?
+        .ok_or_else(|| format!("failed to read created skill: {}", skill_dir.display()))
 }
 
 #[tauri::command]
@@ -111,38 +148,9 @@ fn scan_skill_root(root: &Path, source: &str) -> Result<Vec<RawSkill>, String> {
             if !path.is_dir() {
                 continue;
             }
-            let dir_name = match path.file_name().and_then(|s| s.to_str()) {
-                Some(s) => s.to_string(),
-                None => continue,
-            };
-
-            let (skill_file_name, skill_file_path) = match resolve_skill_file(&path) {
-                Some(v) => v,
-                None => continue,
-            };
-
-            let content = match fs::read_to_string(&skill_file_path) {
-                Ok(s) => truncate_chars(&s, MAX_CONTENT_BYTES),
-                Err(e) => {
-                    return Err(format!(
-                        "failed to read {}: {e}",
-                        skill_file_path.display()
-                    ))
-                }
-            };
-
-            let root_dir = format!(".{provider}/skills/{dir_name}");
-            let skill_file = format!("{root_dir}/{skill_file_name}");
-
-            out.push(RawSkill {
-                provider: provider.to_string(),
-                source: source.to_string(),
-                dir_name,
-                root_dir,
-                skill_file,
-                skill_file_abs_path: skill_file_path.to_string_lossy().into_owned(),
-                content,
-            });
+            if let Some(skill) = read_skill_dir(provider, source, &path)? {
+                out.push(skill);
+            }
         }
     }
 
@@ -152,6 +160,117 @@ fn scan_skill_root(root: &Path, source: &str) -> Result<Vec<RawSkill>, String> {
             .then_with(|| a.dir_name.cmp(&b.dir_name))
     });
     Ok(out)
+}
+
+fn resolve_repo_path(repo_path: &str) -> Result<PathBuf, String> {
+    let repo = PathBuf::from(repo_path);
+    if !repo.is_dir() {
+        return Err("repository path does not exist".into());
+    }
+    repo.canonicalize()
+        .map_err(|e| format!("failed to resolve repository path: {e}"))
+}
+
+fn validate_provider(provider: &str) -> Result<&'static str, String> {
+    PROVIDERS
+        .iter()
+        .copied()
+        .find(|candidate| *candidate == provider)
+        .ok_or_else(|| "provider must be claude or codex".to_string())
+}
+
+fn validate_slug(slug: &str) -> Result<String, String> {
+    let slug = slug.trim();
+    if slug.is_empty() {
+        return Err("skill slug is required".into());
+    }
+    if !slug
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("skill slug may only contain letters, numbers, hyphens, or underscores".into());
+    }
+    Ok(slug.to_string())
+}
+
+fn validate_required_text(value: &str, label: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(format!("{label} is required"));
+    }
+    if value.lines().count() > 1 {
+        return Err(format!("{label} must be a single line"));
+    }
+    Ok(value.to_string())
+}
+
+fn normalize_description(description: &str) -> String {
+    description
+        .trim()
+        .lines()
+        .map(str::trim)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn ensure_existing_path_inside_repo(repo: &Path, path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let resolved = path
+        .canonicalize()
+        .map_err(|e| format!("failed to resolve {}: {e}", path.display()))?;
+    if !resolved.starts_with(repo) {
+        return Err(format!("path escapes repository root: {}", path.display()));
+    }
+    Ok(())
+}
+
+fn render_skill_template(name: &str, description: &str) -> String {
+    format!(
+        "---\nname: \"{}\"\ndescription: \"{}\"\n---\n\n# {}\n\n{}\n",
+        escape_frontmatter_value(name),
+        escape_frontmatter_value(description),
+        name,
+        description
+    )
+}
+
+fn escape_frontmatter_value(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn read_skill_dir(provider: &str, source: &str, path: &Path) -> Result<Option<RawSkill>, String> {
+    let dir_name = match path.file_name().and_then(|s| s.to_str()) {
+        Some(s) => s.to_string(),
+        None => return Ok(None),
+    };
+    let (skill_file_name, skill_file_path) = match resolve_skill_file(path) {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+    let content = match fs::read_to_string(&skill_file_path) {
+        Ok(s) => truncate_chars(&s, MAX_CONTENT_BYTES),
+        Err(e) => {
+            return Err(format!(
+                "failed to read {}: {e}",
+                skill_file_path.display()
+            ))
+        }
+    };
+
+    let root_dir = format!(".{provider}/skills/{dir_name}");
+    let skill_file = format!("{root_dir}/{skill_file_name}");
+
+    Ok(Some(RawSkill {
+        provider: provider.to_string(),
+        source: source.to_string(),
+        dir_name,
+        root_dir,
+        skill_file,
+        skill_file_abs_path: skill_file_path.to_string_lossy().into_owned(),
+        content,
+    }))
 }
 
 fn default_skills_root(app: &AppHandle) -> Result<PathBuf, String> {
@@ -353,6 +472,122 @@ mod tests {
     fn scan_skills_errors_for_missing_dir() {
         let result = scan_skills("/definitely/does/not/exist".into());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn create_repository_skill_writes_template_and_scan_finds_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        let created = create_repository_skill(
+            repo.clone(),
+            "codex".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "Creates a local skill file.".into(),
+        )
+        .expect("create skill failed");
+
+        assert_eq!(created.provider, "codex");
+        assert_eq!(created.source, "repository");
+        assert_eq!(created.dir_name, "new-skill");
+        assert_eq!(created.root_dir, ".codex/skills/new-skill");
+        assert_eq!(created.skill_file, ".codex/skills/new-skill/SKILL.md");
+        assert!(created.content.contains("name: \"New Skill\""));
+        assert!(created
+            .content
+            .contains("description: \"Creates a local skill file.\""));
+
+        let skill_file = tmp
+            .path()
+            .join(".codex")
+            .join("skills")
+            .join("new-skill")
+            .join("SKILL.md");
+        assert!(skill_file.is_file());
+
+        let scanned = scan_skills(repo).expect("scan failed");
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].skill_file, ".codex/skills/new-skill/SKILL.md");
+    }
+
+    #[test]
+    fn create_repository_skill_rejects_invalid_input() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        let invalid_provider = create_repository_skill(
+            repo.clone(),
+            "openai".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "".into(),
+        );
+        assert!(invalid_provider
+            .unwrap_err()
+            .contains("provider must be claude or codex"));
+
+        let empty_slug = create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            " ".into(),
+            "New Skill".into(),
+            "".into(),
+        );
+        assert!(empty_slug.unwrap_err().contains("skill slug is required"));
+
+        let traversal_slug = create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "../escape".into(),
+            "New Skill".into(),
+            "".into(),
+        );
+        assert!(traversal_slug.unwrap_err().contains("skill slug may only"));
+
+        let empty_name = create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "new-skill".into(),
+            " ".into(),
+            "".into(),
+        );
+        assert!(empty_name.unwrap_err().contains("skill name is required"));
+
+        let multiline_name = create_repository_skill(
+            repo,
+            "claude".into(),
+            "new-skill".into(),
+            "New\nSkill".into(),
+            "".into(),
+        );
+        assert!(multiline_name
+            .unwrap_err()
+            .contains("skill name must be a single line"));
+    }
+
+    #[test]
+    fn create_repository_skill_rejects_duplicate_slug() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "".into(),
+        )
+        .expect("initial create failed");
+
+        let duplicate = create_repository_skill(
+            repo,
+            "claude".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "".into(),
+        );
+        assert!(duplicate.unwrap_err().contains("skill already exists"));
     }
 
 

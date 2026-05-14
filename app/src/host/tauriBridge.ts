@@ -50,6 +50,13 @@ export const tauriHostBridge: HostBridge = {
     return await invoke<RawSkill[]>("scan_skills", { repoPath });
   },
 
+  async createRepositorySkill(repoPath, input) {
+    return await invoke<RawSkill>("create_repository_skill", {
+      repoPath,
+      ...input,
+    });
+  },
+
   async scanDefaultSkills() {
     return await invoke<RawSkill[]>("scan_default_skills");
   },
