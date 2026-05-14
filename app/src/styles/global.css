@@ -67,6 +67,10 @@ button:hover {
   min-width: 0;
 }
 
+.app-error-alert__content[role="button"] {
+  cursor: pointer;
+}
+
 .app-error-alert__title {
   font-size: 12px;
   line-height: 1.3;

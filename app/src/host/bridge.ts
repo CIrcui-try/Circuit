@@ -46,6 +46,7 @@ export type LayoutPrefsDTO = {
 export type RunCompletionNotification = {
   title: string;
   body?: string;
+  repositoryId?: string;
 };
 
 export type RepositoryEnvironmentCheckItem = {
@@ -116,6 +117,9 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   saveLayout?(prefs: LayoutPrefsDTO): Promise<void>;
   setAppIconRunBadgeCount?(count: number): Promise<void>;
   notifyRunFinished?(notification: RunCompletionNotification): Promise<void>;
+  onRunCompletionNotificationClicked?(
+    handler: (repositoryId: string) => void,
+  ): Promise<() => void>;
   isAppWindowFocused?(): Promise<boolean>;
   onAppWindowFocusChanged?(
     handler: (focused: boolean) => void,

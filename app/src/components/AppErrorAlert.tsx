@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const APP_ERROR_EVENT = "circuit:error";
 const APP_ERROR_AUTO_DISMISS_MS = 5000;
@@ -6,11 +7,17 @@ const APP_ERROR_AUTO_DISMISS_MS = 5000;
 type AppErrorPayload = {
   title?: string;
   message: string;
+  repositoryId?: string;
 };
 
 type AppErrorState = {
   title: string;
   message: string;
+  repositoryId?: string;
+};
+
+type NotifyAppErrorOptions = {
+  repositoryId?: string;
 };
 
 export function formatErrorMessage(value: unknown): string {
@@ -33,11 +40,19 @@ export function formatErrorMessage(value: unknown): string {
   return String(value);
 }
 
-export function notifyAppError(error: unknown, title = "Error") {
+export function notifyAppError(
+  error: unknown,
+  title = "Error",
+  options?: NotifyAppErrorOptions,
+) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent<AppErrorPayload>(APP_ERROR_EVENT, {
-      detail: { title, message: formatErrorMessage(error) },
+      detail: {
+        title,
+        message: formatErrorMessage(error),
+        repositoryId: options?.repositoryId,
+      },
     }),
   );
 }
@@ -49,21 +64,26 @@ function payloadFromEvent(event: Event): AppErrorPayload | null {
   return {
     title: detail.title,
     message: detail.message,
+    repositoryId:
+      typeof detail.repositoryId === "string" && detail.repositoryId
+        ? detail.repositoryId
+        : undefined,
   };
 }
 
 export function AppErrorAlert() {
   const [alert, setAlert] = useState<AppErrorState | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const show = (title: string, message: string) => {
-      setAlert({ title, message });
+    const show = (title: string, message: string, repositoryId?: string) => {
+      setAlert({ title, message, repositoryId });
     };
 
     const onAppError = (event: Event) => {
       const payload = payloadFromEvent(event);
       if (!payload) return;
-      show(payload.title ?? "Error", payload.message);
+      show(payload.title ?? "Error", payload.message, payload.repositoryId);
     };
 
     const onError = (event: ErrorEvent) => {
@@ -94,9 +114,22 @@ export function AppErrorAlert() {
 
   if (!alert) return null;
 
+  const openWorkspace = () => {
+    if (!alert.repositoryId) return;
+    navigate(`/workspace/${encodeURIComponent(alert.repositoryId)}`);
+  };
+
   return (
     <div className="app-error-alert" role="alert" data-testid="app-error-alert">
-      <div className="app-error-alert__content">
+      <div
+        className="app-error-alert__content"
+        onClick={openWorkspace}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") openWorkspace();
+        }}
+        role={alert.repositoryId ? "button" : undefined}
+        tabIndex={alert.repositoryId ? 0 : undefined}
+      >
         <strong className="app-error-alert__title">{alert.title}</strong>
         <span className="app-error-alert__message">{alert.message}</span>
       </div>

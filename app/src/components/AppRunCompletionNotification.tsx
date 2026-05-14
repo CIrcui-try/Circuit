@@ -36,6 +36,7 @@ export function AppRunCompletionNotification() {
   const status = useRunStore((s) => s.status);
   const runId = useRunStore((s) => s.runId);
   const workflowName = useRunStore((s) => s.workflowName);
+  const repositoryId = useRunStore((s) => s.repositoryId);
   const repositoryName = useRunStore((s) => s.repositoryName);
   const notifiedRunIdRef = useRef<string | null>(null);
 
@@ -61,6 +62,7 @@ export function AppRunCompletionNotification() {
       await getHostBridge().notifyRunFinished?.({
         title: RUN_NOTIFICATION_TITLES[status],
         body: buildNotificationBody({ workflowName, repositoryName }),
+        ...(repositoryId ? { repositoryId } : {}),
       });
     })().catch((error: unknown) => {
       console.warn("[AppRunCompletionNotification] failed to send notification", error);
@@ -69,7 +71,7 @@ export function AppRunCompletionNotification() {
     return () => {
       active = false;
     };
-  }, [repositoryName, runId, status, workflowName]);
+  }, [repositoryId, repositoryName, runId, status, workflowName]);
 
   return null;
 }

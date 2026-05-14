@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   isPermissionGranted,
+  onAction,
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
@@ -155,6 +156,16 @@ export const tauriHostBridge: HostBridge = {
     if (!permissionGranted) return;
 
     sendNotification(notification);
+  },
+
+  async onRunCompletionNotificationClicked(handler) {
+    const listener = await onAction((notification) => {
+      const repositoryId = (notification as { repositoryId?: unknown }).repositoryId;
+      if (typeof repositoryId === "string" && repositoryId) handler(repositoryId);
+    });
+    return () => {
+      void listener.unregister();
+    };
   },
 
   async isAppWindowFocused() {
