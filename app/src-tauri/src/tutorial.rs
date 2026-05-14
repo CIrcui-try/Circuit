@@ -9,11 +9,11 @@ const README: &str = "# Circuit Tutorial\n\nThis folder is a safe place to try C
 
 #[tauri::command]
 pub fn create_tutorial_repository(app: AppHandle) -> Result<String, String> {
-    let data_dir = app
+    let documents_dir = app
         .path()
-        .app_local_data_dir()
-        .map_err(|e| format!("failed to resolve app data directory: {e}"))?;
-    let path = create_tutorial_repository_at(&data_dir)?;
+        .document_dir()
+        .map_err(|e| format!("failed to resolve documents directory: {e}"))?;
+    let path = create_tutorial_repository_at(&documents_dir)?;
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -98,7 +98,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn creates_tutorial_repository_under_root() {
+    fn creates_tutorial_repository_under_user_visible_root() {
         let dir = tempfile::tempdir().unwrap();
 
         let path = create_tutorial_repository_at(dir.path()).unwrap();
