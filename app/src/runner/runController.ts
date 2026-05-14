@@ -1,4 +1,5 @@
 import { getHostBridge } from "../host/bridge";
+import type { RepositoryEnvironmentCheck } from "../host/bridge";
 import { createDefaultRegistry } from "../runtime/adapters/createDefaultRegistry";
 import type { RuntimeBridge } from "../runtime/bridge/RuntimeBridge";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
@@ -37,6 +38,9 @@ export type StartWorkflowRunOptions = {
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
   bridge?: RuntimeBridge;
+  checkRepositoryEnvironment?: (
+    repoPath: string,
+  ) => Promise<RepositoryEnvironmentCheck>;
   createRunner?: (args: CreateRunnerArgs) => CancellableWorkflowRunner;
 };
 
@@ -57,6 +61,18 @@ export async function startWorkflowRun(
     (runState.repositoryId == null && runState.status === "running")
   ) {
     return { kind: "rejected", reason: "already-running" };
+  }
+
+  const preflightError = await checkRepositoryPreflight(
+    opts.checkRepositoryEnvironment ?? getHostBridge().checkRepositoryEnvironment,
+    snapshot.repository.path,
+  );
+  if (preflightError) {
+    return {
+      kind: "rejected",
+      reason: "repository-preflight",
+      message: preflightError,
+    };
   }
 
   const bridge = opts.bridge ?? getRuntimeBridge();
@@ -150,6 +166,52 @@ function createRealRunner(args: CreateRunnerArgs): RealWorkflowRunner {
       await host.saveRunLog(repository.path, workflowId, runId, jsonl);
     },
   });
+}
+
+async function checkRepositoryPreflight(
+  checker: ((repoPath: string) => Promise<RepositoryEnvironmentCheck>) | undefined,
+  repoPath: string,
+): Promise<string | null> {
+  if (!checker) return null;
+  try {
+    return formatRepositoryEnvironmentError(await checker(repoPath));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Repository environment check failed: ${message}`;
+  }
+}
+
+function formatRepositoryEnvironmentError(
+  check: RepositoryEnvironmentCheck,
+): string | null {
+  const failures: string[] = [];
+
+  if (!check.repoRoot.ok) {
+    failures.push(
+      `Repository folder is not ready. ${formatCheckMessage(check.repoRoot)}`,
+    );
+  }
+  if (!check.gitCommonDir.ok) {
+    failures.push(
+      `Circuit/Codex cannot write this repository's git metadata. Check macOS Full Disk Access or folder permissions. ${formatCheckMessage(check.gitCommonDir)}`,
+    );
+  }
+  if (!check.codexStateDir.ok) {
+    failures.push(
+      `Circuit workflow state path is not writable. Check .codex/state permissions. ${formatCheckMessage(check.codexStateDir)}`,
+    );
+  }
+  if (!check.githubCliAuth.ok) {
+    failures.push(
+      `GitHub CLI authentication is required. Run \`gh auth login -h github.com\`. ${formatCheckMessage(check.githubCliAuth)}`,
+    );
+  }
+
+  return failures.length > 0 ? failures.join("\n") : null;
+}
+
+function formatCheckMessage(item: { message?: string | null }): string {
+  return item.message?.trim() || "No additional details.";
 }
 
 function toRunnableNode(node: WorkflowSkillNode): RunnableNode {

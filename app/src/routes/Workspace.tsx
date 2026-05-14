@@ -209,7 +209,7 @@ export function Workspace() {
       });
       if (outcome.kind === "rejected") {
         notifyAppError(
-          formatRunRejection(outcome.reason),
+          outcome.message ?? formatRunRejection(outcome.reason),
           options.errorTitle ?? "Start Circuit failed",
         );
         return;
@@ -657,6 +657,8 @@ function formatRunRejection(
       return "The workflow has a cycle. Remove the loop and try again.";
     case "invalid-graph":
       return "Workflow graph must have exactly one root. Connect every node into one entry flow before starting Circuit.";
+    case "repository-preflight":
+      return "Repository environment is not ready.";
     default:
       return reason;
   }

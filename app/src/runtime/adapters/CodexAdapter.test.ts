@@ -130,7 +130,7 @@ describe("CodexAdapter", () => {
     expect(spawnCalls[0].timeoutMs).toBe(300_000);
   });
 
-  it("C7 — default command is 'codex exec <prompt>' with full prompt content (sandbox not bypassed)", async () => {
+  it("C7 — default command uses approval forwarding with full prompt content (sandbox not bypassed)", async () => {
     const { bridge, spawnCalls } = spy(() => [
       { event: { type: "exited", exitCode: 0 } },
     ]);
@@ -138,15 +138,20 @@ describe("CodexAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].command).toBe("codex");
     const args = spawnCalls[0].args;
-    expect(args).toHaveLength(2);
-    expect(args[0]).toBe("exec");
+    expect(args.slice(0, 5)).toEqual([
+      "-a",
+      "on-request",
+      "-s",
+      "workspace-write",
+      "exec",
+    ]);
     // Phase 16: interactive prompts are now forwarded via stdin, so the
     // adapter must not bake `--dangerously-bypass-approvals-and-sandbox` (or
     // any sandbox-disabling flag) into the default command.
     expect(args).not.toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(args).not.toContain("--skip-git-repo-check");
-    expect(spawnCalls[0].stdinMode).toBe("null");
-    const prompt = args[1];
+    expect(spawnCalls[0].stdinMode).toBe("piped");
+    const prompt = args[5];
     expect(prompt).toContain("review-pr");
     expect(prompt).toContain("Review the diff.");
     expect(prompt).toContain(`"prompt": "review the diff"`);
@@ -276,7 +281,7 @@ describe("CodexAdapter", () => {
         },
       });
       await adapter.run(ctx, () => {});
-      const prompt = spawnCalls[0].args[1];
+      const prompt = spawnCalls[0].args[5];
       expect(prompt).toContain("# Upstream Outputs");
       expect(prompt).toContain("## a  (status: success, exit: 0)");
       expect(prompt).toContain("plus_one: 1");
@@ -288,7 +293,7 @@ describe("CodexAdapter", () => {
       ]);
       const adapter = new CodexAdapter({ bridge });
       await adapter.run(makeContext(), () => {});
-      const prompt = spawnCalls[0].args[1];
+      const prompt = spawnCalls[0].args[5];
       expect(prompt).not.toContain("# Upstream Outputs");
     });
   });

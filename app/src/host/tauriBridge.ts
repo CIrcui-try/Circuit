@@ -12,6 +12,7 @@ import type {
   LayoutPrefsDTO,
   RawSkill,
   RawSystemSkill,
+  RepositoryEnvironmentCheck,
   RunLogEntryDTO,
   WorkflowSummaryDTO,
   WorkspaceDTO,
@@ -36,6 +37,12 @@ export const tauriHostBridge: HostBridge = {
 
   async pathExists(path: string) {
     return await invoke<boolean>("path_exists", { path });
+  },
+
+  async checkRepositoryEnvironment(repoPath: string) {
+    return await invoke<RepositoryEnvironmentCheck>("check_repository_environment", {
+      repoPath,
+    });
   },
 
   async scanSkills(repoPath: string) {

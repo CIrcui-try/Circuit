@@ -35,7 +35,13 @@ export type RunWorkflowOutcome =
   | { kind: "started"; status: RunTerminalStatus }
   | {
       kind: "rejected";
-      reason: "already-running" | "empty" | "cycle" | "invalid-graph";
+      reason:
+        | "already-running"
+        | "empty"
+        | "cycle"
+        | "invalid-graph"
+        | "repository-preflight";
+      message?: string;
     };
 
 const defaultNow = () => new Date().toISOString();

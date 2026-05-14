@@ -1,4 +1,5 @@
 mod run_log_store;
+mod repository_environment;
 mod runtime_bridge;
 mod skill_scan;
 mod tutorial;
@@ -62,6 +63,7 @@ pub fn run() {
             workflow_store::list_workflows,
             workflow_store::load_workflow,
             workflow_store::save_workflow,
+            repository_environment::check_repository_environment,
             runtime_bridge::runtime_read_file,
             runtime_bridge::runtime_spawn,
             runtime_bridge::runtime_cancel,
