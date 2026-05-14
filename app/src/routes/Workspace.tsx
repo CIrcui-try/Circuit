@@ -336,7 +336,7 @@ export function Workspace() {
             onClick={() => setSettingsOpen((open) => !open)}
             disabled={!repo}
           >
-            <span className="workspace__settings-chevron" aria-hidden="true" />
+            <span className="workspace__settings-dots" aria-hidden="true" />
           </button>
           {settingsOpen && repo ? (
             <div
@@ -344,18 +344,6 @@ export function Workspace() {
               role="menu"
               data-testid="workflow-settings-menu"
             >
-              <div className="workspace__settings-section">
-                <label className="workspace__settings-option">
-                  <input
-                    type="checkbox"
-                    checked={continueOnFailure}
-                    onChange={(event) =>
-                      setContinueOnFailure(event.currentTarget.checked)
-                    }
-                  />
-                  <span>Continue on failure</span>
-                </label>
-              </div>
               <div className="workspace__settings-section">
                 <button
                   type="button"
@@ -369,6 +357,18 @@ export function Workspace() {
                 >
                   Show in Finder
                 </button>
+              </div>
+              <div className="workspace__settings-section">
+                <label className="workspace__settings-option">
+                  <input
+                    type="checkbox"
+                    checked={continueOnFailure}
+                    onChange={(event) =>
+                      setContinueOnFailure(event.currentTarget.checked)
+                    }
+                  />
+                  <span>Continue on failure</span>
+                </label>
               </div>
             </div>
           ) : null}

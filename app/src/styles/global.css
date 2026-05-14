@@ -217,12 +217,18 @@ a:hover {
   padding: 0;
 }
 
-.workspace__settings-chevron {
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: translateY(-2px) rotate(45deg);
+.workspace__settings-trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.workspace__settings-dots {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow:
+    -6px 0 0 currentColor,
+    6px 0 0 currentColor;
 }
 
 .workspace__settings-menu {
