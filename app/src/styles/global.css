@@ -226,16 +226,6 @@ a:hover {
   color: #ffffff;
 }
 
-.workspace__settings-dots {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow:
-    -6px 0 0 currentColor,
-    6px 0 0 currentColor;
-}
-
 .workspace__settings-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -269,6 +259,10 @@ a:hover {
   white-space: nowrap;
 }
 
+.workspace__settings-checkbox {
+  margin-left: auto;
+}
+
 .workspace__settings-action {
   display: flex;
   width: 100%;
@@ -290,46 +284,8 @@ a:hover {
 }
 
 .workspace__settings-item-icon {
-  position: relative;
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
   flex: 0 0 auto;
   color: #a7a7b0;
-}
-
-.workspace__settings-item-icon--finder {
-  border: 1.5px solid currentColor;
-  border-radius: 2px;
-}
-
-.workspace__settings-item-icon--finder::before {
-  content: "";
-  position: absolute;
-  top: -4px;
-  left: 1px;
-  width: 7px;
-  height: 4px;
-  border: 1.5px solid currentColor;
-  border-bottom: 0;
-  border-radius: 2px 2px 0 0;
-}
-
-.workspace__settings-item-icon--continue {
-  border: 1.5px solid currentColor;
-  border-radius: 999px;
-}
-
-.workspace__settings-item-icon--continue::before {
-  content: "";
-  position: absolute;
-  right: -1px;
-  bottom: 0;
-  width: 4px;
-  height: 4px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-12deg);
 }
 
 .workspace__toolbar-spacer {

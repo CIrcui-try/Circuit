@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { Ellipsis, FolderOpen, RotateCcw } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
@@ -336,7 +337,7 @@ export function Workspace() {
             onClick={() => setSettingsOpen((open) => !open)}
             disabled={!repo}
           >
-            <span className="workspace__settings-dots" aria-hidden="true" />
+            <Ellipsis size={17} strokeWidth={2} aria-hidden="true" />
           </button>
           {settingsOpen && repo ? (
             <div
@@ -355,8 +356,10 @@ export function Workspace() {
                     void handleShowRepositoryInFinder();
                   }}
                 >
-                  <span
-                    className="workspace__settings-item-icon workspace__settings-item-icon--finder"
+                  <FolderOpen
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
                     aria-hidden="true"
                   />
                   Show in Finder
@@ -364,18 +367,21 @@ export function Workspace() {
               </div>
               <div className="workspace__settings-section">
                 <label className="workspace__settings-option">
+                  <RotateCcw
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  <span>Continue on failure</span>
                   <input
+                    className="workspace__settings-checkbox"
                     type="checkbox"
                     checked={continueOnFailure}
                     onChange={(event) =>
                       setContinueOnFailure(event.currentTarget.checked)
                     }
                   />
-                  <span
-                    className="workspace__settings-item-icon workspace__settings-item-icon--continue"
-                    aria-hidden="true"
-                  />
-                  <span>Continue on failure</span>
                 </label>
               </div>
             </div>
