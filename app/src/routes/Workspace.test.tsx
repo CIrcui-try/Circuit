@@ -225,12 +225,44 @@ describe("Workspace", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
-    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("show-repository-in-finder"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("workflow-settings"));
     fireEvent.click(screen.getByTestId("show-repository-in-finder"));
 
     await vi.waitFor(() => {
       expect(openerMock.openPath).toHaveBeenCalledWith("/Users/me/alpha");
+    });
+  });
+
+  it("W1e: opens the selected repository folder in Codex", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Codex app" }));
+
+    await vi.waitFor(() => {
+      expect(openerMock.openPath).toHaveBeenCalledWith(
+        "/Users/me/alpha",
+        "Codex",
+      );
+    });
+  });
+
+  it("W1f: opens the selected repository folder in Claude", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Claude app" }));
+
+    await vi.waitFor(() => {
+      expect(openerMock.openPath).toHaveBeenCalledWith(
+        "/Users/me/alpha",
+        "Claude",
+      );
     });
   });
 
@@ -244,6 +276,32 @@ describe("Workspace", () => {
 
     const alert = await screen.findByTestId("app-error-alert");
     expect(alert).toHaveTextContent("Show repository in Finder failed");
+    expect(alert).toHaveTextContent("open failed");
+  });
+
+  it("W1g: surfaces Codex open failures as an app error", async () => {
+    openerMock.openPath.mockRejectedValueOnce(new Error("open failed"));
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Codex app" }));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Open Codex app failed");
+    expect(alert).toHaveTextContent("open failed");
+  });
+
+  it("W1h: surfaces Claude open failures as an app error", async () => {
+    openerMock.openPath.mockRejectedValueOnce(new Error("open failed"));
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Claude app" }));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Open Claude app failed");
     expect(alert).toHaveTextContent("open failed");
   });
 
@@ -273,7 +331,9 @@ describe("Workspace", () => {
 
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
     expect(screen.getByTestId("workflow-settings")).toBeDisabled();
-    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("show-repository-in-finder"),
+    ).not.toBeInTheDocument();
   });
 
   it("W5b: triggers scanSkills with the active repo path on mount", async () => {

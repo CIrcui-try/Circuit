@@ -76,7 +76,7 @@ pub fn list_run_logs(
         Err(e) => return Err(format!("failed to read {}: {e}", dir.display())),
     };
 
-    let mut out: Vec<RunLogEntry> = Vec::new();
+    let mut out: Vec<(RunLogEntry, std::time::SystemTime)> = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_file() {
@@ -93,17 +93,22 @@ pub fn list_run_logs(
             Ok(m) => m,
             Err(_) => continue,
         };
-        let saved_at = metadata
+        let modified = metadata
             .modified()
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let saved_at = modified
+            .duration_since(std::time::UNIX_EPOCH)
             .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs().to_string())
             .unwrap_or_default();
-        out.push(RunLogEntry { run_id, saved_at });
+        out.push((RunLogEntry { run_id, saved_at }, modified));
     }
 
-    out.sort_by(|a, b| b.saved_at.cmp(&a.saved_at));
-    Ok(out)
+    out.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| b.0.run_id.cmp(&a.0.run_id))
+    });
+    Ok(out.into_iter().map(|(entry, _)| entry).collect())
 }
 
 #[tauri::command]
