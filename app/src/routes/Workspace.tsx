@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { ChevronsRight, Ellipsis, FolderOpen } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
@@ -323,18 +324,20 @@ export function Workspace() {
         <Link to="/" aria-label="Back to repository list">←</Link>
         <span className="workspace__toolbar-title">Circuit</span>
         <span className="workspace__repository-label">
-          {repo ? `Repository: ${repo.name}` : "No repository selected"}
+          {repo ? repo.name : "No repository selected"}
         </span>
         <div className="workspace__settings">
           <button
             type="button"
             data-testid="workflow-settings"
+            className="workspace__settings-trigger"
+            aria-label="Repository settings"
             aria-haspopup="menu"
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((open) => !open)}
             disabled={!repo}
           >
-            Settings
+            <Ellipsis size={17} strokeWidth={2} aria-hidden="true" />
           </button>
           {settingsOpen && repo ? (
             <div
@@ -342,27 +345,50 @@ export function Workspace() {
               role="menu"
               data-testid="workflow-settings-menu"
             >
-              <label className="workspace__settings-option">
-                <input
-                  type="checkbox"
-                  checked={continueOnFailure}
-                  onChange={(event) =>
-                    setContinueOnFailure(event.currentTarget.checked)
-                  }
-                />
-                <span>Continue on failure</span>
-              </label>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="show-repository-in-finder"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleShowRepositoryInFinder();
+                  }}
+                >
+                  <FolderOpen
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Show in Finder
+                </button>
+              </div>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-option workspace__settings-switch"
+                  role="switch"
+                  aria-checked={continueOnFailure}
+                  onClick={() => setContinueOnFailure(!continueOnFailure)}
+                >
+                  <ChevronsRight
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  <span>Continue on failure</span>
+                  <span
+                    className="workspace__settings-switch-track"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
-        <button
-          type="button"
-          data-testid="show-repository-in-finder"
-          onClick={() => void handleShowRepositoryInFinder()}
-          disabled={!repo}
-        >
-          Show in Finder
-        </button>
         <span className="workspace__toolbar-spacer" />
         <input
           type="text"

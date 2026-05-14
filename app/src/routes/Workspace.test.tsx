@@ -181,7 +181,8 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByText("Repository: alpha")).toBeInTheDocument();
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Repository: alpha")).not.toBeInTheDocument();
     expect(useRepositoryStore.getState().selectedId).toBe("id-alpha");
   });
 
@@ -190,7 +191,7 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("workflow-settings"));
-    fireEvent.click(screen.getByLabelText("Continue on failure"));
+    fireEvent.click(screen.getByRole("switch", { name: "Continue on failure" }));
 
     expect(screen.getByTestId("workflow-settings-menu")).toBeInTheDocument();
     expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
@@ -224,6 +225,8 @@ describe("Workspace", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
+    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workflow-settings"));
     fireEvent.click(screen.getByTestId("show-repository-in-finder"));
 
     await vi.waitFor(() => {
@@ -236,6 +239,7 @@ describe("Workspace", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
     fireEvent.click(screen.getByTestId("show-repository-in-finder"));
 
     const alert = await screen.findByTestId("app-error-alert");
@@ -268,7 +272,8 @@ describe("Workspace", () => {
     renderAt("/workspace");
 
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
-    expect(screen.getByTestId("show-repository-in-finder")).toBeDisabled();
+    expect(screen.getByTestId("workflow-settings")).toBeDisabled();
+    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
   });
 
   it("W5b: triggers scanSkills with the active repo path on mount", async () => {
@@ -361,7 +366,7 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("workflow-settings"));
-    fireEvent.click(screen.getByLabelText("Continue on failure"));
+    fireEvent.click(screen.getByRole("switch", { name: "Continue on failure" }));
     fireEvent.click(screen.getByTestId("workflow-save"));
 
     await vi.waitFor(() => {

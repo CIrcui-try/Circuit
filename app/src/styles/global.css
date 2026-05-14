@@ -208,25 +208,120 @@ a:hover {
   position: relative;
 }
 
+.workspace__settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.workspace__settings-trigger:hover,
+.workspace__settings-trigger:focus-visible,
+.workspace__settings-trigger[aria-expanded="true"] {
+  background: transparent;
+  color: #ffffff;
+}
+
 .workspace__settings-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 20;
   min-width: 220px;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid #3a3a42;
   border-radius: 6px;
   background: #26262b;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
+.workspace__settings-section {
+  padding: 2px 0;
+}
+
+.workspace__settings-section + .workspace__settings-section {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3a42;
+}
+
 .workspace__settings-option {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 8px;
-  padding: 6px 4px;
+  min-height: 30px;
+  padding: 5px 6px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
   white-space: nowrap;
+}
+
+.workspace__settings-option:hover,
+.workspace__settings-option:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.workspace__settings-switch-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #4a4a54;
+  transition: background 120ms ease;
+}
+
+.workspace__settings-switch-track::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #d7d7dd;
+  transition: transform 120ms ease;
+}
+
+.workspace__settings-switch[aria-checked="true"] .workspace__settings-switch-track {
+  background: #6aa9ff;
+}
+
+.workspace__settings-switch[aria-checked="true"] .workspace__settings-switch-track::before {
+  transform: translateX(12px);
+}
+
+.workspace__settings-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 6px;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.workspace__settings-action:hover,
+.workspace__settings-action:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.workspace__settings-item-icon {
+  flex: 0 0 auto;
+  color: #a7a7b0;
 }
 
 .workspace__toolbar-spacer {
