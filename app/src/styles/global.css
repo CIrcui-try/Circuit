@@ -600,9 +600,26 @@ a:hover {
 
 .workspace__props {
   grid-area: props;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: #26262b;
   border-left: 1px solid #3a3a42;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.workspace__props > .panel-header {
+  flex: 0 0 auto;
+}
+
+.workspace__props > .empty-state,
+.properties__body {
+  flex: 1 1 auto;
+}
+
+.workspace__props > .empty-state {
+  height: auto;
+  min-height: 0;
 }
 
 .workspace__log {
@@ -1921,6 +1938,11 @@ a:hover {
   column-gap: 12px;
   row-gap: 8px;
   font-size: 12px;
+}
+
+.properties__body {
+  min-height: 0;
+  overflow: auto;
 }
 
 .properties dt {
