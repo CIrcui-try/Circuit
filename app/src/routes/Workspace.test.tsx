@@ -191,7 +191,7 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("workflow-settings"));
-    fireEvent.click(screen.getByLabelText("Continue on failure"));
+    fireEvent.click(screen.getByRole("switch", { name: "Continue on failure" }));
 
     expect(screen.getByTestId("workflow-settings-menu")).toBeInTheDocument();
     expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
@@ -366,7 +366,7 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
     fireEvent.click(screen.getByTestId("workflow-settings"));
-    fireEvent.click(screen.getByLabelText("Continue on failure"));
+    fireEvent.click(screen.getByRole("switch", { name: "Continue on failure" }));
     fireEvent.click(screen.getByTestId("workflow-save"));
 
     await vi.waitFor(() => {

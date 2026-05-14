@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { Ellipsis, FolderOpen, RotateCcw } from "lucide-react";
+import { ChevronsRight, Ellipsis, FolderOpen } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
@@ -366,23 +366,25 @@ export function Workspace() {
                 </button>
               </div>
               <div className="workspace__settings-section">
-                <label className="workspace__settings-option">
-                  <RotateCcw
+                <button
+                  type="button"
+                  className="workspace__settings-option workspace__settings-switch"
+                  role="switch"
+                  aria-checked={continueOnFailure}
+                  onClick={() => setContinueOnFailure(!continueOnFailure)}
+                >
+                  <ChevronsRight
                     className="workspace__settings-item-icon"
                     size={15}
                     strokeWidth={1.8}
                     aria-hidden="true"
                   />
                   <span>Continue on failure</span>
-                  <input
-                    className="workspace__settings-checkbox"
-                    type="checkbox"
-                    checked={continueOnFailure}
-                    onChange={(event) =>
-                      setContinueOnFailure(event.currentTarget.checked)
-                    }
+                  <span
+                    className="workspace__settings-switch-track"
+                    aria-hidden="true"
                   />
-                </label>
+                </button>
               </div>
             </div>
           ) : null}
