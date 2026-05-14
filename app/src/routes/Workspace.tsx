@@ -323,7 +323,7 @@ export function Workspace() {
         <Link to="/" aria-label="Back to repository list">←</Link>
         <span className="workspace__toolbar-title">Circuit</span>
         <span className="workspace__repository-label">
-          {repo ? `Repository: ${repo.name}` : "No repository selected"}
+          {repo ? repo.name : "No repository selected"}
         </span>
         <div className="workspace__settings">
           <button
@@ -344,28 +344,32 @@ export function Workspace() {
               role="menu"
               data-testid="workflow-settings-menu"
             >
-              <label className="workspace__settings-option">
-                <input
-                  type="checkbox"
-                  checked={continueOnFailure}
-                  onChange={(event) =>
-                    setContinueOnFailure(event.currentTarget.checked)
-                  }
-                />
-                <span>Continue on failure</span>
-              </label>
-              <button
-                type="button"
-                className="workspace__settings-action"
-                role="menuitem"
-                data-testid="show-repository-in-finder"
-                onClick={() => {
-                  setSettingsOpen(false);
-                  void handleShowRepositoryInFinder();
-                }}
-              >
-                Show in Finder
-              </button>
+              <div className="workspace__settings-section">
+                <label className="workspace__settings-option">
+                  <input
+                    type="checkbox"
+                    checked={continueOnFailure}
+                    onChange={(event) =>
+                      setContinueOnFailure(event.currentTarget.checked)
+                    }
+                  />
+                  <span>Continue on failure</span>
+                </label>
+              </div>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="show-repository-in-finder"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleShowRepositoryInFinder();
+                  }}
+                >
+                  Show in Finder
+                </button>
+              </div>
             </div>
           ) : null}
         </div>

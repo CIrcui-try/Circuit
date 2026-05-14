@@ -181,7 +181,8 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.getByText("Repository: alpha")).toBeInTheDocument();
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Repository: alpha")).not.toBeInTheDocument();
     expect(useRepositoryStore.getState().selectedId).toBe("id-alpha");
   });
 

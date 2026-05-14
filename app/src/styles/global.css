@@ -231,18 +231,30 @@ a:hover {
   left: 0;
   z-index: 20;
   min-width: 220px;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid #3a3a42;
   border-radius: 6px;
   background: #26262b;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
+.workspace__settings-section {
+  padding: 2px 0;
+}
+
+.workspace__settings-section + .workspace__settings-section {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3a42;
+}
+
 .workspace__settings-option {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 4px;
+  min-height: 30px;
+  padding: 5px 6px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
@@ -250,12 +262,14 @@ a:hover {
   display: flex;
   width: 100%;
   align-items: center;
-  padding: 6px 4px;
+  min-height: 30px;
+  padding: 5px 6px;
   color: inherit;
   text-align: left;
   white-space: nowrap;
   background: transparent;
   border: 0;
+  border-radius: 4px;
 }
 
 .workspace__settings-action:hover,
