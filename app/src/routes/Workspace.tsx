@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
-  Bot,
   ChevronsRight,
   Ellipsis,
   FolderOpen,
-  MessageSquare,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import claudeAppIcon from "../assets/claude-app-icon.png";
+import codexAppIcon from "../assets/codex-app-icon.png";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
@@ -386,10 +386,10 @@ export function Workspace() {
                     void handleOpenRepository("Open Codex app failed", "Codex");
                   }}
                 >
-                  <Bot
-                    className="workspace__settings-item-icon"
-                    size={15}
-                    strokeWidth={1.8}
+                  <img
+                    className="workspace__settings-app-icon"
+                    src={codexAppIcon}
+                    alt=""
                     aria-hidden="true"
                   />
                   Open Codex app
@@ -403,10 +403,10 @@ export function Workspace() {
                     void handleOpenRepository("Open Claude app failed", "Claude");
                   }}
                 >
-                  <MessageSquare
-                    className="workspace__settings-item-icon"
-                    size={15}
-                    strokeWidth={1.8}
+                  <img
+                    className="workspace__settings-app-icon"
+                    src={claudeAppIcon}
+                    alt=""
                     aria-hidden="true"
                   />
                   Open Claude app
