@@ -344,8 +344,20 @@ describe("App routing", () => {
     expect(screen.getByText("Repository: alpha")).toBeInTheDocument();
   });
 
-  it("A11: skips run completion notifications while focused", async () => {
+  it("A11: shows an in-app completion alert while focused", async () => {
     bridgeMock.isAppWindowFocused.mockResolvedValue(true);
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
     useRunStore.setState({
       status: "success",
       runId: "run-focused",
@@ -362,7 +374,7 @@ describe("App routing", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter initialEntries={["/workspace/id-alpha"]}>
         <App />
       </MemoryRouter>,
     );
@@ -371,6 +383,12 @@ describe("App routing", () => {
       expect(bridgeMock.isAppWindowFocused).toHaveBeenCalled();
     });
     expect(bridgeMock.notifyRunFinished).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("app-error-alert")).toHaveTextContent(
+      "Workflow completed",
+    );
+    expect(screen.getByTestId("app-error-alert")).toHaveTextContent(
+      "Release flow in alpha",
+    );
   });
 
   it("A12: sends only one run completion notification per run", async () => {

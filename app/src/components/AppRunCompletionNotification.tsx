@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { notifyAppSuccess } from "./AppErrorAlert";
 import { getHostBridge } from "../host/bridge";
 import type { RunStatus } from "../runner/runner";
 import { useRunStore } from "../runner/runStore";
@@ -57,7 +58,16 @@ export function AppRunCompletionNotification() {
       const focused = (await getHostBridge().isAppWindowFocused?.()) ?? true;
       if (!active) return;
       notifiedRunIdRef.current = runId;
-      if (focused) return;
+      if (focused) {
+        if (status === "success") {
+          notifyAppSuccess(
+            buildNotificationBody({ workflowName, repositoryName }),
+            RUN_NOTIFICATION_TITLES[status],
+            repositoryId ? { repositoryId } : undefined,
+          );
+        }
+        return;
+      }
 
       await getHostBridge().notifyRunFinished?.({
         title: RUN_NOTIFICATION_TITLES[status],
