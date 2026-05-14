@@ -17,6 +17,33 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: #35353d transparent;
+  scrollbar-width: thin;
+}
+
+*:hover {
+  scrollbar-color: #5a5a66 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #35353d;
+  background-clip: content-box;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: #5a5a66;
+  background-clip: content-box;
 }
 
 html,
@@ -1004,9 +1031,12 @@ a:hover {
 }
 
 .repository-list {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 48px 24px;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 48px max(24px, calc((100vw - 720px) / 2 + 24px));
+  overflow-y: auto;
 }
 
 .repository-list__heading {
