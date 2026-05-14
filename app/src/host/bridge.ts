@@ -11,6 +11,13 @@ export type RawSkill = {
   content: string;
 };
 
+export type CreateRepositorySkillInput = {
+  provider: "claude" | "codex";
+  slug: string;
+  name: string;
+  description: string;
+};
+
 export type RawSystemSkill = {
   id: string;
   provider: "claude" | "codex";
@@ -91,6 +98,10 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
     repoPath: string,
   ): Promise<RepositoryEnvironmentCheck>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
+  createRepositorySkill?(
+    repoPath: string,
+    input: CreateRepositorySkillInput,
+  ): Promise<RawSkill>;
   scanDefaultSkills?(): Promise<RawSkill[]>;
   scanSystemSkills?(): Promise<RawSystemSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;
