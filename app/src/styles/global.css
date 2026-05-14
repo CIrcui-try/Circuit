@@ -208,6 +208,23 @@ a:hover {
   position: relative;
 }
 
+.workspace__settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.workspace__settings-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
 .workspace__settings-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -227,6 +244,23 @@ a:hover {
   gap: 8px;
   padding: 6px 4px;
   white-space: nowrap;
+}
+
+.workspace__settings-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 6px 4px;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+}
+
+.workspace__settings-action:hover,
+.workspace__settings-action:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .workspace__toolbar-spacer {

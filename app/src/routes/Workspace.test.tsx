@@ -224,6 +224,8 @@ describe("Workspace", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
+    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workflow-settings"));
     fireEvent.click(screen.getByTestId("show-repository-in-finder"));
 
     await vi.waitFor(() => {
@@ -236,6 +238,7 @@ describe("Workspace", () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
     fireEvent.click(screen.getByTestId("show-repository-in-finder"));
 
     const alert = await screen.findByTestId("app-error-alert");
@@ -268,7 +271,8 @@ describe("Workspace", () => {
     renderAt("/workspace");
 
     expect(screen.getByText("No repository selected")).toBeInTheDocument();
-    expect(screen.getByTestId("show-repository-in-finder")).toBeDisabled();
+    expect(screen.getByTestId("workflow-settings")).toBeDisabled();
+    expect(screen.queryByTestId("show-repository-in-finder")).not.toBeInTheDocument();
   });
 
   it("W5b: triggers scanSkills with the active repo path on mount", async () => {

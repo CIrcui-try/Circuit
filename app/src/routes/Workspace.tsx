@@ -329,12 +329,14 @@ export function Workspace() {
           <button
             type="button"
             data-testid="workflow-settings"
+            className="workspace__settings-trigger"
+            aria-label="Repository settings"
             aria-haspopup="menu"
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((open) => !open)}
             disabled={!repo}
           >
-            Settings
+            <span className="workspace__settings-chevron" aria-hidden="true" />
           </button>
           {settingsOpen && repo ? (
             <div
@@ -352,17 +354,21 @@ export function Workspace() {
                 />
                 <span>Continue on failure</span>
               </label>
+              <button
+                type="button"
+                className="workspace__settings-action"
+                role="menuitem"
+                data-testid="show-repository-in-finder"
+                onClick={() => {
+                  setSettingsOpen(false);
+                  void handleShowRepositoryInFinder();
+                }}
+              >
+                Show in Finder
+              </button>
             </div>
           ) : null}
         </div>
-        <button
-          type="button"
-          data-testid="show-repository-in-finder"
-          onClick={() => void handleShowRepositoryInFinder()}
-          disabled={!repo}
-        >
-          Show in Finder
-        </button>
         <span className="workspace__toolbar-spacer" />
         <input
           type="text"
