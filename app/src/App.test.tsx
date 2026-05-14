@@ -107,7 +107,8 @@ describe("App routing", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Repository: alpha")).toBeInTheDocument();
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Repository: alpha")).not.toBeInTheDocument();
   });
 
   it("A3: invokes hydrate() on mount", () => {
