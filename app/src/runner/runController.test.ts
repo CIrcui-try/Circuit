@@ -6,6 +6,19 @@ import { cancelWorkflowRun, startWorkflowRun } from "./runController";
 import type { RunResult } from "./runner";
 import { useRunStore } from "./runStore";
 
+const hostBridgeMock = vi.hoisted(() => ({
+  checkRepositoryEnvironment: vi.fn(async () => ({
+    repoRoot: { ok: true },
+    gitCommonDir: { ok: true },
+    codexStateDir: { ok: true },
+    githubCliAuth: { ok: true },
+  })),
+}));
+
+vi.mock("../host/bridge", () => ({
+  getHostBridge: () => hostBridgeMock,
+}));
+
 function snapshot(): WorkflowRunSnapshot {
   return {
     repository: { id: "repo-1", name: "repo", path: "/Users/me/repo" },
@@ -40,6 +53,7 @@ function snapshot(): WorkflowRunSnapshot {
 
 beforeEach(() => {
   useRunStore.getState().reset();
+  hostBridgeMock.checkRepositoryEnvironment.mockClear();
 });
 
 describe("runController", () => {
@@ -115,6 +129,38 @@ describe("runController", () => {
 
     expect(outcome).toEqual({ kind: "rejected", reason: "already-running" });
     expect(createRunner).not.toHaveBeenCalled();
+  });
+
+  it("blocks repository preflight failures before creating a runner", async () => {
+    const createRunner = vi.fn();
+    const checkRepositoryEnvironment = vi.fn(async () => ({
+      repoRoot: { ok: true },
+      gitCommonDir: { ok: false, message: "Operation not permitted" },
+      codexStateDir: { ok: true },
+      githubCliAuth: { ok: false, message: "token expired" },
+    }));
+
+    const outcome = await startWorkflowRun({
+      snapshot: snapshot(),
+      bridge: createMockRuntimeBridge(),
+      checkRepositoryEnvironment,
+      createRunner,
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "rejected",
+      reason: "repository-preflight",
+    });
+    expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
+      "git metadata",
+    );
+    expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
+      "token expired",
+    );
+    expect(checkRepositoryEnvironment).toHaveBeenCalledWith("/Users/me/repo");
+    expect(createRunner).not.toHaveBeenCalled();
+    expect(useRunStore.getState().status).toBe("idle");
+    await expect(cancelWorkflowRun("repo-1")).resolves.toBe(false);
   });
 
   it("allows a second repository to start while the first is running", async () => {

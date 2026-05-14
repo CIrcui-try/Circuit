@@ -992,7 +992,7 @@ describe("Workspace", () => {
         },
         scenario: () => [
           { event: { type: "started" } },
-          { delayMs: 30, event: { type: "exited", exitCode: 0 } },
+          { delayMs: 200, event: { type: "exited", exitCode: 0 } },
         ],
       });
 
