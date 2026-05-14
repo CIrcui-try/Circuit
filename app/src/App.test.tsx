@@ -342,7 +342,8 @@ describe("App routing", () => {
       bridgeMock.notificationClickHandler?.("id-alpha");
     });
 
-    expect(screen.getByText("Repository: alpha")).toBeInTheDocument();
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Repository: alpha")).not.toBeInTheDocument();
   });
 
   it("A11: shows an in-app completion alert while focused", async () => {
