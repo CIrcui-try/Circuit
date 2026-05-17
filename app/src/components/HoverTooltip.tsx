@@ -11,6 +11,7 @@ type HoverTooltipProps = {
   children: ReactNode;
   className?: string;
   content: string;
+  delayMs?: number;
   testId?: string;
 };
 
@@ -22,9 +23,11 @@ export function HoverTooltip({
   children,
   className,
   content,
+  delayMs = 0,
   testId,
 }: HoverTooltipProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
+  const timeoutRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -39,6 +42,31 @@ export function HoverTooltip({
     setPosition({ top: rect.bottom + TOOLTIP_GAP, left });
   }, []);
 
+  const clearTooltipTimer = useCallback(() => {
+    if (timeoutRef.current === null) return;
+    window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = null;
+  }, []);
+
+  const showTooltip = useCallback((delay: number) => {
+    clearTooltipTimer();
+    updatePosition();
+    if (delay <= 0) {
+      setOpen(true);
+      return;
+    }
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      updatePosition();
+      setOpen(true);
+    }, delay);
+  }, [clearTooltipTimer, updatePosition]);
+
+  const hideTooltip = useCallback(() => {
+    clearTooltipTimer();
+    setOpen(false);
+  }, [clearTooltipTimer]);
+
   useLayoutEffect(() => {
     if (!open) return;
     updatePosition();
@@ -50,20 +78,16 @@ export function HoverTooltip({
     };
   }, [open, updatePosition]);
 
+  useLayoutEffect(() => clearTooltipTimer, [clearTooltipTimer]);
+
   return (
     <div
       ref={anchorRef}
       className={className}
-      onBlur={() => setOpen(false)}
-      onFocus={() => {
-        updatePosition();
-        setOpen(true);
-      }}
-      onMouseEnter={() => {
-        updatePosition();
-        setOpen(true);
-      }}
-      onMouseLeave={() => setOpen(false)}
+      onBlur={hideTooltip}
+      onFocus={() => showTooltip(0)}
+      onMouseEnter={() => showTooltip(delayMs)}
+      onMouseLeave={hideTooltip}
     >
       {children}
       {open

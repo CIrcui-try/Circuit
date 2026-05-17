@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { RawSkill } from "../host/bridge";
 
@@ -387,6 +387,31 @@ describe("Workspace", () => {
 
     expect(screen.getByTestId("workspace-root")).toBeInTheDocument();
     expect(screen.getByTestId("workflow-canvas")).toBeInTheDocument();
+  });
+
+  it("shows toolbar icon tooltips after a short hover delay", () => {
+    vi.useFakeTimers();
+    try {
+      useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+      renderAt("/workspace/id-alpha");
+
+      fireEvent.mouseEnter(screen.getByTestId("workflow-save"));
+
+      act(() => {
+        vi.advanceTimersByTime(499);
+      });
+      expect(screen.queryByTestId("workflow-save-tooltip")).not.toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByTestId("workflow-save-tooltip")).toHaveTextContent(
+        "Save workflow (⌘S)",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("W8: clicking Save calls saveWorkflow with serialized JSON", async () => {

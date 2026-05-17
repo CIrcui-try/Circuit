@@ -427,6 +427,11 @@ a:hover {
   background: #2d2d33;
 }
 
+.workspace__toolbar-tooltip-anchor {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
 .workspace__sidebar {
   grid-area: sidebar;
   background: #26262b;

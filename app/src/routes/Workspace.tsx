@@ -13,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 import claudeAppIcon from "../assets/claude-app-icon.png";
 import codexAppIcon from "../assets/codex-app-icon.png";
 import { notifyAppError } from "../components/AppErrorAlert";
+import { HoverTooltip } from "../components/HoverTooltip";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
@@ -45,6 +46,7 @@ import type { RunWorkflowOutcome } from "../runner/runWorkflow";
 import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 
 const NEW_WORKFLOW_VALUE = "__new__";
+const TOOLBAR_TOOLTIP_DELAY_MS = 500;
 
 export function Workspace() {
   const { repoId } = useParams<{ repoId?: string }>();
@@ -490,70 +492,94 @@ export function Workspace() {
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          data-testid="workflow-save"
-          className="workspace__toolbar-icon-button"
-          aria-label="Save workflow"
-          aria-keyshortcuts="Meta+S Control+S"
-          title="Save workflow (⌘S)"
-          onClick={() => void handleSave()}
-          disabled={!repo}
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content="Save workflow (⌘S)"
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-save-tooltip"
         >
-          <Save size={15} strokeWidth={1.9} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          data-testid="workflow-start"
-          className="workspace__toolbar-icon-button workspace__toolbar-start"
-          aria-label={isRunningHere ? "Running" : "Start Circuit"}
-          aria-keyshortcuts="Meta+Enter"
-          title={isRunningHere ? "Running" : "Start Circuit (⌘Enter)"}
-          onClick={() => void handleStart()}
-          disabled={!repo || isRunningHere || nodeCount === 0}
-        >
-          {isRunningHere ? (
-            <span
-              className="cli-status-spinner cli-status-spinner--inline"
-              aria-hidden="true"
-              role="presentation"
-            />
-          ) : (
-            <Play size={15} strokeWidth={2} aria-hidden="true" />
-          )}
-        </button>
-        {rerunCandidate ? (
           <button
             type="button"
-            data-testid="workflow-rerun-from-failed"
+            data-testid="workflow-save"
             className="workspace__toolbar-icon-button"
-            aria-label="Rerun from failed"
-            title="Rerun from failed"
-            onClick={() => {
-              void startSnapshot(rerunCandidate.snapshot, {
-                startFromNodeId: rerunCandidate.startFromNodeId,
-                seedPreviousOutputs: rerunCandidate.seedPreviousOutputs,
-                errorTitle: "Rerun from failed failed",
-              });
-            }}
-            disabled={isRunningHere}
+            aria-label="Save workflow"
+            aria-keyshortcuts="Meta+S Control+S"
+            onClick={() => void handleSave()}
+            disabled={!repo}
           >
-            <RotateCcw size={15} strokeWidth={1.9} aria-hidden="true" />
+            <Save size={15} strokeWidth={1.9} aria-hidden="true" />
           </button>
+        </HoverTooltip>
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content={isRunningHere ? "Running" : "Start Circuit (⌘Enter)"}
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-start-tooltip"
+        >
+          <button
+            type="button"
+            data-testid="workflow-start"
+            className="workspace__toolbar-icon-button workspace__toolbar-start"
+            aria-label={isRunningHere ? "Running" : "Start Circuit"}
+            aria-keyshortcuts="Meta+Enter"
+            onClick={() => void handleStart()}
+            disabled={!repo || isRunningHere || nodeCount === 0}
+          >
+            {isRunningHere ? (
+              <span
+                className="cli-status-spinner cli-status-spinner--inline"
+                aria-hidden="true"
+                role="presentation"
+              />
+            ) : (
+              <Play size={15} strokeWidth={2} aria-hidden="true" />
+            )}
+          </button>
+        </HoverTooltip>
+        {rerunCandidate ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Rerun from failed"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-rerun-from-failed-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-rerun-from-failed"
+              className="workspace__toolbar-icon-button"
+              aria-label="Rerun from failed"
+              onClick={() => {
+                void startSnapshot(rerunCandidate.snapshot, {
+                  startFromNodeId: rerunCandidate.startFromNodeId,
+                  seedPreviousOutputs: rerunCandidate.seedPreviousOutputs,
+                  errorTitle: "Rerun from failed failed",
+                });
+              }}
+              disabled={isRunningHere}
+            >
+              <RotateCcw size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
         ) : null}
         {isRunningHere || cancelling ? (
-          <button
-            type="button"
-            data-testid="workflow-cancel"
-            className="workspace__toolbar-icon-button"
-            aria-label={cancelling ? "Cancelling run" : "Cancel run"}
-            aria-keyshortcuts="Escape"
-            title={cancelling ? "Cancelling run" : "Cancel run (Esc)"}
-            onClick={handleCancel}
-            disabled={!isRunningHere || cancelling}
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content={cancelling ? "Cancelling run" : "Cancel run (Esc)"}
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-cancel-tooltip"
           >
-            <Square size={14} strokeWidth={2} aria-hidden="true" />
-          </button>
+            <button
+              type="button"
+              data-testid="workflow-cancel"
+              className="workspace__toolbar-icon-button"
+              aria-label={cancelling ? "Cancelling run" : "Cancel run"}
+              aria-keyshortcuts="Escape"
+              onClick={handleCancel}
+              disabled={!isRunningHere || cancelling}
+            >
+              <Square size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
         ) : null}
       </header>
       {pendingCycleRun ? (
