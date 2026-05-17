@@ -29,6 +29,7 @@ PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 P
 
 상태 파일을 읽어 다음 순서로 실행:
 
+0. `STATE_FILE` 이 없으면 다른 `.codex/state/*.json` 을 후보나 캐시로 사용하지 않는다. 사용자가 입력한 `<ISSUE>` 를 정답으로 보고 `/boarding <ISSUE> [--force]` 를 먼저 실행한 뒤 `STATE_FILE` 을 다시 읽는다. 그래도 없으면 boarding 실패로 보고 중단한다.
 1. `boarding.done_at == null` 이거나 `--force` → `/boarding <ISSUE> [--force]`. 채워져 있으면 스킵 메시지 한 줄.
 2. `door_closing.done_at == null` 이거나 `--force` → `/door-closing <ISSUE> [--force]`. 채워져 있으면 스킵.
 3. `taxiing.done_at == null` 이거나 `--force` → `/taxiing <ISSUE> [--force]`. 채워져 있으면 스킵.
