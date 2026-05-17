@@ -4,6 +4,10 @@ import {
   ChevronsRight,
   Ellipsis,
   FolderOpen,
+  Play,
+  RotateCcw,
+  Save,
+  Square,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import claudeAppIcon from "../assets/claude-app-icon.png";
@@ -309,6 +313,32 @@ export function Workspace() {
     [repo, resetWorkflow],
   );
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === "s") {
+        if (!repo) return;
+        event.preventDefault();
+        void handleSave();
+        return;
+      }
+      if (event.metaKey && event.key === "Enter") {
+        if (!repo || isRunningHere || nodeCount === 0) return;
+        event.preventDefault();
+        void handleStart();
+        return;
+      }
+      if (event.key === "Escape") {
+        if (!isRunningHere) return;
+        event.preventDefault();
+        handleCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleCancel, handleSave, handleStart, isRunningHere, nodeCount, repo]);
+
   if (repoId && hydrated && !repo) {
     return (
       <div className="repository-list">
@@ -463,35 +493,42 @@ export function Workspace() {
         <button
           type="button"
           data-testid="workflow-save"
+          className="workspace__toolbar-icon-button"
+          aria-label="Save workflow"
+          aria-keyshortcuts="Meta+S Control+S"
+          title="Save workflow (⌘S)"
           onClick={() => void handleSave()}
           disabled={!repo}
         >
-          Save
+          <Save size={15} strokeWidth={1.9} aria-hidden="true" />
         </button>
         <button
           type="button"
           data-testid="workflow-start"
-          className="workspace__toolbar-start"
+          className="workspace__toolbar-icon-button workspace__toolbar-start"
+          aria-label={isRunningHere ? "Running" : "Start Circuit"}
+          aria-keyshortcuts="Meta+Enter"
+          title={isRunningHere ? "Running" : "Start Circuit (⌘Enter)"}
           onClick={() => void handleStart()}
           disabled={!repo || isRunningHere || nodeCount === 0}
         >
           {isRunningHere ? (
-            <>
-              <span
-                className="cli-status-spinner cli-status-spinner--inline"
-                aria-hidden="true"
-                role="presentation"
-              />
-              Running…
-            </>
+            <span
+              className="cli-status-spinner cli-status-spinner--inline"
+              aria-hidden="true"
+              role="presentation"
+            />
           ) : (
-            "Start Circuit"
+            <Play size={15} strokeWidth={2} aria-hidden="true" />
           )}
         </button>
         {rerunCandidate ? (
           <button
             type="button"
             data-testid="workflow-rerun-from-failed"
+            className="workspace__toolbar-icon-button"
+            aria-label="Rerun from failed"
+            title="Rerun from failed"
             onClick={() => {
               void startSnapshot(rerunCandidate.snapshot, {
                 startFromNodeId: rerunCandidate.startFromNodeId,
@@ -501,17 +538,23 @@ export function Workspace() {
             }}
             disabled={isRunningHere}
           >
-            Rerun from failed
+            <RotateCcw size={15} strokeWidth={1.9} aria-hidden="true" />
           </button>
         ) : null}
-        <button
-          type="button"
-          data-testid="workflow-cancel"
-          onClick={handleCancel}
-          disabled={!isRunningHere || cancelling}
-        >
-          {cancelling ? "Cancelling…" : "Cancel"}
-        </button>
+        {isRunningHere || cancelling ? (
+          <button
+            type="button"
+            data-testid="workflow-cancel"
+            className="workspace__toolbar-icon-button"
+            aria-label={cancelling ? "Cancelling run" : "Cancel run"}
+            aria-keyshortcuts="Escape"
+            title={cancelling ? "Cancelling run" : "Cancel run (Esc)"}
+            onClick={handleCancel}
+            disabled={!isRunningHere || cancelling}
+          >
+            <Square size={14} strokeWidth={2} aria-hidden="true" />
+          </button>
+        ) : null}
       </header>
       {pendingCycleRun ? (
         <div className="modal__backdrop">

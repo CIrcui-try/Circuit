@@ -352,9 +352,15 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-save")).toHaveAccessibleName(
+      "Save workflow",
+    );
+    expect(screen.getByTestId("workflow-save")).toHaveTextContent("");
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
     const startBtn = screen.getByTestId("workflow-start");
     expect(startBtn).toBeDisabled();
+    expect(startBtn).toHaveAccessibleName("Start Circuit");
+    expect(screen.queryByTestId("workflow-cancel")).not.toBeInTheDocument();
 
     useWorkflowStore.getState().addSkillNode(
       {
@@ -371,6 +377,7 @@ describe("Workspace", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
+    expect(screen.getByTestId("workflow-start")).toHaveTextContent("");
   });
 
   it("W6: workspace root and workflow-canvas testids are present", () => {
@@ -418,6 +425,18 @@ describe("Workspace", () => {
       source: "repository",
       provider: "claude",
       skillFile: ".claude/skills/foo/SKILL.md",
+    });
+  });
+
+  it("saves the workflow with Cmd+S", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    fireEvent.keyDown(document, { key: "s", metaKey: true });
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1152,7 +1171,11 @@ describe("Workspace", () => {
     ]);
     expect(screen.queryByTestId("workflow-save-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-start")).toBeDisabled();
-    expect(screen.getByTestId("workflow-start")).toHaveTextContent("Running");
+    expect(screen.getByTestId("workflow-start")).toHaveAccessibleName("Running");
+    expect(screen.getByTestId("workflow-start")).toHaveTextContent("");
+    expect(screen.getByTestId("workflow-cancel")).toHaveAccessibleName(
+      "Cancel run",
+    );
   });
 
   it("W14b: hides another repository's active run state in this workspace", async () => {
@@ -1228,10 +1251,11 @@ describe("Workspace", () => {
       );
     });
     expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
-    expect(screen.getByTestId("workflow-start")).toHaveTextContent(
+    expect(screen.getByTestId("workflow-start")).toHaveAccessibleName(
       "Start Circuit",
     );
-    expect(screen.getByTestId("workflow-cancel")).toBeDisabled();
+    expect(screen.getByTestId("workflow-start")).toHaveTextContent("");
+    expect(screen.queryByTestId("workflow-cancel")).not.toBeInTheDocument();
     expect(screen.getByTestId("run-log-run-state")).toHaveTextContent("idle");
     expect(screen.getByText("No runs yet.")).toBeInTheDocument();
     expect(screen.queryByText("running beta node")).not.toBeInTheDocument();
@@ -1378,6 +1402,77 @@ describe("Workspace", () => {
     );
     expect(screen.getByTestId("run-log-collapse")).toBeInTheDocument();
     expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
+  });
+
+  it("starts Circuit with Cmd+Enter", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("run-log-collapse"));
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
+    });
+    fireEvent.keyDown(document, { key: "Enter", metaKey: true });
+
+    expect(screen.getByTestId("workspace-root")).not.toHaveClass(
+      "workspace--log-collapsed",
+    );
+  });
+
+  it("cancels the active run with Escape", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    useRunStore.getState().beginRun({
+      runId: "run-escape",
+      workflowId: "wf-escape",
+      workflowName: "Escape flow",
+      repository: { id: SAMPLE.id, name: SAMPLE.name },
+      nodeIds: ["node-1"],
+      startedAt: "2026-05-09T00:00:00.000Z",
+      snapshot: {
+        repository: SAMPLE,
+        workflowId: "wf-escape",
+        workflowName: "Escape flow",
+        continueOnFailure: false,
+        nodes: [
+          {
+            id: "node-1",
+            type: "skill",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/foo/SKILL.md",
+            },
+            label: "Node 1",
+            position: { x: 10, y: 20 },
+          },
+        ],
+        edges: [],
+      },
+    });
+
+    renderAt("/workspace/id-alpha");
+
+    expect(screen.getByTestId("workflow-cancel")).toHaveAccessibleName(
+      "Cancel run",
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-cancel")).toHaveAccessibleName(
+        "Cancelling run",
+      );
+    });
   });
 
   it("W21: leaves the toolbar status slot empty after a run completes", () => {
