@@ -155,6 +155,9 @@ describe("runController", () => {
       "git metadata",
     );
     expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
+      "before Codex sandboxing starts",
+    );
+    expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
       "token expired",
     );
     expect(checkRepositoryEnvironment).toHaveBeenCalledWith("/Users/me/repo");

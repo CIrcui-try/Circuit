@@ -138,11 +138,15 @@ describe("CodexAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].command).toBe("codex");
     const args = spawnCalls[0].args;
-    expect(args.slice(0, 5)).toEqual([
+    expect(args.slice(0, 9)).toEqual([
       "-a",
       "on-request",
       "-s",
       "workspace-write",
+      "--add-dir",
+      "/abs/path/to/sample-repo/.git",
+      "--add-dir",
+      "/abs/path/to/sample-repo/.codex",
       "exec",
     ]);
     // Phase 16: interactive prompts are now forwarded via stdin, so the
@@ -151,7 +155,7 @@ describe("CodexAdapter", () => {
     expect(args).not.toContain("--dangerously-bypass-approvals-and-sandbox");
     expect(args).not.toContain("--skip-git-repo-check");
     expect(spawnCalls[0].stdinMode).toBe("piped");
-    const prompt = args[5];
+    const prompt = args[9];
     expect(prompt).toContain("review-pr");
     expect(prompt).toContain("Review the diff.");
     expect(prompt).toContain(`"prompt": "review the diff"`);
@@ -281,7 +285,7 @@ describe("CodexAdapter", () => {
         },
       });
       await adapter.run(ctx, () => {});
-      const prompt = spawnCalls[0].args[5];
+      const prompt = spawnCalls[0].args[9];
       expect(prompt).toContain("# Upstream Outputs");
       expect(prompt).toContain("## a  (status: success, exit: 0)");
       expect(prompt).toContain("plus_one: 1");
@@ -293,7 +297,7 @@ describe("CodexAdapter", () => {
       ]);
       const adapter = new CodexAdapter({ bridge });
       await adapter.run(makeContext(), () => {});
-      const prompt = spawnCalls[0].args[5];
+      const prompt = spawnCalls[0].args[9];
       expect(prompt).not.toContain("# Upstream Outputs");
     });
   });

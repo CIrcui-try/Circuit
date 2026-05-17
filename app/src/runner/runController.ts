@@ -193,12 +193,12 @@ function formatRepositoryEnvironmentError(
   }
   if (!check.gitCommonDir.ok) {
     failures.push(
-      `Circuit/Codex cannot write this repository's git metadata. Check macOS Full Disk Access or folder permissions. ${formatCheckMessage(check.gitCommonDir)}`,
+      `Circuit host preflight cannot write this repository's git metadata. This is a macOS/Tauri filesystem permission problem before Codex sandboxing starts; check Full Disk Access or folder permissions. ${formatCheckMessage(check.gitCommonDir)}`,
     );
   }
   if (!check.codexStateDir.ok) {
     failures.push(
-      `Circuit workflow state path is not writable. Check .codex/state permissions. ${formatCheckMessage(check.codexStateDir)}`,
+      `Circuit host preflight cannot write .codex/state. This is different from Codex sandbox writable-root approval; check repository folder permissions first. ${formatCheckMessage(check.codexStateDir)}`,
     );
   }
   if (!check.githubCliAuth.ok) {

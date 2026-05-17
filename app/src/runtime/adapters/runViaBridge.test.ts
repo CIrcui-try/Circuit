@@ -189,6 +189,12 @@ describe("runViaBridge approval forwarding", () => {
       "GitHub CLI token invalid로 review-and-fix를 중단했습니다.",
     );
     expect(sink).toContainEqual(
+      expect.objectContaining({
+        type: "status",
+        status: expect.stringContaining("semantic failure"),
+      }),
+    );
+    expect(sink).toContainEqual(
       expect.objectContaining({ type: "finish", exitCode: 0 }),
     );
   });

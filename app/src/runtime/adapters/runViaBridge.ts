@@ -209,12 +209,18 @@ export function runViaBridge(
           return;
         case "exited": {
           const exitCode = ev.exitCode ?? undefined;
+          const semanticFailure = ev.exitCode === 0 && isFailureSummary(summary);
+          if (semanticFailure) {
+            emit({
+              type: "status",
+              timestamp: ev.timestamp,
+              status:
+                "semantic failure: CIRCUIT_SUMMARY reported a blocker even though the process exited with code 0",
+            });
+          }
           emit({ type: "finish", timestamp: ev.timestamp, exitCode });
           finish({
-            status:
-              ev.exitCode === 0 && !isFailureSummary(summary)
-                ? "success"
-                : "failed",
+            status: ev.exitCode === 0 && !semanticFailure ? "success" : "failed",
             exitCode,
           });
           return;

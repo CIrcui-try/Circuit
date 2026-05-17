@@ -63,12 +63,23 @@ const DEFAULT_PROBE: CodexCommand = {
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
 function defaultBuildCommand(
-  _ctx: SkillExecutionContext,
+  ctx: SkillExecutionContext,
   prompt: string,
 ): CodexCommand {
   return {
     command: "codex",
-    args: ["-a", "on-request", "-s", "workspace-write", "exec", prompt],
+    args: [
+      "-a",
+      "on-request",
+      "-s",
+      "workspace-write",
+      "--add-dir",
+      `${ctx.repository.path}/.git`,
+      "--add-dir",
+      `${ctx.repository.path}/.codex`,
+      "exec",
+      prompt,
+    ],
     stdinMode: "piped",
   };
 }

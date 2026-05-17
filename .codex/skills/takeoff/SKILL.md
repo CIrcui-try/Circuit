@@ -80,6 +80,7 @@ PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 P
 ## 주의사항
 
 - 이 커맨드 외 단계에서 `git push` / `gh pr create` 가 실행되어선 안 된다.
+- 권한/네트워크 차단은 즉시 실패로 확정하지 말고, Codex 승인 요청 또는 샌드박스 escalation 흐름으로 재시도한다. 단, sandbox 전체 비활성화는 금지한다.
 - 리베이스 충돌은 사용자에게 위임. 자동 해결 시도 금지.
 - force push 는 반드시 사용자 확인 후 `--force-with-lease` 만 사용. `--force` 단독 금지.
 - `develop` / `main` 직접 push 금지.
