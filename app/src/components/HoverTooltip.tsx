@@ -27,6 +27,7 @@ export function HoverTooltip({
   testId,
 }: HoverTooltipProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -34,13 +35,23 @@ export function HoverTooltip({
   const updatePosition = useCallback(() => {
     const rect = anchorRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const measuredWidth = tooltipRef.current?.offsetWidth ?? 0;
+    const estimatedWidth = Math.min(
+      TOOLTIP_MAX_WIDTH,
+      Math.max(48, content.length * 7 + 18),
+    );
+    const tooltipWidth = measuredWidth > 0 ? measuredWidth : estimatedWidth;
     const maxLeft = Math.max(
       TOOLTIP_VIEWPORT_MARGIN,
-      window.innerWidth - TOOLTIP_MAX_WIDTH - TOOLTIP_VIEWPORT_MARGIN,
+      window.innerWidth - tooltipWidth - TOOLTIP_VIEWPORT_MARGIN,
     );
-    const left = Math.min(Math.max(rect.left, TOOLTIP_VIEWPORT_MARGIN), maxLeft);
+    const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2;
+    const left = Math.min(
+      Math.max(centeredLeft, TOOLTIP_VIEWPORT_MARGIN),
+      maxLeft,
+    );
     setPosition({ top: rect.bottom + TOOLTIP_GAP, left });
-  }, []);
+  }, [content]);
 
   const clearTooltipTimer = useCallback(() => {
     if (timeoutRef.current === null) return;
@@ -93,6 +104,7 @@ export function HoverTooltip({
       {open
         ? createPortal(
             <div
+              ref={tooltipRef}
               className="hover-tooltip"
               data-testid={testId}
               role="tooltip"
