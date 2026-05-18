@@ -22,6 +22,10 @@ export type WorkflowNodePosition = {
   y: number;
 };
 
+export type WorkflowNodeExecution = {
+  model?: string;
+};
+
 export type WorkflowSkillNode = {
   id: string;
   type: "skill";
@@ -29,6 +33,7 @@ export type WorkflowSkillNode = {
   label: string;
   description?: string;
   position: WorkflowNodePosition;
+  execution?: WorkflowNodeExecution;
   input?: Record<string, unknown>;
 };
 

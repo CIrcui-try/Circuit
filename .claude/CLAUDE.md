@@ -14,4 +14,4 @@ Plan mode 가 활성화된 상태에서 슬래시 커맨드가 호출되어도 *
 
 - 커밋 author 와 committer 는 반드시 `kai-leeee`. 두 값이 일치해야 한다.
 - 커밋 메시지에 `Co-Authored-By` 트레일러를 추가하지 않는다.
-- `gh` 계정도 `kai-leeee`. 다르면 작업을 중단하고 사용자에게 알린다.
+- `gh` 계정도 `kai-leeee`. 확인과 전환은 `gh-auth-check` 스킬 절차를 따른다. 전환에 실패하거나 `kai-leeee` 로 로그인되어 있지 않으면 작업을 중단하고 사용자에게 알린다.

@@ -178,6 +178,19 @@ describe("RealWorkflowRunner", () => {
     });
   });
 
+  it("passes node execution model into the adapter context", async () => {
+    const node = workflowNode("a", "codex", { prompt: "run it" });
+    node.execution = { model: "gpt-5.4" };
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({ provider: "codex" });
+    harness.registry.register(adapter);
+
+    await harness.runner.runNode(runnable(node));
+
+    expect(adapter.seenContexts[0].execution.model).toBe("gpt-5.4");
+    expect(adapter.seenContexts[0].input).toEqual({ prompt: "run it" });
+  });
+
   it("runs a system starter skill through the real runner context", async () => {
     const node = workflowNode("starter_boarding", "codex", {
       arguments: "CIR-63",

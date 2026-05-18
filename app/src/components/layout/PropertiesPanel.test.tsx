@@ -341,4 +341,60 @@ describe("PropertiesPanel", () => {
       prompt: "legacy prompt",
     });
   });
+
+  it("edits selected node model without changing input", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, { prompt: "Keep me" });
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    const model = screen.getByTestId("node-execution-model");
+    expect(model).toHaveAttribute(
+      "placeholder",
+      "sonnet, opus, or full model name",
+    );
+    fireEvent.change(model, { target: { value: " sonnet " } });
+
+    expect(useWorkflowStore.getState().nodes[0].data.execution).toEqual({
+      model: "sonnet",
+    });
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      prompt: "Keep me",
+    });
+  });
+
+  it("removes selected node model when the field is cleared", () => {
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/foo",
+        provider: "codex",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeModel(id, "gpt-5.4");
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+
+    const model = screen.getByTestId("node-execution-model");
+    expect(model).toHaveAttribute("placeholder", "Codex model name");
+    fireEvent.change(model, { target: { value: "" } });
+
+    expect(useWorkflowStore.getState().nodes[0].data.execution).toBeUndefined();
+  });
 });

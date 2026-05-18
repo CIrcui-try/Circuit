@@ -29,6 +29,7 @@ export interface BuildSkillExecutionContextInput {
   previousOutputs: Record<string, SkillExecutionResult>;
   rerunPreviousAttempt?: SkillExecutionResult;
   timeoutMs?: number;
+  model?: string;
   env?: Record<string, string>;
 }
 
@@ -43,6 +44,7 @@ export async function buildSkillExecutionContext(
     repository,
     previousOutputs,
     timeoutMs,
+    model,
     env,
   } = input;
 
@@ -100,6 +102,7 @@ export async function buildSkillExecutionContext(
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: repository.path,
+      ...(model ? { model } : {}),
       ...(env ? { env } : {}),
     },
   };
@@ -117,6 +120,7 @@ async function buildDefaultSkillContext(
     repository,
     previousOutputs,
     timeoutMs,
+    model,
     env,
   } = input;
   const skillFile = node.skillRef.skillFile;
@@ -155,6 +159,7 @@ async function buildDefaultSkillContext(
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: normalizedRoot,
+      ...(model ? { model } : {}),
       ...(env ? { env } : {}),
     },
   };
@@ -172,6 +177,7 @@ async function buildSystemSkillContext(
     repository,
     previousOutputs,
     timeoutMs,
+    model,
     env,
   } = input;
   const systemSkillId = node.skillRef.systemSkillId;
@@ -211,6 +217,7 @@ async function buildSystemSkillContext(
     execution: {
       timeoutMs: resolveTimeoutMs(timeoutMs),
       cwd: normalizedRoot,
+      ...(model ? { model } : {}),
       ...(env ? { env } : {}),
     },
   };

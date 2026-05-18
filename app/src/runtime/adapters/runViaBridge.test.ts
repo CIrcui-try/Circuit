@@ -259,6 +259,34 @@ describe("runViaBridge approval forwarding", () => {
     expect(result.summary).toBe("CIR-59 구현과 테스트를 완료했습니다.");
   });
 
+  it("keeps gh-auth-check successful when the required account is already active", async () => {
+    const summary =
+      "GitHub CLI 인증 확인 완료 — active account 가 kai-leeee 로 설정되어 있어 전환 불필요.";
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        {
+          event: {
+            type: "stdout",
+            text: `GitHub CLI active account: kai-leeee\n\nCIRCUIT_SUMMARY: ${summary}\n`,
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-summary-gh-auth-pass",
+      command: { command: "claude", args: ["-p", "$gh-auth-check"] },
+      sink: () => {},
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.summary).toBe(summary);
+  });
+
   it("keeps non-zero exits failed regardless of CIRCUIT_SUMMARY wording", async () => {
     const bridge = createMockRuntimeBridge({
       scenario: () => [

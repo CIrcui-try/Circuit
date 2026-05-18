@@ -71,6 +71,7 @@ export interface SkillExecutionContext {
   execution: {
     timeoutMs: number;
     cwd: string;
+    model?: string;
     env?: Record<string, string>;
   };
 }

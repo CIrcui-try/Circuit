@@ -370,6 +370,7 @@ function cloneRunSnapshot(snapshot: WorkflowRunSnapshot): WorkflowRunSnapshot {
       skillRef: { ...node.skillRef },
       label: node.label,
       position: { ...node.position },
+      ...(node.execution ? { execution: { ...node.execution } } : {}),
       ...(node.input !== undefined ? { input: cloneInput(node.input) } : {}),
     })),
     edges: snapshot.edges.map((edge) => ({

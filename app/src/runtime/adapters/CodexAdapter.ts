@@ -66,6 +66,9 @@ function defaultBuildCommand(
   ctx: SkillExecutionContext,
   prompt: string,
 ): CodexCommand {
+  const modelArgs = ctx.execution.model
+    ? ["--model", ctx.execution.model]
+    : [];
   return {
     command: "codex",
     args: [
@@ -77,6 +80,7 @@ function defaultBuildCommand(
       `${ctx.repository.path}/.git`,
       "--add-dir",
       `${ctx.repository.path}/.codex`,
+      ...modelArgs,
       "exec",
       prompt,
     ],

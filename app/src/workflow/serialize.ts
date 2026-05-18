@@ -45,6 +45,9 @@ export function toWorkflow(
       x: Math.round(n.position.x),
       y: Math.round(n.position.y),
     },
+    ...(isExecutionConfig(n.data.execution)
+      ? { execution: n.data.execution }
+      : {}),
     ...("input" in n.data && isRecord(n.data.input)
       ? { input: n.data.input }
       : {}),
@@ -100,6 +103,7 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
         label: n.label,
         ...(n.description ? { description: n.description } : {}),
         skillRef: fromWorkflowSkillRef(n.id, n.skillRef),
+        ...(isExecutionConfig(n.execution) ? { execution: n.execution } : {}),
         ...(n.input ? { input: n.input } : {}),
       },
     };
@@ -127,6 +131,11 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isExecutionConfig(value: unknown): value is { model?: string } {
+  if (!isRecord(value)) return false;
+  return typeof value.model === "string" && value.model.trim().length > 0;
 }
 
 function toWorkflowSkillRef(ref: SkillNode["data"]["skillRef"]): WorkflowSkillRef {

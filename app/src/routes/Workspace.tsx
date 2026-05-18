@@ -3,6 +3,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import {
   ChevronsRight,
   Ellipsis,
+  FileText,
   FolderOpen,
   Play,
   RotateCcw,
@@ -214,6 +215,15 @@ export function Workspace() {
     }
   }, [repo]);
 
+  const handleOpenAgentsMd = useCallback(async () => {
+    if (!repo) return;
+    try {
+      await openPath(`${repo.path}/AGENTS.md`);
+    } catch (err) {
+      notifyAppError(err, "Open AGENTS.md failed");
+    }
+  }, [repo]);
+
   const startSnapshot = useCallback(async (
     snapshot: WorkflowRunSnapshot,
     options: StartSnapshotOptions = {},
@@ -408,6 +418,23 @@ export function Workspace() {
                     aria-hidden="true"
                   />
                   Show in Finder
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleOpenAgentsMd();
+                  }}
+                >
+                  <FileText
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Open AGENTS.md
                 </button>
                 <button
                   type="button"
@@ -830,6 +857,7 @@ function buildRunSnapshot(repo: {
       },
       label: n.data.label,
       position: { x: n.position.x, y: n.position.y },
+      ...(n.data.execution ? { execution: { ...n.data.execution } } : {}),
       input: (n.data.input as Record<string, unknown> | undefined) ?? {},
     })),
     edges: edges.map((e) => ({
@@ -856,6 +884,7 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
           ? { systemSkillId: node.skillRef.systemSkillId }
           : {}),
       },
+      ...(node.execution ? { execution: { ...node.execution } } : {}),
       ...(node.input !== undefined ? { input: node.input } : {}),
     },
   };
