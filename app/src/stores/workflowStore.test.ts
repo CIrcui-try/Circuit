@@ -130,7 +130,53 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
-  it("WS5b: onConnect keeps a cycle edge and surfaces a warning", () => {
+  it("WS5a: onConnect rejects transitive edges", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: c, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([
+      [a, b],
+      [b, c],
+    ]);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5b: onConnect removes edges that become transitive later", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([
+      [a, b],
+      [b, c],
+    ]);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5c: onConnect keeps a cycle edge and surfaces a warning", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
     useWorkflowStore.getState().onConnect({
