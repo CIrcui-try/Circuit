@@ -60,7 +60,36 @@ describe("useCliStatusStore", () => {
     const { entries } = useCliStatusStore.getState();
     expect(entries.claude.status).toBe("missing");
     expect(entries.claude.errorMessage).toContain("ENOENT");
+    expect(entries.claude.detailLog).toContain("Command: claude --version");
+    expect(entries.claude.detailLog).toContain("Reason: missing");
+    expect(entries.claude.detailLog).toContain("spawn claude ENOENT");
     expect(entries.codex.status).toBe("ok");
+    expect(entries.codex.detailLog).toBeUndefined();
+  });
+
+  it("includes stderr and exit code in detail log for non-zero probes", async () => {
+    const scenario: SpawnScenario = (opts) => {
+      if (opts.command === "claude") {
+        return [
+          { event: { type: "stderr", text: "not authenticated\n" } },
+          { event: { type: "exited", exitCode: 2 } },
+        ];
+      }
+      return [
+        { event: { type: "stdout", text: "codex 0.4.0\n" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ];
+    };
+    const bridge = createMockRuntimeBridge({ scenario });
+
+    await useCliStatusStore.getState().runChecks({ bridge });
+
+    const { entries } = useCliStatusStore.getState();
+    expect(entries.claude.status).toBe("error");
+    expect(entries.claude.detailLog).toContain("Reason: non-zero");
+    expect(entries.claude.detailLog).toContain("Exit Code: 2");
+    expect(entries.claude.detailLog).toContain("STDERR:");
+    expect(entries.claude.detailLog).toContain("not authenticated");
   });
 
   it("marks timeout as error", async () => {
