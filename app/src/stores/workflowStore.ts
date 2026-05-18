@@ -158,13 +158,25 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       (e) => e.source === conn.source && e.target === conn.target,
     );
     if (duplicate) return;
-    const nextEdges = addEdge(conn, edges);
+    const targetIsDisconnected = edges.every(
+      (e) => e.source !== conn.target && e.target !== conn.target,
+    );
+    const baseEdges = targetIsDisconnected
+      ? edges.filter((e) => e.source !== conn.source)
+      : edges;
+    const nextEdges = addEdge(conn, baseEdges);
     const sorted = topoSort(
       get().nodes.map((n) => n.id),
       nextEdges,
     );
+    const prunedEdges = sorted.cycle ? nextEdges : removeTransitiveEdges(nextEdges);
     set({
-      edges: sorted.cycle ? nextEdges : removeTransitiveEdges(nextEdges),
+      edges: prunedEdges,
+      selectedEdgeId:
+        get().selectedEdgeId &&
+        prunedEdges.some((edge) => edge.id === get().selectedEdgeId)
+          ? get().selectedEdgeId
+          : null,
       connectionWarning: sorted.cycle
         ? {
             id: crypto.randomUUID(),
