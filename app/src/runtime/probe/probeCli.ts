@@ -1,4 +1,8 @@
-import type { RuntimeBridge } from "../bridge/RuntimeBridge";
+import type { CliResolveResult, RuntimeBridge } from "../bridge/RuntimeBridge";
+import {
+  cliResolveError,
+  resolveCliCommand,
+} from "../bridge/resolveCliCommand";
 
 export type CliProbeReason =
   | "missing"
@@ -13,6 +17,7 @@ export interface CliProbeResult {
   stdout: string;
   stdoutFirstLine: string;
   stderr: string;
+  resolve?: CliResolveResult;
   reason?: CliProbeReason;
   errorMessage?: string;
   durationMs: number;
@@ -74,6 +79,7 @@ export function probeCli(
   return new Promise<CliProbeResult>((resolve) => {
     let stdout = "";
     let stderr = "";
+    let cliResolve: CliResolveResult | undefined;
     let settled = false;
 
     // Diagnostic stages — included in fail-safe error message so we can tell
@@ -109,6 +115,7 @@ export function probeCli(
         stdout,
         stdoutFirstLine: firstLine(stdout),
         stderr,
+        resolve: cliResolve,
         reason: "timeout",
         errorMessage: message,
       });
@@ -132,6 +139,7 @@ export function probeCli(
             stdout,
             stdoutFirstLine: firstLine(stdout),
             stderr,
+            resolve: cliResolve,
             reason: ok ? undefined : "non-zero",
             errorMessage: ok ? undefined : stderr.trim() || `exit ${exitCode}`,
           });
@@ -144,6 +152,7 @@ export function probeCli(
             stdout,
             stdoutFirstLine: firstLine(stdout),
             stderr,
+            resolve: cliResolve,
             reason: classifyErrorMessage(ev.message),
             errorMessage: ev.message,
           });
@@ -155,6 +164,7 @@ export function probeCli(
             stdout,
             stdoutFirstLine: firstLine(stdout),
             stderr,
+            resolve: cliResolve,
             reason: "timeout",
             errorMessage: `probe timed out after ${timeoutMs}ms`,
           });
@@ -166,6 +176,7 @@ export function probeCli(
             stdout,
             stdoutFirstLine: firstLine(stdout),
             stderr,
+            resolve: cliResolve,
             reason: "cancelled",
             errorMessage: "probe cancelled",
           });
@@ -184,13 +195,32 @@ export function probeCli(
     reportStage("awaiting-listener");
 
     unsubscribe.ready
-      .then(() => {
+      .then(async () => {
         stages.ready = true;
         stages.spawnCalled = true;
         reportStage("spawning");
+        const resolved = await resolveCliCommand(bridge, command);
+        cliResolve = resolved.resolve;
+        if (cliResolve && !cliResolve.ok) {
+          finish({
+            ok: false,
+            exitCode: null,
+            stdout,
+            stdoutFirstLine: firstLine(stdout),
+            stderr,
+            resolve: cliResolve,
+            reason: cliResolve.attempts.some(
+              (attempt) => attempt.source === "manualOverride" && !attempt.ok,
+            )
+              ? "error"
+              : "missing",
+            errorMessage: cliResolveError(cliResolve),
+          });
+          return;
+        }
         return bridge.spawn({
           runId,
-          command,
+          command: resolved.command,
           args,
           cwd: opts.cwd,
           env: opts.env,
@@ -210,6 +240,7 @@ export function probeCli(
           stdout,
           stdoutFirstLine: firstLine(stdout),
           stderr,
+          resolve: cliResolve,
           reason: classifyErrorMessage(message),
           errorMessage: message,
         });

@@ -1429,6 +1429,30 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.cli-status-path-modal {
+  width: min(520px, 80vw);
+}
+
+.cli-status-path-modal__field {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  color: #d6d6de;
+  font-size: 12px;
+}
+
+.cli-status-path-modal__field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #1d1d22;
+  color: #f2f2f4;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
 .skill-list {
   list-style: none;
   margin: 0;

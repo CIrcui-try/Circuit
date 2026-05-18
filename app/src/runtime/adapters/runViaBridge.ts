@@ -1,5 +1,9 @@
 import { detectApprovalPromptsInChunk } from "../bridge/approvalProtocol";
 import type { RuntimeBridge, RuntimeProcessEvent } from "../bridge/RuntimeBridge";
+import {
+  cliResolveError,
+  resolveCliCommand,
+} from "../bridge/resolveCliCommand";
 import type {
   AdapterAvailability,
   AgentRunEvent,
@@ -82,17 +86,30 @@ export function probeViaBridge(
     });
 
     unsubscribe.ready
-      .then(() =>
-        bridge.spawn({
+      .then(async () => {
+        const resolved = await resolveCliCommand(bridge, cmd);
+        if (resolved.resolve && !resolved.resolve.ok) {
+          finish({
+            ok: false,
+            reason: `CLI resolve failed: ${cliResolveError(resolved.resolve)}`,
+            details: {
+              command: cmd,
+              args,
+              resolve: resolved.resolve,
+            },
+          });
+          return;
+        }
+        return bridge.spawn({
           runId,
-          command: cmd,
+          command: resolved.command,
           args,
           cwd: ctx.execution.cwd,
           env: ctx.execution.env,
           timeoutMs,
           stdinMode: command.stdinMode,
-        }),
-      )
+        });
+      })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         finish({
@@ -117,6 +134,7 @@ export function runViaBridge(
 ): Promise<SkillExecutionResult> {
   const { bridge, ctx, runId, command, sink } = opts;
   const { command: cmd, args } = command;
+  let spawnCommand = cmd;
   const startedAt = new Date().toISOString();
 
   const logs: AgentRunEvent[] = [];
@@ -154,8 +172,8 @@ export function runViaBridge(
           emit({
             type: "start",
             timestamp: ev.timestamp,
-            message: `spawn ${cmd}`,
-            command: cmd,
+            message: `spawn ${spawnCommand}`,
+            command: spawnCommand,
             args,
             spawnType: "process",
           });
@@ -243,17 +261,28 @@ export function runViaBridge(
     });
 
     unsubscribe.ready
-      .then(() =>
-        bridge.spawn({
+      .then(async () => {
+        const resolved = await resolveCliCommand(bridge, cmd);
+        if (resolved.resolve && !resolved.resolve.ok) {
+          emit({
+            type: "error",
+            timestamp: new Date().toISOString(),
+            message: `CLI resolve failed: ${cliResolveError(resolved.resolve)}`,
+          });
+          finish({ status: "failed" });
+          return;
+        }
+        spawnCommand = resolved.command;
+        return bridge.spawn({
           runId,
-          command: cmd,
+          command: spawnCommand,
           args,
           cwd: ctx.execution.cwd,
           env: ctx.execution.env,
           timeoutMs: ctx.execution.timeoutMs,
           stdinMode: command.stdinMode,
-        }),
-      )
+        });
+      })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         emit({

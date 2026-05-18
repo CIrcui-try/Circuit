@@ -3,10 +3,12 @@ import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMockRuntimeBridge,
+  type MockRuntimeBridgeOptions,
   type MockRuntimeBridge,
   type SpawnScenario,
 } from "../runtime/bridge/RuntimeBridge.mock";
 import { useCliStatusStore } from "../stores/cliStatusStore";
+import { resetCliSettingsCacheForTest } from "../stores/cliSettingsStore";
 import { CliStatusPanel } from "./CliStatusPanel";
 
 function resetStore() {
@@ -16,16 +18,24 @@ function resetStore() {
   });
 }
 
-function installBridge(scenario: SpawnScenario): MockRuntimeBridge {
-  const bridge = createMockRuntimeBridge({ scenario });
+function installBridge(
+  scenario: SpawnScenario,
+  resolveCli?: MockRuntimeBridgeOptions["resolveCli"],
+): MockRuntimeBridge {
+  const bridge = createMockRuntimeBridge({ scenario, resolveCli });
   window.__CIRCUIT_RUNTIME__ = bridge;
   return bridge;
 }
 
 describe("CliStatusPanel", () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    resetCliSettingsCacheForTest();
+  });
   afterEach(() => {
     delete window.__CIRCUIT_RUNTIME__;
+    delete window.__CIRCUIT_BRIDGE__;
+    resetCliSettingsCacheForTest();
   });
 
   it("triggers a probe on mount and renders ok rows when both CLIs respond", async () => {
@@ -88,6 +98,148 @@ describe("CliStatusPanel", () => {
     expect(log).toHaveTextContent("Command: claude --version");
     expect(log).toHaveTextContent("Reason: missing");
     expect(log).toHaveTextContent("spawn claude ENOENT");
+  });
+
+  it("shows resolver details for app-environment misses", async () => {
+    installBridge(
+      () => [
+        { event: { type: "stdout", text: "codex 1.0.0\n" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+      (command) => {
+        if (command === "claude") {
+          return {
+            command,
+            ok: false,
+            resolvedPath: null,
+            source: null,
+            errorMessage: "claude was not found in the app environment",
+            processPath: "/usr/bin:/bin",
+            loginShell: "/bin/zsh",
+            attempts: [
+              {
+                source: "processPath",
+                ok: false,
+                detail: "not found in current PATH",
+                path: null,
+              },
+              {
+                source: "knownLocation",
+                ok: false,
+                detail: "not found in known CLI location",
+                path: "/opt/homebrew/bin/claude",
+              },
+            ],
+          };
+        }
+        return {
+          command,
+          ok: true,
+          resolvedPath: command,
+          source: "processPath",
+          errorMessage: null,
+          processPath: "/usr/bin:/bin",
+          loginShell: null,
+          attempts: [],
+        };
+      },
+    );
+
+    render(<CliStatusPanel />);
+
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().entries.claude.status).toBe(
+        "missing",
+      );
+    });
+
+    expect(screen.getByTestId("cli-status-row-claude")).toHaveTextContent(
+      "claude was not found in the app environment",
+    );
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByTestId("cli-status-detail-claude"));
+    });
+
+    const log = screen.getByTestId("cli-status-detail-log");
+    expect(log).toHaveTextContent("CLI Resolution:");
+    expect(log).toHaveTextContent("Process PATH: /usr/bin:/bin");
+    expect(log).toHaveTextContent("/opt/homebrew/bin/claude");
+  });
+
+  it("saves a manual path and re-runs checks", async () => {
+    let savedSettings: unknown = null;
+    let lastManualPath: string | null | undefined;
+    window.__CIRCUIT_BRIDGE__ = {
+      loadCliSettings: async () => ({}),
+      saveCliSettings: async (settings) => {
+        savedSettings = settings;
+      },
+    } as typeof window.__CIRCUIT_BRIDGE__;
+
+    installBridge(
+      (opts) => [
+        { event: { type: "stdout", text: `${opts.command} 1.0.0\n` } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+      (command, manualPath) => {
+        if (command === "claude") lastManualPath = manualPath;
+        if (command === "claude" && !manualPath) {
+          return {
+            command,
+            ok: false,
+            resolvedPath: null,
+            source: null,
+            errorMessage: "claude was not found in the app environment",
+            processPath: "",
+            loginShell: null,
+            attempts: [
+              {
+                source: "processPath",
+                ok: false,
+                detail: "not found in current PATH",
+                path: null,
+              },
+            ],
+          };
+        }
+        return {
+          command,
+          ok: true,
+          resolvedPath: manualPath ?? command,
+          source: manualPath ? "manualOverride" : "processPath",
+          errorMessage: null,
+          processPath: "",
+          loginShell: null,
+          attempts: [],
+        };
+      },
+    );
+
+    render(<CliStatusPanel />);
+
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().entries.claude.status).toBe(
+        "missing",
+      );
+    });
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByTestId("cli-status-set-path-claude"));
+      await user.type(
+        screen.getByTestId("cli-status-path-input"),
+        "/opt/homebrew/bin/claude",
+      );
+      await user.click(screen.getByTestId("cli-status-path-save"));
+    });
+
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().entries.claude.status).toBe("ok");
+    });
+    expect(savedSettings).toEqual({ claudePath: "/opt/homebrew/bin/claude" });
+    expect(lastManualPath).toBe("/opt/homebrew/bin/claude");
   });
 
   it("re-runs checks when 'refresh' is clicked", async () => {

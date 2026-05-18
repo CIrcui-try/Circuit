@@ -10,6 +10,7 @@ import {
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type {
   HostBridge,
+  CliSettingsDTO,
   LayoutPrefsDTO,
   RawSkill,
   RawSystemSkill,
@@ -23,6 +24,7 @@ import type { Repository } from "../stores/repositoryStore";
 const STORE_FILE = "repositories.json";
 const STORE_KEY = "repositories";
 const LAYOUT_KEY = "layout";
+const CLI_SETTINGS_KEY = "cliSettings";
 
 const store = new LazyStore(STORE_FILE);
 
@@ -123,6 +125,16 @@ export const tauriHostBridge: HostBridge = {
 
   async saveLayout(prefs: LayoutPrefsDTO) {
     await store.set(LAYOUT_KEY, prefs);
+    await store.save();
+  },
+
+  async loadCliSettings() {
+    const stored = await store.get<CliSettingsDTO>(CLI_SETTINGS_KEY);
+    return stored ?? null;
+  },
+
+  async saveCliSettings(settings: CliSettingsDTO) {
+    await store.set(CLI_SETTINGS_KEY, settings);
     await store.save();
   },
 

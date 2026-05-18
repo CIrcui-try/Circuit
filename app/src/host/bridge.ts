@@ -50,6 +50,11 @@ export type LayoutPrefsDTO = {
   logHeight: number;
 };
 
+export type CliSettingsDTO = {
+  claudePath?: string;
+  codexPath?: string;
+};
+
 export type RunCompletionNotification = {
   title: string;
   body?: string;
@@ -126,6 +131,8 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   ): Promise<string>;
   loadLayout?(): Promise<LayoutPrefsDTO | null>;
   saveLayout?(prefs: LayoutPrefsDTO): Promise<void>;
+  loadCliSettings?(): Promise<CliSettingsDTO | null>;
+  saveCliSettings?(settings: CliSettingsDTO): Promise<void>;
   setAppIconRunBadgeCount?(count: number): Promise<void>;
   notifyRunFinished?(notification: RunCompletionNotification): Promise<void>;
   onRunCompletionNotificationClicked?(

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getRuntimeBridge } from "../runtime/bridge/RuntimeBridge";
 import type { RuntimeBridge } from "../runtime/bridge/RuntimeBridge";
+import type { CliResolveResult } from "../runtime/bridge/RuntimeBridge";
 import {
   probeCli,
   type CliProbeResult,
@@ -73,6 +74,23 @@ function commandLine(meta: ProbeMeta): string {
   return [meta.command, ...meta.args].join(" ");
 }
 
+function formatResolveLog(resolve: CliResolveResult | undefined): string[] {
+  if (!resolve) return ["CLI Resolution:", "(not available)"];
+  return [
+    "CLI Resolution:",
+    `Resolved: ${resolve.ok ? "yes" : "no"}`,
+    `Resolved Path: ${resolve.resolvedPath ?? "(none)"}`,
+    `Source: ${resolve.source ?? "(none)"}`,
+    `Process PATH: ${resolve.processPath || "(empty)"}`,
+    `Login Shell: ${resolve.loginShell ?? "(none)"}`,
+    "Attempts:",
+    ...resolve.attempts.map((attempt) => {
+      const path = attempt.path ? ` path=${attempt.path}` : "";
+      return `- ${attempt.source}: ${attempt.ok ? "ok" : "failed"}${path} — ${attempt.detail}`;
+    }),
+  ];
+}
+
 function formatDetailLog(
   meta: ProbeMeta,
   result: CliProbeResult,
@@ -90,6 +108,8 @@ function formatDetailLog(
     `Reason: ${result.reason ?? "unknown"}`,
     `Exit Code: ${result.exitCode ?? "null"}`,
     `Error: ${result.errorMessage ?? "(none)"}`,
+    "",
+    ...formatResolveLog(result.resolve),
     "",
     "STDOUT:",
     formatTextBlock(result.stdout),

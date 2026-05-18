@@ -1,5 +1,6 @@
 import { assertInsideRepoRoot } from "../safety/pathPolicy";
 import type {
+  CliResolveResult,
   RuntimeBridge,
   RuntimeProcessEvent,
   RuntimeProcessListener,
@@ -20,6 +21,7 @@ export interface MockRuntimeBridgeOptions {
   defaultSkills?: Record<string, string>;
   scenario?: SpawnScenario;
   now?: () => string;
+  resolveCli?: (command: string, manualPath?: string | null) => CliResolveResult;
 }
 
 interface ActiveRun {
@@ -83,6 +85,7 @@ export function createMockRuntimeBridge(
     () => void | ScenarioStep | ScenarioStep[]
   >();
   let scenario: SpawnScenario | null = initial.scenario ?? null;
+  let resolveCli = initial.resolveCli;
   const now = initial.now ?? (() => new Date().toISOString());
 
   function emit(runId: string, raw: Omit<RuntimeProcessEvent, "runId" | "timestamp">): void {
@@ -136,6 +139,26 @@ export function createMockRuntimeBridge(
         throw new Error(`mock: default skill not found ${skillFile}`);
       }
       return content;
+    },
+    async resolveCli(command, manualPath) {
+      if (resolveCli) return resolveCli(command, manualPath);
+      return {
+        command,
+        ok: true,
+        resolvedPath: command,
+        source: "processPath",
+        errorMessage: null,
+        processPath: "",
+        loginShell: null,
+        attempts: [
+          {
+            source: "processPath",
+            ok: true,
+            detail: "mock resolver",
+            path: command,
+          },
+        ],
+      };
     },
     async spawn(options) {
       const run: ActiveRun = {

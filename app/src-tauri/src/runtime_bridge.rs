@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -9,8 +11,10 @@ use tauri::State;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex as AsyncMutex};
+use tokio::time::timeout;
 
 const MAX_READ_BYTES: u64 = 1024 * 1024;
+const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_millis(1_000);
 
 struct RunHandle {
     cancel: Option<oneshot::Sender<()>>,
@@ -119,6 +123,330 @@ pub enum RuntimeProcessEvent {
     },
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliResolveAttempt {
+    source: String,
+    ok: bool,
+    detail: String,
+    path: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliResolveResult {
+    command: String,
+    ok: bool,
+    resolved_path: Option<String>,
+    source: Option<String>,
+    error_message: Option<String>,
+    process_path: String,
+    login_shell: Option<String>,
+    attempts: Vec<CliResolveAttempt>,
+}
+
+struct LoginShellProbe {
+    shell: Option<String>,
+    path: Option<PathBuf>,
+    detail: String,
+}
+
+impl LoginShellProbe {
+    fn skipped(detail: impl Into<String>) -> Self {
+        Self {
+            shell: None,
+            path: None,
+            detail: detail.into(),
+        }
+    }
+}
+
+fn attempt(
+    source: &str,
+    ok: bool,
+    detail: impl Into<String>,
+    path: Option<&Path>,
+) -> CliResolveAttempt {
+    CliResolveAttempt {
+        source: source.to_string(),
+        ok,
+        detail: detail.into(),
+        path: path.map(|p| p.to_string_lossy().into_owned()),
+    }
+}
+
+fn is_valid_command_name(command: &str) -> bool {
+    !command.is_empty()
+        && command
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+}
+
+#[cfg(unix)]
+fn is_executable_file(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable_file(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false)
+}
+
+fn expand_home(path: &str, home: Option<&Path>) -> PathBuf {
+    if path == "~" {
+        return home.map(PathBuf::from).unwrap_or_else(|| PathBuf::from(path));
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = home {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn find_in_path(command: &str, process_path: &str) -> Option<PathBuf> {
+    for dir in env::split_paths(process_path) {
+        let candidate = dir.join(command);
+        if is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn known_cli_dirs(home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = vec![PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")];
+    if let Some(home) = home {
+        dirs.push(home.join(".local/bin"));
+        dirs.push(home.join(".cargo/bin"));
+    }
+    dirs
+}
+
+fn first_line(text: &str) -> String {
+    text.lines().next().unwrap_or("").trim().to_string()
+}
+
+async fn probe_login_shell(command: &str) -> LoginShellProbe {
+    if !is_valid_command_name(command) {
+        return LoginShellProbe::skipped("invalid command name for shell probe");
+    }
+
+    let shell = match env::var("SHELL") {
+        Ok(shell) if !shell.trim().is_empty() => shell,
+        _ => return LoginShellProbe::skipped("SHELL is not set"),
+    };
+
+    let mut child = Command::new(&shell);
+    child
+        .args(["-lc", &format!("command -v {command}")])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
+
+    let output = match timeout(LOGIN_SHELL_TIMEOUT, child.output()).await {
+        Ok(Ok(output)) => output,
+        Ok(Err(err)) => {
+            return LoginShellProbe {
+                shell: Some(shell),
+                path: None,
+                detail: format!("failed to run login shell: {err}"),
+            };
+        }
+        Err(_) => {
+            return LoginShellProbe {
+                shell: Some(shell),
+                path: None,
+                detail: format!("timed out after {}ms", LOGIN_SHELL_TIMEOUT.as_millis()),
+            };
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let line = first_line(&stdout);
+    if !output.status.success() {
+        return LoginShellProbe {
+            shell: Some(shell),
+            path: None,
+            detail: format!(
+                "exit {}{}",
+                output
+                    .status
+                    .code()
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "null".to_string()),
+                if stderr.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", stderr.trim())
+                }
+            ),
+        };
+    }
+
+    if line.is_empty() {
+        return LoginShellProbe {
+            shell: Some(shell),
+            path: None,
+            detail: "empty output".to_string(),
+        };
+    }
+
+    let path = PathBuf::from(&line);
+    let detail = if is_executable_file(&path) {
+        "found executable".to_string()
+    } else {
+        "command -v output is not an executable file".to_string()
+    };
+    LoginShellProbe {
+        shell: Some(shell),
+        path: Some(path),
+        detail,
+    }
+}
+
+fn build_cli_resolution(
+    command: &str,
+    manual_path: Option<&str>,
+    process_path: &str,
+    home: Option<&Path>,
+    login: LoginShellProbe,
+    known_dirs: &[PathBuf],
+) -> CliResolveResult {
+    let mut attempts = Vec::new();
+    let mut manual_error: Option<String> = None;
+
+    if !is_valid_command_name(command) {
+        return CliResolveResult {
+            command: command.to_string(),
+            ok: false,
+            resolved_path: None,
+            source: None,
+            error_message: Some("invalid CLI command name".to_string()),
+            process_path: process_path.to_string(),
+            login_shell: login.shell,
+            attempts,
+        };
+    }
+
+    if let Some(raw) = manual_path.map(str::trim).filter(|p| !p.is_empty()) {
+        let path = expand_home(raw, home);
+        if is_executable_file(&path) {
+            attempts.push(attempt(
+                "manualOverride",
+                true,
+                "manual override is executable",
+                Some(&path),
+            ));
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("manualOverride".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+        let message = format!("manual override is not an executable file: {}", path.display());
+        attempts.push(attempt("manualOverride", false, &message, Some(&path)));
+        manual_error = Some(message);
+    }
+
+    if let Some(path) = find_in_path(command, process_path) {
+        attempts.push(attempt("processPath", true, "found in current PATH", Some(&path)));
+        if manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("processPath".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    } else {
+        attempts.push(attempt(
+            "processPath",
+            false,
+            "not found in current PATH",
+            None,
+        ));
+    }
+
+    if let Some(path) = login.path {
+        let executable = is_executable_file(&path);
+        attempts.push(attempt("loginShell", executable, login.detail, Some(&path)));
+        if executable && manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("loginShell".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    } else {
+        attempts.push(attempt("loginShell", false, login.detail, None));
+    }
+
+    for dir in known_dirs {
+        let path = dir.join(command);
+        let executable = is_executable_file(&path);
+        attempts.push(attempt(
+            "knownLocation",
+            executable,
+            if executable {
+                "found in known CLI location"
+            } else {
+                "not found in known CLI location"
+            },
+            Some(&path),
+        ));
+        if executable && manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("knownLocation".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    }
+
+    CliResolveResult {
+        command: command.to_string(),
+        ok: false,
+        resolved_path: None,
+        source: None,
+        error_message: manual_error.or_else(|| {
+            Some(format!(
+                "{command} was not found in the app environment, login shell, or known CLI locations"
+            ))
+        }),
+        process_path: process_path.to_string(),
+        login_shell: login.shell,
+        attempts,
+    }
+}
+
 fn now_iso8601() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let dur = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
@@ -183,6 +511,24 @@ pub fn runtime_read_file(path: String, repo_root: String) -> Result<String, Stri
     }
     std::fs::read_to_string(&resolved)
         .map_err(|e| format!("failed to read {}: {e}", resolved.display()))
+}
+
+#[tauri::command]
+pub async fn runtime_resolve_cli(
+    command: String,
+    manual_path: Option<String>,
+) -> Result<CliResolveResult, String> {
+    let process_path = env::var("PATH").unwrap_or_default();
+    let home = env::var_os("HOME").map(PathBuf::from);
+    let login = probe_login_shell(&command).await;
+    Ok(build_cli_resolution(
+        &command,
+        manual_path.as_deref(),
+        &process_path,
+        home.as_deref(),
+        login,
+        &known_cli_dirs(home.as_deref()),
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -456,6 +802,23 @@ mod tests {
         dir
     }
 
+    fn make_executable(dir: &Path, name: &str) -> PathBuf {
+        let path = dir.join(name);
+        fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&path, perms).unwrap();
+        }
+        path
+    }
+
+    fn skipped_login() -> LoginShellProbe {
+        LoginShellProbe::skipped("not tested")
+    }
+
     #[test]
     fn read_file_returns_content_inside_repo_root() {
         let repo = unique_tmp_dir("ok");
@@ -513,5 +876,156 @@ mod tests {
         )
         .expect_err("oversize read should be rejected");
         assert!(err.contains("too large"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn resolve_cli_prefers_current_process_path() {
+        let bin = unique_tmp_dir("resolve-path");
+        let command = "fake-cli-process";
+        let executable = make_executable(&bin, command);
+        let known = unique_tmp_dir("resolve-known");
+        make_executable(&known, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            &bin.to_string_lossy(),
+            None,
+            LoginShellProbe {
+                shell: Some("/bin/zsh".to_string()),
+                path: Some(known.join(command)),
+                detail: "found executable".to_string(),
+            },
+            &[known],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("processPath"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(executable.to_string_lossy().as_ref())
+        );
+        assert!(!result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation"));
+    }
+
+    #[test]
+    fn resolve_cli_uses_login_shell_before_known_locations() {
+        let login_dir = unique_tmp_dir("resolve-login");
+        let known_dir = unique_tmp_dir("resolve-known-login");
+        let command = "fake-cli-login";
+        let login_path = make_executable(&login_dir, command);
+        make_executable(&known_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            "",
+            None,
+            LoginShellProbe {
+                shell: Some("/bin/zsh".to_string()),
+                path: Some(login_path.clone()),
+                detail: "found executable".to_string(),
+            },
+            &[known_dir],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("loginShell"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(login_path.to_string_lossy().as_ref())
+        );
+        assert!(!result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation"));
+    }
+
+    #[test]
+    fn resolve_cli_uses_known_location_after_path_and_shell_fail() {
+        let known_dir = unique_tmp_dir("resolve-known-only");
+        let command = "fake-cli-known";
+        let known_path = make_executable(&known_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            "",
+            None,
+            skipped_login(),
+            &[known_dir],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("knownLocation"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(known_path.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn resolve_cli_manual_override_wins() {
+        let manual_dir = unique_tmp_dir("resolve-manual");
+        let path_dir = unique_tmp_dir("resolve-manual-path");
+        let command = "fake-cli-manual";
+        let manual_path = make_executable(&manual_dir, command);
+        make_executable(&path_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            Some(&manual_path.to_string_lossy()),
+            &path_dir.to_string_lossy(),
+            None,
+            skipped_login(),
+            &[],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("manualOverride"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(manual_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(result.attempts.len(), 1);
+    }
+
+    #[test]
+    fn resolve_cli_bad_manual_override_reports_error_and_attempts_fallbacks() {
+        let path_dir = unique_tmp_dir("resolve-bad-manual-path");
+        let known_dir = unique_tmp_dir("resolve-bad-manual-known");
+        let command = "fake-cli-bad-manual";
+        make_executable(&path_dir, command);
+        make_executable(&known_dir, command);
+        let missing_manual = unique_tmp_dir("resolve-bad-manual").join(command);
+
+        let result = build_cli_resolution(
+            command,
+            Some(&missing_manual.to_string_lossy()),
+            &path_dir.to_string_lossy(),
+            None,
+            skipped_login(),
+            &[known_dir],
+        );
+
+        assert!(!result.ok);
+        assert!(result.resolved_path.is_none());
+        assert_eq!(result.source, None);
+        assert!(result
+            .error_message
+            .as_deref()
+            .unwrap_or("")
+            .contains("manual override"));
+        assert!(result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "processPath" && attempt.ok));
+        assert!(result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation" && attempt.ok));
     }
 }

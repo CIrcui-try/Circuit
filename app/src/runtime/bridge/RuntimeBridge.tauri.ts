@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
+  CliResolveResult,
   RuntimeBridge,
   RuntimeProcessEvent,
   RuntimeProcessListener,
@@ -78,6 +79,12 @@ export const tauriRuntimeBridge: RuntimeBridge = {
   },
   async readDefaultSkill(skillFile) {
     return await invoke<string>("runtime_read_default_skill", { skillFile });
+  },
+  async resolveCli(command, manualPath) {
+    return await invoke<CliResolveResult>("runtime_resolve_cli", {
+      command,
+      manualPath: manualPath ?? null,
+    });
   },
   async spawn(options: SpawnOptions) {
     const binding = getOrCreateBinding(options.runId);

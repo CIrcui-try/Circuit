@@ -66,6 +66,7 @@ pub fn run() {
             workflow_store::save_workflow,
             repository_environment::check_repository_environment,
             runtime_bridge::runtime_read_file,
+            runtime_bridge::runtime_resolve_cli,
             runtime_bridge::runtime_spawn,
             runtime_bridge::runtime_cancel,
             runtime_bridge::runtime_send_input,
