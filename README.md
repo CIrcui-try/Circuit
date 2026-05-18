@@ -6,113 +6,97 @@
 
 [한국어 README](README_kr.md)
 
-Circuit is a local-first desktop app for turning Claude and Codex skills into visual workflows.
+#### Circuit is a workflow visualization tool that makes agent behavior more predictable.
 
-Circuit grew out of a problem that shows up quickly in personal projects: agent automation is powerful, but it becomes hard to steer once it is running outside your direct attention. Long command chains and TUI sessions can hide what the agent is doing, what already finished, and where the next decision point should be.
+Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but it becomes harder to understand and control what the agent is doing when you are not watching it directly. As projects grow, it becomes increasingly common to dig through large amounts of terminal output and prompts just to find which step finished and where human input is needed.
 
-Circuit gives those routines a visible control surface. Instead of keeping automation steps in disconnected command lists, you can register local repositories, scan the skills they already contain, place those skills on a workflow canvas, and run the flow while watching the log. It is built for developers who use both Claude and Codex and want a shared visual layer over those local skill systems.
+This becomes especially noticeable when agents handle repeated tasks such as planning, implementation, review, commit, merge, and deploy. Automation itself is powerful, but once the flow starts running inside long prompts, command chains, or TUI sessions, it becomes difficult to recover where the agent is, what has finished, and where it failed.
 
-The canvas is intentionally block-like: put review before commit, commit before review, add a token check between two expensive steps, or insert a new routine block when the workflow changes. If the dependency between skills changes, reconnect the nodes instead of rewriting the whole process from memory.
+Circuit was built to make that problem visible. It automatically reads Claude and Codex skills from your local repositories, lets you place the skills on a canvas as blocks, connect their order and dependencies, and run them as a single routine. You can also see which step the agent is currently in, which steps have completed, and where a run failed through the canvas and execution log.
 
-## Visual Workflow Overview
+When using multiple agents and models together, Circuit also lets you flexibly configure the arguments and options each step needs, so you can tune and optimize the workflow more precisely.
 
-![Circuit workspace showing Claude and Codex skills in the sidebar, a connected workflow canvas, and a running Run Log.](docs/assets/readme/circuit-workflow-overview.png)
+Circuit is not only for advanced users who are already comfortable with agent automation. Its goal is to help people who are just starting to create skills and routines, or who repeat similar work often but are not yet comfortable with command-based automation, build and run their own workflows.
 
-The Circuit workspace brings mixed Claude and Codex skills into one visual workflow, with execution progress visible in the Run Log while the canvas remains editable.
+## Why Circuit?
 
-## What Circuit Does
+Circuit turns the order, dependencies, and execution state that appear when delegating repeated work to agents into a visible flow.
 
-- Registers local repositories so each project can have its own skill catalog and saved workflows.
-- Scans repository-local skills from both Claude and Codex conventions:
-  - `.claude/skills/*/SKILL.md`
-  - `.codex/skills/*/SKILL.md`
-- Shows Claude and Codex skills together so a workflow can mix providers in one canvas.
-- Includes supported system and default skills that can be placed into workflows across repositories.
-- Provides a visual workflow canvas for arranging skill nodes and dependency edges.
-- Saves and loads workflow drafts for a repository.
-- Runs workflows manually and streams run output into an in-app run log.
-- Supports cancelling an active run.
-- Allows cyclic workflow graphs after an explicit loop warning, so intentional loops remain visible.
-- Uses provider adapters for Claude and Codex instead of hard-coding a single agent runtime.
+When using agents, routines like this often repeat:
 
-## Why Claude And Codex Together
+```text
+plan → implement → review → commit → merge → deploy
+```
 
-Many repositories already carry useful automation in more than one agent format. Circuit treats Claude and Codex skills as local project capabilities rather than competing silos. A workflow can show where each provider fits, make the handoff visible, and keep the repository as the source of truth for the actual skill files.
+Real workflows, however, are rarely this clean. Some tasks need to go back to implementation after review. Some should stop after commit and leave merge for later. Larger changes may need a token check between steps, and long contexts may need a compact step inserted into the flow.
 
-That means a team can keep using existing `.claude/skills` and `.codex/skills` directories while building a visual map of how those skills work together.
+The problem is that these orders and dependencies keep changing. With plain command chains or terminal history, it is hard to see which skill runs in which order, where a new step should be inserted, and where a person needs to intervene.
 
-## Visual Workflow Canvas
+### Turn Repeated Skill Routines Into Workflows
 
-The workspace centers on a canvas where skill nodes represent local `SKILL.md` files. The surrounding panels make the current repository, skill list, workflow name, saved workflow menu, start/cancel controls, and run log visible while you work.
+Circuit is not about running a single skill. Its core idea is to combine multiple skills into one routine. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
 
-Circuit is not trying to become a code editor. It focuses on the workflow layer: discovering skills, arranging them, saving the graph, and running the selected flow locally.
+For example, you can create a flow like this:
 
-This makes routine design closer to visual programming than a hidden shell history. If a workflow needs a new gate, add a skill node. If you want to monitor usage, place a `check-token` style skill between larger steps. If a failure happens, the canvas and run log keep the current stage visible instead of forcing you to reconstruct the run from scattered terminal output.
+```text
+planning → implementation → review → commit
+```
 
-Loops are also first-class in the editor. Circuit warns before starting a workflow that contains a cycle because it may run indefinitely, but it does not erase the loop from the graph. That keeps repeating routines explicit and reviewable.
+When the way you work changes, the routine can change with it:
+
+```text
+planning → implementation → commit → review
+```
+
+If you need an intermediate check, add a new skill into the flow:
+
+```text
+planning → check-token → implementation → review → wrap-up
+```
+
+When the context gets long, you can add a `compact` skill. If cleanup is needed after the task, you can add a `wrap-up` skill. If you want to check token usage, you can create a skill such as `check-token` and place it between larger steps.
+
+These flows can be written as command lists, but Circuit treats them as visible graphs. When skill order or dependencies change, you do not need to reconstruct the whole process from memory. You can update the nodes and edges instead.
+
+### Use Claude And Codex Together
+
+Many projects already contain more than one kind of agent automation. Some routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
+
+Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from your local repository and lets you place both kinds of skills on the same canvas. It does not treat Claude and Codex as competing tools. It treats them as different execution capabilities and model choices that belong to the local project.
+
+The actual skill files remain in the repository. Circuit does not move them elsewhere or force them into a separate format. Instead, it reads the skills from the repository, shows them on the canvas, and provides a visual layer for defining their order and dependencies.
+
+### Track Execution State
+
+When a workflow runs, you can see which skill is currently running, which steps have completed, and where a failure happened through the canvas and Run Log. Active workflows can be cancelled when needed, and failed runs are easier to inspect because the stopping point remains visible.
+
+### Handle Loops And Repeated Flows
+
+Not every workflow ends in a straight line. Some routines need repetition. For example, you may want to review a failed task again or repeat a check until a condition is satisfied.
+
+Circuit does not block loops outright. Since a cyclic graph can run indefinitely, Circuit shows a warning before execution, but it still allows the run if the loop is intentional.
+
+The important point is that loops are not hidden. The repeated flow appears directly on the canvas, making it easier to see which skill will be called again and adjust the routine when needed.
 
 ## Local-First Runtime Model
 
-Circuit runs against files and tools on your machine:
+Circuit is a local-first app. Skills and workflows operate against the user's local repositories.
 
-- Skill discovery reads from the selected repository.
-- System and default skills are available as reusable workflow nodes.
-- Workflow execution goes through a Tauri backend bridge.
-- Claude and Codex execution are handled through adapter interfaces.
-- Run output is streamed back to the app log.
-- Safety-sensitive runtime behavior stays local rather than being delegated to a remote service.
+- Skill discovery reads files from the selected repository.
+- Claude and Codex skill definitions keep using the existing repository structure.
+- Workflow execution is handled through a Tauri backend bridge.
+- Claude and Codex execution is connected through provider adapter interfaces.
+- Execution output streams into the in-app log panel.
+- Safety-sensitive runtime behavior stays in the local environment instead of being delegated to a remote service.
 
-The current model is intentionally manual. Circuit does not automatically trigger file mutations, push to git remotes, deploy code, or run arbitrary shell-command nodes.
+Circuit currently centers on explicit manual execution. It does not use file changes as automatic triggers, push to git remotes, perform deployments, or run arbitrary shell-command nodes.
 
-## Current Status
+## Milestones
 
-Circuit is in active development. The current app includes the foundation for:
+Circuit is in active development. Current limitations include:
 
-- repository registration and removal
-- skill scanning for Claude and Codex skill directories
-- bundled system and default skill discovery
-- provider count badges in the repository list
-- workflow canvas editing
-- loop detection with an explicit run confirmation
-- workflow draft save/load
-- manual workflow start
-- run status and run log display
-- run cancellation
-- Claude and Codex adapter implementations
-
-Known limitations at this stage:
-
-- No collaboration or shared remote workspace.
-- No automatic deployment or git push behavior.
-- No user-configurable global skill directory discovery yet.
-- No arbitrary shell command node type.
-- The runtime surface is still being hardened as the app evolves.
-
-## Development
-
-The app lives in `app/` and uses React, Vite, Tauri, Vitest, and Playwright.
-
-```sh
-cd app
-pnpm install
-pnpm dev
-```
-
-Useful checks:
-
-```sh
-pnpm test:run
-pnpm build
-pnpm test:e2e
-```
-
-## Project Notes
-
-Detailed implementation notes, runtime contracts, schema documentation, and phase briefings live outside the root README so this page can stay focused on the product:
-
-- `PRODUCT_SPEC.md`
-- `RUNTIME_ARCHITECTURE.md`
-- `SCHEMA.md`
-- `SKILL_EXECUTION_CONTRACT.md`
-- `TESTING_STRATEGY.md`
-- `circuit_implementation_plan/`
+- There is no collaboration or shared remote workspace yet.
+- Automatic deployment and git push behavior are not provided.
+- User-configurable global skill directory discovery is not available yet.
+- There is no arbitrary shell command node type.
+- The runtime surface is still being strengthened as the app evolves.
