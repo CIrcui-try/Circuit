@@ -12,6 +12,7 @@ type InputEditorMode = "friendly" | "json";
 
 export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
   const setNodeInput = useWorkflowStore((s) => s.setNodeInput);
+  const setNodeModel = useWorkflowStore((s) => s.setNodeModel);
   const [inputMode, setInputMode] = useState<InputEditorMode>("friendly");
   const [jsonDraft, setJsonDraft] = useState("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -56,6 +57,10 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
     typeof selectedInput?.arguments === "string" ? selectedInput.arguments : "";
   const promptValue =
     typeof selectedInput?.prompt === "string" ? selectedInput.prompt : "";
+  const modelValue =
+    typeof selectedNode?.data.execution?.model === "string"
+      ? selectedNode.data.execution.model
+      : "";
 
   useEffect(() => {
     setInputMode("friendly");
@@ -99,6 +104,11 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
 
     setJsonError(null);
     setNodeInput(selectedNodeId, Object.keys(parsed).length > 0 ? parsed : null);
+  };
+
+  const handleModelChange = (value: string) => {
+    if (!selectedNodeId) return;
+    setNodeModel(selectedNodeId, value);
   };
 
   return (
@@ -224,6 +234,22 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
                 )}
               </div>
             </dd>
+            <dt>Model</dt>
+            <dd className="properties__field">
+              <label className="properties__input-field">
+                <span>Model</span>
+                <input
+                  data-testid="node-execution-model"
+                  className="properties__input"
+                  aria-label="Node execution model"
+                  placeholder={modelPlaceholder(
+                    selectedNode.data.skillRef.provider,
+                  )}
+                  value={modelValue}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                />
+              </label>
+            </dd>
             <dt>Run Status</dt>
             <dd data-testid="node-run-status">{formatRunState(runState)}</dd>
             {debug?.adapter ? (
@@ -281,6 +307,12 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
       )}
     </aside>
   );
+}
+
+function modelPlaceholder(provider: string): string {
+  if (provider === "claude") return "sonnet, opus, or full model name";
+  if (provider === "codex") return "Codex model name";
+  return "Model name";
 }
 
 function formatRunState(state: string): string {

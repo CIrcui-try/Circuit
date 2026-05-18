@@ -36,10 +36,17 @@ const DEFAULT_PROBE: ClaudeCommand = {
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
 function defaultBuildCommand(
-  _ctx: SkillExecutionContext,
+  ctx: SkillExecutionContext,
   prompt: string,
 ): ClaudeCommand {
-  return { command: "claude", args: ["-p", prompt], stdinMode: "null" };
+  const modelArgs = ctx.execution.model
+    ? ["--model", ctx.execution.model]
+    : [];
+  return {
+    command: "claude",
+    args: [...modelArgs, "-p", prompt],
+    stdinMode: "null",
+  };
 }
 
 function defaultBuildPrompt(ctx: SkillExecutionContext): string {

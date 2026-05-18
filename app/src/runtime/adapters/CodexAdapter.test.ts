@@ -161,6 +161,30 @@ describe("CodexAdapter", () => {
     expect(prompt).toContain(`"prompt": "review the diff"`);
   });
 
+  it("adds --model before exec when execution model is configured", async () => {
+    const { bridge, spawnCalls } = spy(() => [
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new CodexAdapter({ bridge });
+    await adapter.run(
+      makeContext({
+        execution: {
+          timeoutMs: 300_000,
+          cwd: "/abs/path/to/sample-repo",
+          model: "gpt-5.4",
+        },
+      }),
+      () => {},
+    );
+
+    expect(spawnCalls[0].args.slice(8, 12)).toEqual([
+      "--model",
+      "gpt-5.4",
+      "exec",
+      expect.any(String),
+    ]);
+  });
+
   it("C8 — custom buildCommand and buildPrompt are honored", async () => {
     const { bridge, spawnCalls } = spy(() => [
       { event: { type: "exited", exitCode: 0 } },

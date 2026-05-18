@@ -857,6 +857,7 @@ function buildRunSnapshot(repo: {
       },
       label: n.data.label,
       position: { x: n.position.x, y: n.position.y },
+      ...(n.data.execution ? { execution: { ...n.data.execution } } : {}),
       input: (n.data.input as Record<string, unknown> | undefined) ?? {},
     })),
     edges: edges.map((e) => ({
@@ -883,6 +884,7 @@ function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
           ? { systemSkillId: node.skillRef.systemSkillId }
           : {}),
       },
+      ...(node.execution ? { execution: { ...node.execution } } : {}),
       ...(node.input !== undefined ? { input: node.input } : {}),
     },
   };

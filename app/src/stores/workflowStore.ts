@@ -11,6 +11,7 @@ import {
 } from "@xyflow/react";
 import { create } from "zustand";
 import { topoSort } from "../runner/topoSort";
+import type { WorkflowNodeExecution } from "../workflow/schema";
 import type { Skill, SkillProvider } from "./skillStore";
 
 export type SkillRef = {
@@ -25,6 +26,7 @@ export type SkillNodeData = {
   label: string;
   description?: string;
   skillRef: SkillRef;
+  execution?: WorkflowNodeExecution;
   [key: string]: unknown;
 };
 
@@ -59,6 +61,7 @@ type WorkflowState = {
 
   addSkillNode: (skill: Skill, position: XYPosition) => string;
   setNodeInput: (nodeId: string, input: Record<string, unknown> | null) => void;
+  setNodeModel: (nodeId: string, model: string | null) => void;
   selectNode: (id: string | null) => void;
   selectEdge: (id: string | null) => void;
   deleteNode: (nodeId: string) => void;
@@ -183,6 +186,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           data.input = input;
         } else {
           delete data.input;
+        }
+        return { ...n, data };
+      }) as SkillNode[],
+    }));
+  },
+
+  setNodeModel: (nodeId, model) => {
+    const trimmed = model?.trim() ?? "";
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        const data = { ...n.data };
+        if (trimmed.length > 0) {
+          data.execution = { ...(data.execution ?? {}), model: trimmed };
+        } else if (data.execution) {
+          const execution = { ...data.execution };
+          delete execution.model;
+          if (Object.keys(execution).length > 0) {
+            data.execution = execution;
+          } else {
+            delete data.execution;
+          }
         }
         return { ...n, data };
       }) as SkillNode[],

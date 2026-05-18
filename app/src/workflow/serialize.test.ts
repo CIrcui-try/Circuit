@@ -201,6 +201,28 @@ describe("workflow/serialize", () => {
     ]);
   });
 
+  it("preserves node execution model separately from input", () => {
+    const nodes: SkillNode[] = [
+      {
+        ...sampleNodes[0],
+        data: {
+          ...sampleNodes[0].data,
+          execution: { model: "sonnet" },
+          input: { prompt: "Implement the task" },
+        },
+      },
+    ];
+
+    const wf = toWorkflow({ nodes, edges: [] }, meta, () => "2026-05-02T00:00:00Z");
+
+    expect(wf.nodes[0].execution).toEqual({ model: "sonnet" });
+    expect(wf.nodes[0].input).toEqual({ prompt: "Implement the task" });
+
+    const restored = fromWorkflow(wf);
+    expect(restored.nodes[0].data.execution).toEqual({ model: "sonnet" });
+    expect(restored.nodes[0].data.input).toEqual({ prompt: "Implement the task" });
+  });
+
   it("SR8: treats missing skillRef.source as repository for existing workflows", () => {
     const wf = toWorkflow(
       { nodes: sampleNodes, edges: [] },

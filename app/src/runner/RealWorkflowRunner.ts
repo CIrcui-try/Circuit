@@ -128,6 +128,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
     }
 
     const nodeTimeout = readNodeTimeoutMs(fullNode.input);
+    const nodeModel = readNodeModel(fullNode.execution);
 
     const { previousOutputs, rerunPreviousAttempt } =
       splitRerunPreviousAttempt(this.previousOutputs, node.id);
@@ -157,6 +158,7 @@ export class RealWorkflowRunner implements WorkflowRunner {
           previousOutputs,
           ...(rerunPreviousAttempt ? { rerunPreviousAttempt } : {}),
           ...(nodeTimeout != null ? { timeoutMs: nodeTimeout } : {}),
+          ...(nodeModel ? { model: nodeModel } : {}),
         },
         {
           readSkillFile: (abs, root) => this.opts.bridge.readFile(abs, root),
@@ -462,6 +464,15 @@ function readNodeIdleMs(
   if (!Number.isFinite(value)) return fallback;
   if (value <= 0) return fallback;
   return value;
+}
+
+function readNodeModel(
+  execution: WorkflowSkillNode["execution"] | undefined,
+): string | null {
+  const model = execution?.model;
+  if (typeof model !== "string") return null;
+  const trimmed = model.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function isLoopLimitSkill(node: WorkflowSkillNode): boolean {
