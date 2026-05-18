@@ -201,11 +201,6 @@ function formatRepositoryEnvironmentError(
       `Circuit host preflight cannot write .codex/state. This is different from Codex sandbox writable-root approval; check repository folder permissions first. ${formatCheckMessage(check.codexStateDir)}`,
     );
   }
-  if (!check.githubCliAuth.ok) {
-    failures.push(
-      `GitHub CLI authentication is required. Run \`gh auth login -h github.com\`. ${formatCheckMessage(check.githubCliAuth)}`,
-    );
-  }
 
   return failures.length > 0 ? failures.join("\n") : null;
 }

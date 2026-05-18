@@ -70,7 +70,6 @@ export type RepositoryEnvironmentCheck = {
   repoRoot: RepositoryEnvironmentCheckItem;
   gitCommonDir: RepositoryEnvironmentCheckItem;
   codexStateDir: RepositoryEnvironmentCheckItem;
-  githubCliAuth: RepositoryEnvironmentCheckItem;
 };
 
 export type WorkspaceDTO = {

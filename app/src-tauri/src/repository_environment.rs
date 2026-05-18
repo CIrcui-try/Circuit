@@ -13,7 +13,6 @@ pub struct RepositoryEnvironmentCheck {
     repo_root: CheckItem,
     git_common_dir: CheckItem,
     codex_state_dir: CheckItem,
-    github_cli_auth: CheckItem,
 }
 
 #[derive(Serialize)]
@@ -48,13 +47,11 @@ pub fn check_repository_environment_at(repo_path: &Path) -> RepositoryEnvironmen
     let repo_root = check_repo_root(repo_path);
     let git_common_dir = check_git_common_dir(repo_path);
     let codex_state_dir = check_codex_state_dir(repo_path);
-    let github_cli_auth = check_github_cli_auth(repo_path);
 
     RepositoryEnvironmentCheck {
         repo_root,
         git_common_dir,
         codex_state_dir,
-        github_cli_auth,
     }
 }
 
@@ -108,22 +105,6 @@ fn check_codex_state_dir(repo_path: &Path) -> CheckItem {
     }
 
     write_probe(&dir)
-}
-
-fn check_github_cli_auth(repo_path: &Path) -> CheckItem {
-    let output = match Command::new("gh").args(["auth", "status"]).current_dir(repo_path).output() {
-        Ok(output) => output,
-        Err(err) => return CheckItem::failed(format!("failed to run gh auth status: {err}")),
-    };
-
-    if output.status.success() {
-        CheckItem::ok()
-    } else {
-        CheckItem::failed(format!(
-            "gh auth status failed: {}",
-            command_detail(&output.stdout, &output.stderr)
-        ))
-    }
 }
 
 fn write_probe(dir: &Path) -> CheckItem {
@@ -198,6 +179,5 @@ mod tests {
         assert!(!check.repo_root.ok);
         assert!(!check.git_common_dir.ok);
         assert!(!check.codex_state_dir.ok);
-        assert!(check.github_cli_auth.message.is_some() || check.github_cli_auth.ok);
     }
 }

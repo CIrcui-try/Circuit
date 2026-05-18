@@ -11,7 +11,6 @@ const hostBridgeMock = vi.hoisted(() => ({
     repoRoot: { ok: true },
     gitCommonDir: { ok: true },
     codexStateDir: { ok: true },
-    githubCliAuth: { ok: true },
   })),
 }));
 
@@ -137,7 +136,6 @@ describe("runController", () => {
       repoRoot: { ok: true },
       gitCommonDir: { ok: false, message: "Operation not permitted" },
       codexStateDir: { ok: true },
-      githubCliAuth: { ok: false, message: "token expired" },
     }));
 
     const outcome = await startWorkflowRun({
@@ -156,9 +154,6 @@ describe("runController", () => {
     );
     expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
       "before Codex sandboxing starts",
-    );
-    expect(outcome.kind === "rejected" ? outcome.message : "").toContain(
-      "token expired",
     );
     expect(checkRepositoryEnvironment).toHaveBeenCalledWith("/Users/me/repo");
     expect(createRunner).not.toHaveBeenCalled();

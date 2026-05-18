@@ -826,7 +826,6 @@ describe("Workspace", () => {
       repoRoot: { ok: true },
       gitCommonDir: { ok: false, message: "Operation not permitted" },
       codexStateDir: { ok: true },
-      githubCliAuth: { ok: true },
     }));
 
     renderAt("/workspace/id-alpha");
