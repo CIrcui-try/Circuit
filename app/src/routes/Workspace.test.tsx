@@ -236,6 +236,20 @@ describe("Workspace", () => {
     });
   });
 
+  it("W1i: opens AGENTS.md for the selected repository", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open AGENTS.md" }));
+
+    await vi.waitFor(() => {
+      expect(openerMock.openPath).toHaveBeenCalledWith(
+        "/Users/me/alpha/AGENTS.md",
+      );
+    });
+  });
+
   it("W1e: opens the selected repository folder in Codex", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
@@ -276,6 +290,19 @@ describe("Workspace", () => {
 
     const alert = await screen.findByTestId("app-error-alert");
     expect(alert).toHaveTextContent("Show repository in Finder failed");
+    expect(alert).toHaveTextContent("open failed");
+  });
+
+  it("W1j: surfaces AGENTS.md open failures as an app error", async () => {
+    openerMock.openPath.mockRejectedValueOnce(new Error("open failed"));
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open AGENTS.md" }));
+
+    const alert = await screen.findByTestId("app-error-alert");
+    expect(alert).toHaveTextContent("Open AGENTS.md failed");
     expect(alert).toHaveTextContent("open failed");
   });
 
