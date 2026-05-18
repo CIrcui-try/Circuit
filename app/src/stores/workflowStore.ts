@@ -87,6 +87,33 @@ function deriveSelection<T extends { id: string; selected?: boolean }>(
   return items.find((item) => item.selected)?.id ?? null;
 }
 
+function removeTransitiveEdges(edges: Edge[]): Edge[] {
+  return edges.filter(
+    (edge) => !hasAlternatePath(edges, edge.source, edge.target, edge.id),
+  );
+}
+
+function hasAlternatePath(
+  edges: Edge[],
+  source: string,
+  target: string,
+  ignoredEdgeId: string,
+): boolean {
+  const visited = new Set<string>();
+  const stack = [source];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const edge of edges) {
+      if (edge.id === ignoredEdgeId || edge.source !== current) continue;
+      if (edge.target === target) return true;
+      stack.push(edge.target);
+    }
+  }
+  return false;
+}
+
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -131,13 +158,22 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       (e) => e.source === conn.source && e.target === conn.target,
     );
     if (duplicate) return;
-    const nextEdges = addEdge(conn, edges);
+    const baseEdges = edges.filter(
+      (e) => e.source !== conn.source && e.target !== conn.target,
+    );
+    const nextEdges = addEdge(conn, baseEdges);
     const sorted = topoSort(
       get().nodes.map((n) => n.id),
       nextEdges,
     );
+    const prunedEdges = sorted.cycle ? nextEdges : removeTransitiveEdges(nextEdges);
     set({
-      edges: nextEdges,
+      edges: prunedEdges,
+      selectedEdgeId:
+        get().selectedEdgeId &&
+        prunedEdges.some((edge) => edge.id === get().selectedEdgeId)
+          ? get().selectedEdgeId
+          : null,
       connectionWarning: sorted.cycle
         ? {
             id: crypto.randomUUID(),

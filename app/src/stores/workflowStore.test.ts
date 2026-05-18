@@ -130,7 +130,89 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
-  it("WS5b: onConnect keeps a cycle edge and surfaces a warning", () => {
+  it("WS5a: onConnect replaces existing source and target edges", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: c, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([[a, c]]);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5b: onConnect removes edges that become transitive later", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: b, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([
+      [a, b],
+      [b, c],
+    ]);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5c: onConnect replaces a source edge when connecting a new node", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: b, sourceHandle: null, targetHandle: null,
+    });
+    const firstEdgeId = useWorkflowStore.getState().edges[0].id;
+    useWorkflowStore.getState().selectEdge(firstEdgeId);
+
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([[a, c]]);
+    expect(useWorkflowStore.getState().selectedEdgeId).toBeNull();
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5d: onConnect replaces a target edge when connecting a node", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    useWorkflowStore.getState().onConnect({
+      source: b, target: c, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([[b, c]]);
+    expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS5e: onConnect keeps a cycle edge and surfaces a warning", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
     useWorkflowStore.getState().onConnect({
