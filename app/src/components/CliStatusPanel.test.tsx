@@ -47,12 +47,14 @@ describe("CliStatusPanel", () => {
     const claudeRow = screen.getByTestId("cli-status-row-claude");
     expect(claudeRow.getAttribute("data-status")).toBe("ok");
     expect(claudeRow.textContent).toContain("claude 1.0.0");
+    expect(screen.queryByTestId("cli-status-detail-claude")).not.toBeInTheDocument();
     const codexRow = screen.getByTestId("cli-status-row-codex");
     expect(codexRow.getAttribute("data-status")).toBe("ok");
+    expect(screen.queryByTestId("cli-status-detail-codex")).not.toBeInTheDocument();
     expect(claudeCalls).toBe(1);
   });
 
-  it("renders a missing row for ENOENT and shows the error message", async () => {
+  it("renders a missing row for ENOENT and opens the detail log", async () => {
     installBridge((opts) => {
       if (opts.command === "claude") {
         return [{ event: { type: "error", message: "spawn claude ENOENT" } }];
@@ -74,6 +76,18 @@ describe("CliStatusPanel", () => {
     const claudeRow = screen.getByTestId("cli-status-row-claude");
     expect(claudeRow.getAttribute("data-status")).toBe("missing");
     expect(claudeRow.textContent).toContain("ENOENT");
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByTestId("cli-status-detail-claude"));
+    });
+
+    expect(screen.getByTestId("cli-status-detail-modal")).toBeInTheDocument();
+    expect(screen.getByText("Claude CLI details")).toBeInTheDocument();
+    const log = screen.getByTestId("cli-status-detail-log");
+    expect(log).toHaveTextContent("Command: claude --version");
+    expect(log).toHaveTextContent("Reason: missing");
+    expect(log).toHaveTextContent("spawn claude ENOENT");
   });
 
   it("re-runs checks when 'refresh' is clicked", async () => {

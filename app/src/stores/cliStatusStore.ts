@@ -20,6 +20,7 @@ export interface CliEntry {
   status: CliStatus;
   version?: string;
   errorMessage?: string;
+  detailLog?: string;
   durationMs?: number;
   checkedAt?: number;
   /** Live progress label while status === "checking". */
@@ -43,6 +44,14 @@ const DEFAULT_CWD = "/";
 
 const INITIAL_ENTRY: CliEntry = { status: "idle" };
 
+interface ProbeMeta {
+  id: CliId;
+  command: string;
+  args: string[];
+  cwd: string;
+  timeoutMs: number;
+}
+
 export interface RunChecksOptions {
   bridge?: RuntimeBridge;
   cwd?: string;
@@ -55,7 +64,46 @@ interface CliStatusState {
   runChecks: (opts?: RunChecksOptions) => Promise<void>;
 }
 
-function mapResult(result: CliProbeResult, now: number): CliEntry {
+function formatTextBlock(text: string): string {
+  const trimmed = text.trimEnd();
+  return trimmed || "(empty)";
+}
+
+function commandLine(meta: ProbeMeta): string {
+  return [meta.command, ...meta.args].join(" ");
+}
+
+function formatDetailLog(
+  meta: ProbeMeta,
+  result: CliProbeResult,
+  status: CliStatus,
+  now: number,
+): string {
+  return [
+    `CLI: ${meta.id}`,
+    `Command: ${commandLine(meta)}`,
+    `CWD: ${meta.cwd}`,
+    `Timeout: ${meta.timeoutMs}ms`,
+    `Duration: ${result.durationMs}ms`,
+    `Checked At: ${new Date(now).toISOString()}`,
+    `Status: ${status}`,
+    `Reason: ${result.reason ?? "unknown"}`,
+    `Exit Code: ${result.exitCode ?? "null"}`,
+    `Error: ${result.errorMessage ?? "(none)"}`,
+    "",
+    "STDOUT:",
+    formatTextBlock(result.stdout),
+    "",
+    "STDERR:",
+    formatTextBlock(result.stderr),
+  ].join("\n");
+}
+
+function mapResult(
+  meta: ProbeMeta,
+  result: CliProbeResult,
+  now: number,
+): CliEntry {
   if (result.ok) {
     return {
       status: "ok",
@@ -69,6 +117,7 @@ function mapResult(result: CliProbeResult, now: number): CliEntry {
     status,
     errorMessage:
       result.errorMessage ?? `probe failed (${result.reason ?? "unknown"})`,
+    detailLog: formatDetailLog(meta, result, status, now),
     durationMs: result.durationMs,
     checkedAt: now,
   };
@@ -94,9 +143,16 @@ export const useCliStatusStore = create<CliStatusState>((set, get) => ({
     });
 
     const ids: CliId[] = ["claude", "codex"];
+    const metas = ids.map((id): ProbeMeta => ({
+      id,
+      command: PROBE_COMMANDS[id].command,
+      args: PROBE_COMMANDS[id].args,
+      cwd,
+      timeoutMs,
+    }));
     const results = await Promise.all(
-      ids.map((id) =>
-        probeCli(bridge, PROBE_COMMANDS[id].command, PROBE_COMMANDS[id].args, {
+      metas.map((meta) =>
+        probeCli(bridge, meta.command, meta.args, {
           cwd,
           timeoutMs,
           onStage: (stage) => {
@@ -104,8 +160,8 @@ export const useCliStatusStore = create<CliStatusState>((set, get) => ({
             set({
               entries: {
                 ...current,
-                [id]: {
-                  ...current[id],
+                [meta.id]: {
+                  ...current[meta.id],
                   status: "checking",
                   progressLabel: STAGE_LABELS[stage],
                 },
@@ -120,8 +176,8 @@ export const useCliStatusStore = create<CliStatusState>((set, get) => ({
     set({
       isChecking: false,
       entries: {
-        claude: mapResult(results[0], now),
-        codex: mapResult(results[1], now),
+        claude: mapResult(metas[0], results[0], now),
+        codex: mapResult(metas[1], results[1], now),
       },
     });
   },

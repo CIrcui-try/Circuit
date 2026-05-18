@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   useCliStatusStore,
   type CliEntry,
@@ -39,12 +39,15 @@ export function CliStatusPanel() {
   const entries = useCliStatusStore((s) => s.entries);
   const isChecking = useCliStatusStore((s) => s.isChecking);
   const runChecks = useCliStatusStore((s) => s.runChecks);
+  const [detailId, setDetailId] = useState<CliId | null>(null);
 
   useEffect(() => {
     void runChecks();
   }, [runChecks]);
 
   const ids: CliId[] = ["claude", "codex"];
+  const detailEntry = detailId ? entries[detailId] : null;
+  const detailLog = detailEntry?.detailLog;
 
   return (
     <section className="cli-status-panel" data-testid="cli-status-panel">
@@ -100,6 +103,17 @@ export function CliStatusPanel() {
               >
                 {describe(entry)}
               </span>
+              {entry.detailLog &&
+              (entry.status === "missing" || entry.status === "error") ? (
+                <button
+                  type="button"
+                  className="cli-status-row__detail-button"
+                  onClick={() => setDetailId(id)}
+                  data-testid={`cli-status-detail-${id}`}
+                >
+                  Detail
+                </button>
+              ) : null}
               <span className="cli-status-row__sr">
                 {STATUS_LABEL[entry.status]}
               </span>
@@ -107,6 +121,36 @@ export function CliStatusPanel() {
           );
         })}
       </div>
+      {detailId && detailLog ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel cli-status-detail-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cli-status-detail-title"
+            data-testid="cli-status-detail-modal"
+          >
+            <h2 id="cli-status-detail-title" className="modal__title">
+              {CLI_LABELS[detailId]} details
+            </h2>
+            <pre
+              className="cli-status-detail-modal__log"
+              data-testid="cli-status-detail-log"
+            >
+              {detailLog}
+            </pre>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setDetailId(null)}
+                data-testid="cli-status-detail-close"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
