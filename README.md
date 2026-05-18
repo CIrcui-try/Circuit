@@ -12,25 +12,9 @@ Circuit started from a recurring pain point in AI-native projects. As more work 
 
 This becomes especially noticeable when agents handle repeated tasks such as planning, implementation, review, commit, merge, and deploy. Automation itself is powerful, but once the flow starts running inside long prompts, command chains, or TUI sessions, it becomes difficult to recover where the agent is, what has finished, and where it failed.
 
-Circuit was built to make that problem visible. It automatically reads Claude and Codex skills from your local repositories, lets you place the skills on a canvas as blocks, connect their order and dependencies, and run them as a single routine. You can also see which step the agent is currently in, which steps have completed, and where a run failed through the canvas and execution log.
+Circuit was built to make these problems visible.
 
-When using multiple agents and models together, Circuit also lets you flexibly configure the arguments and options each step needs, so you can tune and optimize the workflow more precisely.
-
-Circuit is not only for advanced users who are already comfortable with agent automation. Its goal is to help people who are just starting to create skills and routines, or who repeat similar work often but are not yet comfortable with command-based automation, build and run their own workflows.
-
-## Why Circuit?
-
-Circuit turns the order, dependencies, and execution state that appear when delegating repeated work to agents into a visible flow.
-
-When using agents, routines like this often repeat:
-
-```text
-plan → implement → review → commit → merge → deploy
-```
-
-Real workflows, however, are rarely this clean. Some tasks need to go back to implementation after review. Some should stop after commit and leave merge for later. Larger changes may need a token check between steps, and long contexts may need a compact step inserted into the flow.
-
-The problem is that these orders and dependencies keep changing. With plain command chains or terminal history, it is hard to see which skill runs in which order, where a new step should be inserted, and where a person needs to intervene.
+## What Can Circuit Do?
 
 ### Turn Repeated Skill Routines Into Workflows
 
@@ -74,9 +58,9 @@ When a workflow runs, you can see which skill is currently running, which steps 
 
 Not every workflow ends in a straight line. Some routines need repetition. For example, you may want to review a failed task again or repeat a check until a condition is satisfied.
 
-Circuit does not block loops outright. Since a cyclic graph can run indefinitely, Circuit shows a warning before execution, but it still allows the run if the loop is intentional.
+Circuit helps you manage these repeated flows more safely. Since a cyclic graph can run indefinitely, Circuit shows a warning before execution and lets you run it only after confirming that the loop is intentional.
 
-The important point is that loops are not hidden. The repeated flow appears directly on the canvas, making it easier to see which skill will be called again and adjust the routine when needed.
+Because the loop remains visible on the canvas, you can see which skill will be called again and adjust the routine when needed.
 
 ## Local-First Runtime Model
 
