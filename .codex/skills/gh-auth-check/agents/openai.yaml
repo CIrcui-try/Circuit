@@ -1,0 +1,6 @@
+interface:
+  display_name: "GH Auth Check"
+  short_description: "GitHub CLI 계정을 kai-leeee로 확인·전환"
+  default_prompt: "Use $gh-auth-check to verify GitHub CLI is authenticated as kai-leeee."
+policy:
+  allow_implicit_invocation: true

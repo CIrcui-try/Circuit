@@ -37,12 +37,13 @@ PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 P
 1. **스킵 판정**: `takeoff.done_at` 이 채워져 있고 `--force` 가 없으면 종료. (다만 takeoff 성공 후 상태 파일은 삭제되므로 보통 이 케이스는 발생하지 않음.)
 2. **워크트리 진입**: `worktree_path` 로 cd. 경로가 없으면 사용자에게 안내 후 중단.
 3. **상태 점검**: `git status` 가 깨끗한지 확인. 미커밋 변경이 있으면 사용자에게 알리고 중단.
-4. **develop 리베이스**: `git fetch origin develop && git rebase origin/develop`. 충돌 시 자동 해결 시도하지 말고 사용자에게 위임 후 중단.
-5. **푸시**:
+4. **GitHub 인증 확인**: `gh-auth-check` 스킬로 GitHub CLI active account 가 `kai-leeee` 인지 확인하고, 다르면 전환 후 재확인한다.
+5. **develop 리베이스**: `git fetch origin develop && git rebase origin/develop`. 충돌 시 자동 해결 시도하지 말고 사용자에게 위임 후 중단.
+6. **푸시**:
    - 첫 push: `git push -u origin <branch>`.
    - 리베이스로 히스토리가 바뀌었고 리모트에 이미 같은 브랜치가 있으면 사용자 승인 후 `git push --force-with-lease origin <branch>`.
    - `develop`/`main` 으로의 직접 푸시는 금지.
-6. **PR 생성**: `gh pr create --base develop --head <branch>`.
+7. **PR 생성**: `gh pr create --base develop --head <branch>`.
    - 제목: `<ISSUE> <type>: <요약>` 예) `CIR-15 fix: 대기자 추가 시 화이트아웃 수정`.
    - 본문: HEREDOC 으로 다음 형식.
 
@@ -62,13 +63,13 @@ PR 생성 4단계. develop 위에 리베이스하고 리모트에 push 한 뒤 P
      Closes <ISSUE>
      ```
 
-7. **직접 확인 포인트 정리**: `plan.md`, Linear 이슈 내용, 커밋 요약을 보고 사용자가 직접 확인할 수 있는 가시적인 피처를 1~5개로 정리한다.
+8. **직접 확인 포인트 정리**: `plan.md`, Linear 이슈 내용, 커밋 요약을 보고 사용자가 직접 확인할 수 있는 가시적인 피처를 1~5개로 정리한다.
    - 화면, 버튼, 리스트, 상태 표시, 알림, 에러 메시지, 사용자 플로우처럼 눈으로 확인 가능한 단위로 쓴다.
    - 코드 정리, 테스트, 인프라 변경처럼 직접 확인할 UI/동작이 없으면 "직접 확인할 가시 피처 없음" 이라고 명시한다.
    - 애매하면 구현 변경 파일과 이슈 목표를 근거로 추정하되, 추정이라고 표시한다.
-8. **PR URL 출력**: 사용자에게 PR URL 과 직접 확인 포인트를 함께 안내한다.
+9. **PR URL 출력**: 사용자에게 PR URL 과 직접 확인 포인트를 함께 안내한다.
    - CI 통과 후 merge commit 방식으로 자동 머지하고 로컬 정리까지 이어가려면 `/autoland <ISSUE 또는 branch 또는 PR URL>` 를 사용한다.
-9. **상태 파일 갱신 후 정리**:
+10. **상태 파일 갱신 후 정리**:
    - 먼저 `takeoff.done_at = <UTC ISO8601>` 로 저장 (혹시 정리 단계에서 실패해도 다음 호출이 takeoff 를 다시 돌리지 않도록).
    - 이어서 임시 파일 삭제: `rm -f $STATE_FILE $ISSUE_FILE $PLAN_FILE`.
    - 삭제 실패는 경고만 출력하고 PR URL 안내는 유지.
