@@ -888,12 +888,14 @@ describe("Layout shell", () => {
     });
 
     const model = screen.getByTestId("skill-node-model");
-    expect(model).toHaveTextContent("gpt-5.4-mini");
-    expect(model.closest(".skill-node__model-row")).not.toBeNull();
-    expect(model).toHaveAttribute("title", "Model: gpt-5.4-mini");
+    expect(model).toHaveTextContent("model: gpt-5.4-mini");
+    expect(model).toHaveClass("skill-node__input-token--model");
+    expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
+      "model: gpt-5.4-mini",
+    );
   });
 
-  it("SkillNode hides the model row when no execution model is configured", () => {
+  it("SkillNode hides the model summary when no execution model is configured", () => {
     renderSkillNode({
       id: "node-1",
       selected: false,
