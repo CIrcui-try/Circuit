@@ -5,6 +5,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type DefaultEdgeOptions,
   type Edge as RFEdge,
   type Node as RFNode,
 } from "@xyflow/react";
@@ -21,6 +22,7 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { nodeTypes } from "../canvas/SkillNode";
+import { edgeTypes } from "../canvas/DependencyEdge";
 import {
   SkillNodeMenu,
   type SkillNodeMenuItem,
@@ -39,6 +41,18 @@ export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
 export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
   type: MarkerType.ArrowClosed,
+  color: "#6f7480",
+  width: 16,
+  height: 16,
+};
+export const CANVAS_SELECTED_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
+  ...CANVAS_EDGE_MARKER,
+  color: "#9fc7ff",
+};
+export const CANVAS_DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
+  type: "dependency",
+  markerEnd: CANVAS_EDGE_MARKER,
+  interactionWidth: 18,
 };
 
 type SkillDragPayload = {
@@ -89,6 +103,16 @@ function resolveSkillFilePath(
   return repoPath && menu.skillFile ? joinPath(repoPath, menu.skillFile) : null;
 }
 
+export function toRenderedCanvasEdges(edges: RFEdge[]): RFEdge[] {
+  return edges.map((edge) => ({
+    ...edge,
+    type: "dependency",
+    markerEnd:
+      edge.markerEnd ??
+      (edge.selected ? CANVAS_SELECTED_EDGE_MARKER : CANVAS_EDGE_MARKER),
+  }));
+}
+
 function isPointInsideElement(
   event: ReactMouseEvent,
   element: HTMLElement | null,
@@ -132,14 +156,7 @@ function CanvasInner() {
     return s.repositories.find((r) => r.id === s.selectedId)?.path ?? null;
   });
   const defaultSkills = useSkillStore((s) => s.defaultSkills);
-  const renderedEdges = useMemo(
-    () =>
-      edges.map((edge) => ({
-        ...edge,
-        markerEnd: edge.markerEnd ?? CANVAS_EDGE_MARKER,
-      })),
-    [edges],
-  );
+  const renderedEdges = useMemo(() => toRenderedCanvasEdges(edges), [edges]);
   const renderedNodes = useMemo(() => {
     const graph = analyzeWorkflowGraph(
       nodes.map((node) => node.id),
@@ -306,6 +323,8 @@ function CanvasInner() {
         nodes={renderedNodes}
         edges={renderedEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={CANVAS_DEFAULT_EDGE_OPTIONS}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
