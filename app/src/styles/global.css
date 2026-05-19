@@ -1910,17 +1910,24 @@ a:hover {
   display: flex;
   justify-content: flex-end;
   min-width: 0;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 .skill-node__model {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
-  color: #9c9ca6;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 167, 176, 0.28);
+  background: rgba(255, 255, 255, 0.025);
+  color: #b8b8c2;
   font-size: 0.68rem;
   font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+  line-height: 1;
+  padding: 0.17rem 0.34rem;
   text-align: right;
 }
 
