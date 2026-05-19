@@ -17,7 +17,7 @@ vi.mock("@xyflow/react", async (importOriginal) => {
 const useInternalNodeMock = vi.mocked(useInternalNode);
 
 describe("DependencyEdge", () => {
-  it("renders endpoint dots at fallback edge coordinates", () => {
+  it("renders endpoint pin and socket at fallback edge coordinates", () => {
     useInternalNodeMock.mockReturnValue(undefined);
 
     render(
@@ -29,12 +29,12 @@ describe("DependencyEdge", () => {
     );
 
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "x",
-      "7",
+      "cx",
+      "10",
     );
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "y",
-      "17",
+      "cy",
+      "20",
     );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",
@@ -46,7 +46,7 @@ describe("DependencyEdge", () => {
     );
   });
 
-  it("renders endpoint dots at computed dependency route coordinates", () => {
+  it("renders endpoint pin and socket at computed dependency route coordinates", () => {
     useInternalNodeMock.mockImplementation((nodeId) =>
       nodeId === "source"
         ? internalNode({ x: 100, y: 50, width: 220, height: 96 })
@@ -62,12 +62,12 @@ describe("DependencyEdge", () => {
     );
 
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "x",
-      "317",
+      "cx",
+      "320",
     );
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "y",
-      "95",
+      "cy",
+      "98",
     );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",
