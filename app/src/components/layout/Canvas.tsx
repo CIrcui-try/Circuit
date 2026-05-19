@@ -53,7 +53,7 @@ import { analyzeWorkflowGraph } from "../../runner/topoSort";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
 export const CANVAS_NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
-export const CANVAS_MAX_ZOOM = 2;
+export const CANVAS_MAX_ZOOM = 1;
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
 export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
   type: MarkerType.ArrowClosed,

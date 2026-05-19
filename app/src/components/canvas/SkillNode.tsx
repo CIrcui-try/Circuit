@@ -1,4 +1,4 @@
-import { Handle, Position, useViewport, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   useLayoutEffect,
   useRef,
@@ -21,8 +21,6 @@ import type { DependencyEndpointHint } from "./DependencyEdge";
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
-  const { zoom } = useViewport();
-  const renderZoom = toSkillNodeRenderZoom(zoom);
   const provider = data.skillRef.provider;
   const configuredModel =
     typeof data.execution?.model === "string"
@@ -143,12 +141,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       data-skill-provider={provider}
       data-run-state={runState}
       data-input-state={inputSummary.state}
-      style={
-        {
-          "--skill-node-render-zoom": renderZoom,
-          "--skill-node-render-scale": 1 / renderZoom,
-        } as CSSProperties
-      }
     >
       <Handle
         id="input-top"
@@ -299,10 +291,6 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       />
     </div>
   );
-}
-
-export function toSkillNodeRenderZoom(zoom: number): number {
-  return Number.isFinite(zoom) ? Math.max(1, zoom) : 1;
 }
 
 function updateInputField(

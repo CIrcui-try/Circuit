@@ -1741,8 +1741,6 @@ a:hover {
 }
 
 .skill-node {
-  --skill-node-render-zoom: 1;
-  --skill-node-render-scale: 1;
   width: 220px;
   position: relative;
   padding: 8px 10px;
@@ -1752,9 +1750,6 @@ a:hover {
   color: rgba(255, 255, 255, 0.88);
   font-size: 13px;
   overflow: visible;
-  transform: scale(var(--skill-node-render-scale));
-  transform-origin: center;
-  zoom: var(--skill-node-render-zoom);
 }
 
 .skill-node--claude {

@@ -39,11 +39,7 @@ import {
   toRenderedCanvasEdges,
 } from "./Canvas";
 import { edgeTypes } from "../canvas/DependencyEdge";
-import {
-  SkillNode,
-  nodeTypes,
-  toSkillNodeRenderZoom,
-} from "../canvas/SkillNode";
+import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
 import { useSkillStore } from "../../stores/skillStore";
@@ -698,8 +694,8 @@ describe("Layout shell", () => {
     expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
   });
 
-  it("Canvas allows user zoom beyond the fitView cap", () => {
-    expect(CANVAS_MAX_ZOOM).toBeGreaterThan(CANVAS_FIT_VIEW_OPTIONS.maxZoom);
+  it("Canvas caps user zoom at native scale", () => {
+    expect(CANVAS_MAX_ZOOM).toBe(1);
   });
 
   it("Canvas uses the node card center as the coordinate origin", () => {
@@ -868,12 +864,6 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
       "No input configured",
     );
-  });
-
-  it("SkillNode keeps render zoom at or above native scale", () => {
-    expect(toSkillNodeRenderZoom(0.5)).toBe(1);
-    expect(toSkillNodeRenderZoom(1.5)).toBe(1.5);
-    expect(toSkillNodeRenderZoom(Number.NaN)).toBe(1);
   });
 
   it("SkillNode shows a viewport-fixed description tooltip when hovered", () => {
