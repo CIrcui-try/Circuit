@@ -507,26 +507,26 @@ a:hover {
 
 .dependency-edge__endpoint {
   pointer-events: none;
-  stroke: rgba(255, 255, 255, 0.78);
-  stroke-width: 1.6;
-  opacity: 0.92;
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.86));
+  stroke: rgba(221, 229, 238, 0.58);
+  stroke-width: 1.4;
+  opacity: 0.76;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.72));
 }
 
 .dependency-edge__endpoint--source {
-  fill: #55d66b;
+  fill: #4ea866;
 }
 
 .dependency-edge__endpoint--target {
   fill: #1b1b1f;
-  stroke: #5fa8ff;
+  stroke: #5f8fbd;
 }
 
 .workspace__canvas .react-flow__edge:hover .dependency-edge__endpoint,
 .workspace__canvas .react-flow__edge.selected .dependency-edge__endpoint {
-  opacity: 1;
-  stroke: #ffffff;
-  stroke-width: 2;
+  opacity: 0.95;
+  stroke: #c8d7e8;
+  stroke-width: 1.8;
 }
 
 .starter-flow-empty {
@@ -1787,26 +1787,26 @@ a:hover {
 .skill-node__handle {
   width: 10px;
   height: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.78);
+  border: 2px solid rgba(221, 229, 238, 0.54);
   border-radius: 999px;
-  opacity: 0.88;
+  opacity: 0.72;
   z-index: 2;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
 .skill-node__handle--target {
   background: #1f1f24;
-  border-color: #5fa8ff;
+  border-color: #5f8fbd;
   box-shadow:
-    inset 0 0 0 2px rgba(95, 168, 255, 0.16),
+    inset 0 0 0 2px rgba(95, 143, 189, 0.12),
     0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
 .skill-node__handle--source {
-  background: #55d66b;
-  border-color: rgba(255, 255, 255, 0.82);
+  background: #4ea866;
+  border-color: rgba(221, 229, 238, 0.58);
   box-shadow:
-    inset 0 0 0 2px rgba(31, 31, 36, 0.22),
+    inset 0 0 0 2px rgba(31, 31, 36, 0.28),
     0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
@@ -1827,11 +1827,11 @@ a:hover {
 }
 
 .skill-node__handle--target.skill-node__handle--route-active {
-  color: #5fa8ff;
+  color: #5f8fbd;
 }
 
 .skill-node__handle--source.skill-node__handle--route-active {
-  color: #55d66b;
+  color: #4ea866;
 }
 
 .skill-node--queued {
