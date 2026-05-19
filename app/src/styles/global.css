@@ -427,6 +427,37 @@ a:hover {
   background: #2d2d33;
 }
 
+.workspace__toolbar-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 10px;
+  color: #d7d7dd;
+  background: #2d2d33;
+  border-color: #3a3a42;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.workspace__toolbar-action-button:hover,
+.workspace__toolbar-action-button:focus-visible {
+  color: #ffffff;
+  background: #36363d;
+}
+
+.workspace__toolbar-action-button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.workspace__toolbar-action-button:disabled:hover {
+  color: #d7d7dd;
+  background: #2d2d33;
+}
+
 .workspace__toolbar-tooltip-anchor {
   display: inline-flex;
   flex: 0 0 auto;

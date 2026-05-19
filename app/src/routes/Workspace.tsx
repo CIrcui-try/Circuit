@@ -534,12 +534,13 @@ export function Workspace() {
           <button
             type="button"
             data-testid="workflow-auto-layout"
-            className="workspace__toolbar-icon-button"
+            className="workspace__toolbar-action-button"
             aria-label="Auto layout"
             onClick={handleAutoLayout}
             disabled={!repo || isRunningHere || nodeCount === 0}
           >
             <GitBranch size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Auto layout</span>
           </button>
         </HoverTooltip>
         <HoverTooltip

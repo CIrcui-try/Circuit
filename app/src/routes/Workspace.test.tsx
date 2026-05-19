@@ -388,6 +388,9 @@ describe("Workspace", () => {
     expect(screen.getByTestId("workflow-save")).toHaveTextContent("");
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
     expect(screen.getByTestId("workflow-auto-layout")).toBeDisabled();
+    expect(screen.getByTestId("workflow-auto-layout")).toHaveTextContent(
+      "Auto layout",
+    );
     const startBtn = screen.getByTestId("workflow-start");
     expect(startBtn).toBeDisabled();
     expect(startBtn).toHaveAccessibleName("Start Circuit");
