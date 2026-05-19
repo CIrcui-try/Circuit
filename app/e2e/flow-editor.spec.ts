@@ -189,7 +189,7 @@ test("F6: dragging a canvas node onto the trash dropzone deletes it", async ({ p
   await expect(page.getByTestId("node-properties-panel")).toContainText(/Select a node or edge/i);
 });
 
-test("F7: canvas zoom caps at native scale to keep node text crisp", async ({ page }) => {
+test("F7: input popover keeps its visual size when the canvas zoom changes", async ({ page }) => {
   await openWorkspace(page);
   await addSkillByButton(page, "Implement Feature");
 
@@ -204,7 +204,8 @@ test("F7: canvas zoom caps at native scale to keep node text crisp", async ({ pa
     throw new Error("node or input popover has no bounding box before zoom");
   }
 
-  await expect(page.locator(".react-flow__controls-zoomin")).toBeDisabled();
+  await page.locator(".react-flow__controls-zoomin").click();
+  await page.locator(".react-flow__controls-zoomin").click();
 
   const popoverAfter = await popover.boundingBox();
   const nodeAfter = await node.boundingBox();
@@ -212,8 +213,7 @@ test("F7: canvas zoom caps at native scale to keep node text crisp", async ({ pa
     throw new Error("node or input popover has no bounding box after zoom");
   }
 
-  expect(Math.abs(nodeAfter.width - nodeBefore.width)).toBeLessThan(2);
-  expect(Math.abs(nodeAfter.height - nodeBefore.height)).toBeLessThan(2);
+  expect(nodeAfter.width).toBeGreaterThan(nodeBefore.width + 10);
   expect(Math.abs(popoverAfter.width - popoverBefore.width)).toBeLessThan(2);
   expect(Math.abs(popoverAfter.height - popoverBefore.height)).toBeLessThan(2);
 });

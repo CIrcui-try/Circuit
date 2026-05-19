@@ -694,8 +694,8 @@ describe("Layout shell", () => {
     expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
   });
 
-  it("Canvas caps user zoom at native scale", () => {
-    expect(CANVAS_MAX_ZOOM).toBe(1);
+  it("Canvas allows user zoom beyond the fitView cap", () => {
+    expect(CANVAS_MAX_ZOOM).toBeGreaterThan(CANVAS_FIT_VIEW_OPTIONS.maxZoom);
   });
 
   it("Canvas uses the node card center as the coordinate origin", () => {
