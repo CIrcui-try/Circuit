@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import type { SkillInputHint } from "../../host/bridge";
 
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
+const MODEL_OPTIONS_BY_PROVIDER: Record<string, string[]> = {
+  claude: ["sonnet", "opus"],
+  codex: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2"],
+};
 import { useRunStore } from "../../runner/runStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useRepositoryStore } from "../../stores/repositoryStore";
@@ -61,6 +65,12 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
     typeof selectedNode?.data.execution?.model === "string"
       ? selectedNode.data.execution.model
       : "";
+  const modelOptions = modelOptionsForProvider(
+    selectedNode?.data.skillRef.provider,
+  );
+  const modelListId = selectedNode
+    ? `node-execution-model-options-${selectedNode.data.skillRef.provider}`
+    : undefined;
 
   useEffect(() => {
     setInputMode("friendly");
@@ -242,12 +252,21 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
                   data-testid="node-execution-model"
                   className="properties__input"
                   aria-label="Node execution model"
+                  list={modelListId}
                   placeholder={modelPlaceholder(
                     selectedNode.data.skillRef.provider,
                   )}
                   value={modelValue}
                   onChange={(e) => handleModelChange(e.target.value)}
                 />
+                <datalist
+                  id={modelListId}
+                  data-testid="node-execution-model-options"
+                >
+                  {modelOptions.map((model) => (
+                    <option key={model} value={model} />
+                  ))}
+                </datalist>
               </label>
             </dd>
             <dt>Run Status</dt>
@@ -307,6 +326,10 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
       )}
     </aside>
   );
+}
+
+function modelOptionsForProvider(provider: string | undefined): string[] {
+  return MODEL_OPTIONS_BY_PROVIDER[provider ?? ""] ?? [];
 }
 
 function modelPlaceholder(provider: string): string {

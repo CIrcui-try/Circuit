@@ -871,6 +871,46 @@ describe("Layout shell", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("SkillNode shows the configured execution model", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+        execution: {
+          model: "gpt-5.4-mini",
+        },
+      },
+    });
+
+    const model = screen.getByTestId("skill-node-model");
+    expect(model).toHaveTextContent("model: gpt-5.4-mini");
+    expect(model).toHaveAttribute("title", "Model: gpt-5.4-mini");
+  });
+
+  it("SkillNode shows default when no execution model is configured", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "claude",
+          skillFile: ".claude/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    const model = screen.getByTestId("skill-node-model");
+    expect(model).toHaveTextContent("model: default");
+    expect(model).toHaveClass("skill-node__model--default");
+    expect(model).toHaveAttribute("title", "Model: default");
+  });
+
   it("SkillNode keeps input and output handles visible at top and bottom without edges", () => {
     renderSkillNode({
       id: "node-1",

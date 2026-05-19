@@ -1906,6 +1906,27 @@ a:hover {
   padding: 0.22rem 0.36rem;
 }
 
+.skill-node__model {
+  flex: 0 1 112px;
+  min-width: 0;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 167, 176, 0.42);
+  background: rgba(255, 255, 255, 0.035);
+  color: #d5d5dc;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.22rem 0.38rem;
+}
+
+.skill-node__model--default {
+  color: #9c9ca6;
+}
+
 .skill-node__description-wrap {
   position: relative;
   margin-top: 3px;

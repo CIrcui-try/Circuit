@@ -364,10 +364,11 @@ describe("PropertiesPanel", () => {
       "placeholder",
       "sonnet, opus, or full model name",
     );
-    fireEvent.change(model, { target: { value: " sonnet " } });
+    expect(readModelOptions()).toEqual(["sonnet", "opus"]);
+    fireEvent.change(model, { target: { value: " claude-sonnet-4-6 " } });
 
     expect(useWorkflowStore.getState().nodes[0].data.execution).toEqual({
-      model: "sonnet",
+      model: "claude-sonnet-4-6",
     });
     expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
       prompt: "Keep me",
@@ -393,8 +394,23 @@ describe("PropertiesPanel", () => {
 
     const model = screen.getByTestId("node-execution-model");
     expect(model).toHaveAttribute("placeholder", "Codex model name");
+    expect(readModelOptions()).toEqual([
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+      "gpt-5.2",
+    ]);
     fireEvent.change(model, { target: { value: "" } });
 
     expect(useWorkflowStore.getState().nodes[0].data.execution).toBeUndefined();
   });
 });
+
+function readModelOptions(): string[] {
+  return [
+    ...screen
+      .getByTestId("node-execution-model-options")
+      .querySelectorAll("option"),
+  ].map((option) => option.value);
+}

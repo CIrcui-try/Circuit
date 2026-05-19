@@ -22,6 +22,11 @@ const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
+  const configuredModel =
+    typeof data.execution?.model === "string"
+      ? data.execution.model.trim()
+      : "";
+  const modelLabel = configuredModel || "default";
   const storedDescription =
     typeof data.description === "string" ? data.description.trim() : "";
   const scannedDescription = useSkillStore((state) =>
@@ -145,6 +150,13 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         ) : null}
         <span className={`skill-list__chip skill-list__chip--${provider}`}>
           {provider}
+        </span>
+        <span
+          className={`skill-node__model${configuredModel ? "" : " skill-node__model--default"}`}
+          data-testid="skill-node-model"
+          title={`Model: ${modelLabel}`}
+        >
+          model: {modelLabel}
         </span>
       </div>
       {description ? (
