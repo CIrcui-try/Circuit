@@ -8,6 +8,8 @@ import {
   type DefaultEdgeOptions,
   type Edge as RFEdge,
   type Node as RFNode,
+  type NodeOrigin,
+  type XYPosition,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -38,6 +40,7 @@ import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFile
 import { analyzeWorkflowGraph } from "../../runner/topoSort";
 
 export const SKILL_DRAG_MIME = "application/x-circuit-skill";
+export const CANVAS_NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
 export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
   type: MarkerType.ArrowClosed,
@@ -54,6 +57,16 @@ export const CANVAS_DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
   markerEnd: CANVAS_EDGE_MARKER,
   interactionWidth: 18,
 };
+
+export function toCanvasDropPosition(
+  screenToFlowPosition: (position: XYPosition) => XYPosition,
+  event: Pick<DragEvent<HTMLDivElement>, "clientX" | "clientY">,
+): XYPosition {
+  return screenToFlowPosition({
+    x: event.clientX,
+    y: event.clientY,
+  });
+}
 
 type SkillDragPayload = {
   provider: "claude" | "codex";
@@ -209,10 +222,7 @@ function CanvasInner() {
       } catch {
         return;
       }
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
+      const position = toCanvasDropPosition(screenToFlowPosition, event);
       addSkillNode(
         {
           id:
@@ -325,6 +335,7 @@ function CanvasInner() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={CANVAS_DEFAULT_EDGE_OPTIONS}
+        nodeOrigin={CANVAS_NODE_ORIGIN}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
