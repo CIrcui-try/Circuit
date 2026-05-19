@@ -18,6 +18,8 @@ Circuit was built to make these problems visible.
 
 ### Turn Repeated Skill Routines Into Workflows
 
+https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef
+
 Circuit is not about running a single skill. Its core idea is to combine multiple skills into one routine. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
 
 For example, you can create a flow like this:
@@ -44,6 +46,8 @@ These flows can be written as command lists, but Circuit treats them as visible 
 
 ### Use Claude And Codex Together
 
+https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd
+
 Many projects already contain more than one kind of agent automation. Some routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
 
 Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from your local repository and lets you place both kinds of skills on the same canvas. It does not treat Claude and Codex as competing tools. It treats them as different execution capabilities and model choices that belong to the local project.
@@ -52,9 +56,13 @@ The actual skill files remain in the repository. Circuit does not move them else
 
 ### Track Execution State
 
+https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f
+
 When a workflow runs, you can see which skill is currently running, which steps have completed, and where a failure happened through the canvas and Run Log. Active workflows can be cancelled when needed, and failed runs are easier to inspect because the stopping point remains visible.
 
 ### Handle Loops And Repeated Flows
+
+https://github.com/user-attachments/assets/4436fe4f-ec41-4ebb-a8a5-5e99944e1604
 
 Not every workflow ends in a straight line. Some routines need repetition. For example, you may want to review a failed task again or repeat a check until a condition is satisfied.
 
