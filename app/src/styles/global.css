@@ -449,6 +449,23 @@ a:hover {
   overflow: hidden;
 }
 
+.workspace__canvas .react-flow__edge-path {
+  stroke: #6f7480;
+  stroke-width: 1.35;
+  stroke-opacity: 0.48;
+}
+
+.workspace__canvas .react-flow__edge:hover .react-flow__edge-path,
+.workspace__canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #9fc7ff;
+  stroke-width: 1.8;
+  stroke-opacity: 0.92;
+}
+
+.workspace__canvas .react-flow__edge-interaction {
+  stroke-width: 18;
+}
+
 .starter-flow-empty {
   grid-area: canvas;
   align-self: center;

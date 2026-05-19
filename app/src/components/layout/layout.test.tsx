@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MarkerType, ReactFlowProvider, type NodeProps } from "@xyflow/react";
+import {
+  MarkerType,
+  ReactFlowProvider,
+  type Edge,
+  type NodeProps,
+} from "@xyflow/react";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -18,7 +23,14 @@ vi.mock("../../host/bridge", () => ({
 import { Sidebar } from "./Sidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
-import { CANVAS_EDGE_MARKER, CANVAS_FIT_VIEW_OPTIONS, Canvas } from "./Canvas";
+import {
+  CANVAS_DEFAULT_EDGE_OPTIONS,
+  CANVAS_EDGE_MARKER,
+  CANVAS_FIT_VIEW_OPTIONS,
+  Canvas,
+  toRenderedCanvasEdges,
+} from "./Canvas";
+import { edgeTypes } from "../canvas/DependencyEdge";
 import { SkillNode, nodeTypes } from "../canvas/SkillNode";
 import { useRunLogStore } from "../../runner/runLogStore";
 import { useRunStore } from "../../runner/runStore";
@@ -605,6 +617,29 @@ describe("Layout shell", () => {
     expect(CANVAS_EDGE_MARKER).toMatchObject({
       type: MarkerType.ArrowClosed,
     });
+  });
+
+  it("Canvas registers a dependency edge renderer by default", () => {
+    expect(edgeTypes.dependency).toBeDefined();
+    expect(CANVAS_DEFAULT_EDGE_OPTIONS).toMatchObject({
+      type: "dependency",
+      markerEnd: CANVAS_EDGE_MARKER,
+      interactionWidth: 18,
+    });
+  });
+
+  it("Canvas renders workflow edges as dependency edges with arrow markers", () => {
+    const edges: Edge[] = [{ id: "a-b", source: "a", target: "b" }];
+
+    expect(toRenderedCanvasEdges(edges)).toEqual([
+      {
+        id: "a-b",
+        source: "a",
+        target: "b",
+        type: "dependency",
+        markerEnd: CANVAS_EDGE_MARKER,
+      },
+    ]);
   });
 
   it("nodeTypes registers a 'skill' custom node", () => {
