@@ -6,8 +6,10 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Connection,
   type DefaultEdgeOptions,
   type Edge as RFEdge,
+  type FinalConnectionState,
   type Node as RFNode,
   type NodeOrigin,
   type XYPosition,
@@ -185,6 +187,8 @@ type EdgeHandleHints = {
   target?: DependencyEndpointHint;
 };
 
+type ConnectEndEvent = MouseEvent | TouchEvent;
+
 function toEdgeHandleHints(
   nodes: RFNode[],
   edges: RFEdge[],
@@ -257,6 +261,40 @@ function readNodeNumber(node: RFNode, key: "width" | "height"): number | null {
   if (typeof measured === "number") return measured;
   const value = node[key];
   return typeof value === "number" ? value : null;
+}
+
+export function getCanvasNodeIdAtPoint(
+  x: number,
+  y: number,
+  root: ParentNode = document,
+): string | null {
+  const element =
+    root instanceof Document ? root.elementFromPoint(x, y) : document.elementFromPoint(x, y);
+  const node = element?.closest("[data-node-id]");
+  return node instanceof HTMLElement ? node.dataset.nodeId ?? null : null;
+}
+
+export function toNodeDropConnection(
+  connectionState: FinalConnectionState,
+  targetNodeId: string | null,
+): Connection | null {
+  if (connectionState.isValid || !connectionState.fromNode || !targetNodeId) {
+    return null;
+  }
+  return {
+    source: connectionState.fromNode.id,
+    target: targetNodeId,
+    sourceHandle: null,
+    targetHandle: null,
+  };
+}
+
+function getConnectEndPoint(event: ConnectEndEvent): XYPosition | null {
+  if (event instanceof MouseEvent) {
+    return { x: event.clientX, y: event.clientY };
+  }
+  const touch = event.changedTouches[0];
+  return touch ? { x: touch.clientX, y: touch.clientY } : null;
 }
 
 function isPointInsideElement(
@@ -437,6 +475,18 @@ function CanvasInner() {
     [],
   );
 
+  const onConnectEnd = useCallback(
+    (event: ConnectEndEvent, connectionState: FinalConnectionState) => {
+      if (connectionState.isValid || !connectionState.fromNode) return;
+      const point = getConnectEndPoint(event);
+      if (!point) return;
+      const targetNodeId = getCanvasNodeIdAtPoint(point.x, point.y);
+      const connection = toNodeDropConnection(connectionState, targetNodeId);
+      if (connection) onConnect(connection);
+    },
+    [onConnect],
+  );
+
   const menuItems: SkillNodeMenuItem[] = useMemo(() => {
     if (!menu) return [];
     const absolutePath = resolveSkillFilePath(menu, activeRepoPath, defaultSkills);
@@ -493,6 +543,7 @@ function CanvasInner() {
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         onPaneClick={() => setMenu(null)}
+        onConnectEnd={onConnectEnd}
         connectionMode={CANVAS_CONNECTION_MODE}
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"

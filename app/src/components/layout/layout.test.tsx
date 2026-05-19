@@ -31,8 +31,10 @@ import {
   CANVAS_FIT_VIEW_OPTIONS,
   CANVAS_NODE_ORIGIN,
   Canvas,
+  getCanvasNodeIdAtPoint,
   resolveEdgeHandleOverlap,
   toCanvasDropPosition,
+  toNodeDropConnection,
   toRenderedCanvasEdges,
 } from "./Canvas";
 import { edgeTypes } from "../canvas/DependencyEdge";
@@ -728,6 +730,36 @@ describe("Layout shell", () => {
     };
 
     expect(resolveEdgeHandleOverlap(hints)).toEqual(hints);
+  });
+
+  it("Canvas finds a workflow node under a connection drop point", () => {
+    const node = document.createElement("div");
+    node.dataset.nodeId = "target-node";
+    const child = document.createElement("button");
+    node.appendChild(child);
+    const originalElementFromPoint = document.elementFromPoint;
+    document.elementFromPoint = vi.fn(() => child);
+
+    expect(getCanvasNodeIdAtPoint(12, 34)).toBe("target-node");
+
+    document.elementFromPoint = originalElementFromPoint;
+  });
+
+  it("Canvas converts invalid connection drops on nodes into node-to-node connections", () => {
+    expect(
+      toNodeDropConnection(
+        {
+          isValid: false,
+          fromNode: { id: "source-node" },
+        } as Parameters<typeof toNodeDropConnection>[0],
+        "target-node",
+      ),
+    ).toEqual({
+      source: "source-node",
+      target: "target-node",
+      sourceHandle: null,
+      targetHandle: null,
+    });
   });
 
   it("nodeTypes registers a 'skill' custom node", () => {

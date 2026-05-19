@@ -130,6 +130,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       <Handle
         id="input-top"
         type="target"
+        isConnectableStart={false}
         position={toHandlePosition(edgeHandleHints.target, Position.Top)}
         style={toHandleStyle(edgeHandleHints.target, "target")}
         className={`skill-node__handle skill-node__handle--target${toHandleClass(edgeHandleHints.target)}`}
