@@ -185,7 +185,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
             {visibleSummaryItems.map((item, index) => (
               <span
                 key={item.key}
-                className={`skill-node__input-token${item.key === "arguments" ? " skill-node__input-token--arguments" : ""}${item.key === "model" ? " skill-node__input-token--model" : ""}`}
+                className={`skill-node__input-token${item.key === "arguments" ? " skill-node__input-token--arguments" : ""}`}
                 data-testid={
                   item.key === "model" ? "skill-node-model" : undefined
                 }

@@ -889,7 +889,6 @@ describe("Layout shell", () => {
 
     const model = screen.getByTestId("skill-node-model");
     expect(model).toHaveTextContent("model: gpt-5.4-mini");
-    expect(model).toHaveClass("skill-node__input-token--model");
     expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
       "model: gpt-5.4-mini",
     );
@@ -1266,7 +1265,6 @@ describe("Layout shell", () => {
     expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
     expect(tokens).toHaveLength(2);
     expect(tokens[0]).toHaveTextContent("arguments: 1");
-    expect(tokens[1]).toHaveClass("skill-node__input-token--model");
     expect(tokens[1]).toHaveTextContent("model: gpt-5.5");
     expect(summary).not.toHaveTextContent(", model");
   });

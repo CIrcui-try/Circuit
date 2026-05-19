@@ -1968,10 +1968,6 @@ a:hover {
   white-space: nowrap;
 }
 
-.skill-node__input-token--model {
-  white-space: nowrap;
-}
-
 .skill-node__input-key {
   color: #8ee48e;
   font-weight: 600;
