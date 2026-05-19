@@ -17,14 +17,15 @@ const PORT_SLOT_PADDING = 24;
 type Anchor = {
   x: number;
   y: number;
+  dir: {
+    x: number;
+    y: number;
+  };
 };
-
-type CurveAxis = "x" | "y";
 
 type DependencyRoute = {
   source: Anchor;
   target: Anchor;
-  axis: CurveAxis;
 };
 
 type RouteSlot = {
@@ -105,20 +106,27 @@ function getDependencyRoute(
       sourceRect.height,
       routeSlot.source,
     );
+    const targetX = offsetInsideSpan(
+      targetCenter.x,
+      targetRect.width,
+      routeSlot.target,
+    );
     const targetY = offsetInsideSpan(
       targetCenter.y,
       targetRect.height,
       routeSlot.target,
     );
-    const source = {
-      x: dx >= 0 ? sourceRect.x + sourceRect.width : sourceRect.x,
-      y: sourceY,
+    return {
+      source:
+        dx >= 0
+          ? rightAnchor(sourceRect, sourceY)
+          : leftAnchor(sourceRect, sourceY),
+      target: shouldDockSideTargetVertically(dy, targetRect)
+        ? verticalSideBranchTargetAnchor(targetRect, targetX, dx, dy)
+        : dx >= 0
+          ? leftAnchor(targetRect, targetY)
+          : rightAnchor(targetRect, targetY),
     };
-    const target = {
-      x: dx >= 0 ? targetRect.x : targetRect.x + targetRect.width,
-      y: targetY,
-    };
-    return { source, target, axis: "x" };
   }
 
   const sourceX = offsetInsideSpan(
@@ -131,15 +139,16 @@ function getDependencyRoute(
     targetRect.width,
     routeSlot.target,
   );
-  const source = {
-    x: sourceX,
-    y: dy >= 0 ? sourceRect.y + sourceRect.height : sourceRect.y,
+  return {
+    source:
+      dy >= 0
+        ? bottomAnchor(sourceRect, sourceX)
+        : topAnchor(sourceRect, sourceX),
+    target:
+      dy >= 0
+        ? topAnchor(targetRect, targetX)
+        : bottomAnchor(targetRect, targetX),
   };
-  const target = {
-    x: targetX,
-    y: dy >= 0 ? targetRect.y : targetRect.y + targetRect.height,
-  };
-  return { source, target, axis: "y" };
 }
 
 function offsetInsideSpan(
@@ -190,29 +199,40 @@ function getFallbackRoute(
   targetX: number,
   targetY: number,
 ): DependencyRoute {
+  const horizontal = Math.abs(targetX - sourceX) > Math.abs(targetY - sourceY);
   return {
-    source: { x: sourceX, y: sourceY },
-    target: { x: targetX, y: targetY },
-    axis: Math.abs(targetX - sourceX) > Math.abs(targetY - sourceY) ? "x" : "y",
+    source: {
+      x: sourceX,
+      y: sourceY,
+      dir: horizontal
+        ? { x: Math.sign(targetX - sourceX) || 1, y: 0 }
+        : { x: 0, y: Math.sign(targetY - sourceY) || 1 },
+    },
+    target: {
+      x: targetX,
+      y: targetY,
+      dir: horizontal
+        ? { x: Math.sign(sourceX - targetX) || -1, y: 0 }
+        : { x: 0, y: Math.sign(sourceY - targetY) || -1 },
+    },
   };
 }
 
 function toFlowCurvePath(route: DependencyRoute): string {
-  const { source, target, axis } = route;
-  const delta = axis === "x" ? target.x - source.x : target.y - source.y;
-  const direction = Math.sign(delta) || 1;
+  const { source, target } = route;
+  const distance = Math.hypot(target.x - source.x, target.y - source.y);
   const curve = Math.min(
     CURVE_MAX,
-    Math.max(CURVE_MIN, Math.abs(delta) * 0.45),
+    Math.max(CURVE_MIN, distance * 0.35),
   );
-  const sourceControl =
-    axis === "x"
-      ? { x: source.x + direction * curve, y: source.y }
-      : { x: source.x, y: source.y + direction * curve };
-  const targetControl =
-    axis === "x"
-      ? { x: target.x - direction * curve, y: target.y }
-      : { x: target.x, y: target.y - direction * curve };
+  const sourceControl = {
+    x: source.x + source.dir.x * curve,
+    y: source.y + source.dir.y * curve,
+  };
+  const targetControl = {
+    x: target.x + target.dir.x * curve,
+    y: target.y + target.dir.y * curve,
+  };
 
   return [
     `M ${source.x} ${source.y}`,
@@ -220,6 +240,43 @@ function toFlowCurvePath(route: DependencyRoute): string {
     `${targetControl.x} ${targetControl.y}`,
     `${target.x} ${target.y}`,
   ].join(" ");
+}
+
+type NodeRect = ReturnType<typeof getNodeRect>;
+
+function shouldDockSideTargetVertically(
+  dy: number,
+  targetRect: NodeRect,
+): boolean {
+  return Math.abs(dy) > targetRect.height * 0.75;
+}
+
+function verticalSideBranchTargetAnchor(
+  rect: NodeRect,
+  x: number,
+  dx: number,
+  dy: number,
+): Anchor {
+  if (dy > 0 || (dx < 0 && dy < 0)) {
+    return topAnchor(rect, x);
+  }
+  return bottomAnchor(rect, x);
+}
+
+function topAnchor(rect: NodeRect, x: number): Anchor {
+  return { x, y: rect.y, dir: { x: 0, y: -1 } };
+}
+
+function bottomAnchor(rect: NodeRect, x: number): Anchor {
+  return { x, y: rect.y + rect.height, dir: { x: 0, y: 1 } };
+}
+
+function leftAnchor(rect: NodeRect, y: number): Anchor {
+  return { x: rect.x, y, dir: { x: -1, y: 0 } };
+}
+
+function rightAnchor(rect: NodeRect, y: number): Anchor {
+  return { x: rect.x + rect.width, y, dir: { x: 1, y: 0 } };
 }
 
 function getNodeRect(node: InternalNode<Node>) {
