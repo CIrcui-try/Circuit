@@ -27,7 +27,9 @@ import {
   CANVAS_DEFAULT_EDGE_OPTIONS,
   CANVAS_EDGE_MARKER,
   CANVAS_FIT_VIEW_OPTIONS,
+  CANVAS_NODE_ORIGIN,
   Canvas,
+  toCanvasDropPosition,
   toRenderedCanvasEdges,
 } from "./Canvas";
 import { edgeTypes } from "../canvas/DependencyEdge";
@@ -611,6 +613,25 @@ describe("Layout shell", () => {
 
   it("Canvas caps fitView zoom so a single node is not enlarged", () => {
     expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
+  });
+
+  it("Canvas uses the node card center as the coordinate origin", () => {
+    expect(CANVAS_NODE_ORIGIN).toEqual([0.5, 0.5]);
+  });
+
+  it("Canvas converts the drop pointer position without top-left offset", () => {
+    const screenToFlowPosition = vi.fn(() => ({ x: 123, y: 456 }));
+
+    const position = toCanvasDropPosition(screenToFlowPosition, {
+      clientX: 123,
+      clientY: 456,
+    });
+
+    expect(screenToFlowPosition).toHaveBeenCalledWith({
+      x: 123,
+      y: 456,
+    });
+    expect(position).toEqual({ x: 123, y: 456 });
   });
 
   it("Canvas uses an arrow marker for workflow edge ends", () => {
