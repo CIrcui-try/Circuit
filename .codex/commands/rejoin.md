@@ -1,6 +1,6 @@
 ---
 description: 중단 정리 — 워크트리 제거 + 브랜치를 develop 위로 리베이스해 메인 레포 로컬 브랜치로 보존
-allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue
+allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue, mcp__linear-server__update_issue
 argument-hint: [Linear 이슈 ID 또는 브랜치명]
 ---
 
@@ -30,8 +30,9 @@ PR 머지 여부와 무관하게, 워크트리에서 빠져나와 진행 중인 
    - `git checkout <branch>`.
    - `git rebase origin/develop`.
    - 충돌 발생 시: 자동 해결 시도하지 말고 "리베이스 충돌 상태 — 해결 후 `git rebase --continue` 또는 `git rebase --abort`" 안내 후 중단. 메인 레포의 HEAD 는 리베이스 진행 중 상태로 둔다.
-10. **상태 파일 정리(있으면)**: 인자가 이슈 키였고 `.codex/state/<ISSUE>.*` 잔재가 있으면 함께 삭제. (보통 takeoff 후 호출되므로 잔재 없음.)
-11. **요약 출력**: `<branch>` 가 develop 보다 N 커밋 앞섬 (`git rev-list --count origin/develop..<branch>`), HEAD 해시, 삭제된 워크트리 경로, "원격에는 영향 없음 (push 미수행)" 한두 문장으로 안내.
+10. **티켓 상태 동기화**: 이슈 키를 확인할 수 있고 이슈가 `Done`/`Canceled` 가 아니면 Linear 상태를 `In Progress` 로 직접 유지한다. rejoin 은 작업 보존 단계이므로 `Done` 으로 바꾸지 않는다.
+11. **상태 파일 정리(있으면)**: 인자가 이슈 키였고 `.codex/state/<ISSUE>.*` 잔재가 있으면 함께 삭제. (보통 takeoff 후 호출되므로 잔재 없음.)
+12. **요약 출력**: `<branch>` 가 develop 보다 N 커밋 앞섬 (`git rev-list --count origin/develop..<branch>`), HEAD 해시, 삭제된 워크트리 경로, "원격에는 영향 없음 (push 미수행)" 한두 문장으로 안내.
 
 ## 주의사항
 
@@ -39,5 +40,5 @@ PR 머지 여부와 무관하게, 워크트리에서 빠져나와 진행 중인 
 - 자동 stash 금지. 미커밋 변경은 사용자에게 처리 위임.
 - 리베이스 충돌은 사용자 위임. 자동 해결 시도 금지.
 - `develop` / `main` 을 대상 브랜치로 받지 않는다.
-- Linear 이슈 상태 변경 금지 — 자동화에 위임.
+- Linear 티켓 상태는 자동화에 위임하지 않고 직접 `Todo` → `In Progress` → `Done` 으로만 처리한다.
 - PR 머지 후 사후 정리는 `/rejoin` 이 아닌 `/landing` 으로 진행.

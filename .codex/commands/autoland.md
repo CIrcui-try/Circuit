@@ -1,6 +1,6 @@
 ---
 description: CI 통과 후 PR 자동 머지·landing 정리
-allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue
+allowed-tools: Bash, Read, AskUserQuestion, mcp__linear-server__get_issue, mcp__linear-server__update_issue
 argument-hint: [Linear 이슈 ID | 브랜치명 | PR URL] [--interval <seconds>] [--timeout <minutes>]
 ---
 
@@ -51,11 +51,12 @@ takeoff 이후 사후 자동화 단계. PR 의 CI checks 를 기다렸다가 모
     - 이슈 키로 호출된 경우 원래 `<TARGET>` 을 `/landing` 입력으로 사용한다.
     - PR URL 로 호출된 경우 4단계의 `headRefName` 을 branch 입력으로 사용한다.
     - 워크트리가 없으면 landing 처럼 스킵 메시지만 출력하고 계속한다.
-11. **직접 확인 포인트 정리**: PR 본문의 `직접 확인 포인트` 섹션을 우선 사용하고, 없으면 PR diff/커밋/Linear 이슈 내용을 보고 사용자가 직접 확인할 수 있는 가시적인 피처를 1~5개로 정리한다.
+11. **티켓 상태 동기화**: PR 머지와 landing 정리가 끝났고 이슈 키를 확인할 수 있으면 Linear 상태를 `Done` 으로 직접 변경한다.
+12. **직접 확인 포인트 정리**: PR 본문의 `직접 확인 포인트` 섹션을 우선 사용하고, 없으면 PR diff/커밋/Linear 이슈 내용을 보고 사용자가 직접 확인할 수 있는 가시적인 피처를 1~5개로 정리한다.
     - 화면, 버튼, 리스트, 상태 표시, 알림, 에러 메시지, 사용자 플로우처럼 눈으로 확인 가능한 단위로 쓴다.
     - 코드 정리, 테스트, 인프라 변경처럼 직접 확인할 UI/동작이 없으면 "직접 확인할 가시 피처 없음" 이라고 명시한다.
     - 애매하면 근거를 짧게 붙여 추정이라고 표시한다.
-12. **요약 출력**: PR URL, checks 통과 여부, merge commit 방식으로 머지했는지, landing 정리 결과, 직접 확인 포인트를 함께 안내한다.
+13. **요약 출력**: PR URL, checks 통과 여부, merge commit 방식으로 머지했는지, landing 정리 결과, 직접 확인 포인트를 함께 안내한다.
 
 ## 주의사항
 
@@ -64,5 +65,5 @@ takeoff 이후 사후 자동화 단계. PR 의 CI checks 를 기다렸다가 모
 - draft PR, closed PR, base 가 `develop` 이 아닌 PR 은 중단한다.
 - branch protection, review requirement, merge conflict 는 우회하지 않는다.
 - `--admin`, `--auto`, force push, `develop` 직접 push 는 사용하지 않는다.
-- Linear 이슈 상태 변경은 자동화에 위임 — 직접 변경하지 않는다.
+- Linear 티켓 상태는 자동화에 위임하지 않고 직접 `Todo` → `In Progress` → `Done` 으로만 처리한다.
 - 웹훅 서버 방식은 v1 범위가 아니다. 이 커맨드는 로컬 GitHub CLI 폴링 기반으로 동작한다.

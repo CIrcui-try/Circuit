@@ -34,14 +34,15 @@ Use this skill when the user asks to run the `landing` workflow.
 6. **로컬 develop 동기화**: 메인 레포에서 `git checkout develop && git pull origin develop`.
 7. **로컬 브랜치 정리**: `git branch -d <branch>` 시도. 실패하면(아직 머지 인식 못 함) 사용자 확인 후 `git branch -D <branch>`.
 8. **상태 파일 정리(잔재 시)**: takeoff 가 정상 종료했으면 `.codex/state/<ISSUE>.*` 는 이미 사라져 있다. 잔재가 있다면 함께 삭제. (이슈 키를 인자로 받지 않은 경우는 이 단계 생략.)
-9. **요약 출력**: 머지된 PR URL(있으면)·삭제된 워크트리 경로·develop 의 최신 커밋 해시를 한두 문장으로 안내.
+9. **티켓 상태 동기화**: PR 이 `MERGED` 이고 이슈 키를 확인할 수 있으면 Linear 상태를 `Done` 으로 직접 변경한다. PR 미머지 상태에서 사용자가 워크트리 제거를 승인한 경우에는 `Done` 으로 바꾸지 않는다.
+10. **요약 출력**: 머지된 PR URL(있으면)·삭제된 워크트리 경로·develop 의 최신 커밋 해시를 한두 문장으로 안내.
 
 ## 주의사항
 
 - PR 미머지 상태에서의 워크트리 제거는 사용자 명시 승인 후에만 진행.
 - 로컬 브랜치 강제 삭제(`-D`)는 사용자 명시 승인 후에만.
 - `develop` / `main` 에 직접 커밋·푸시하지 않는다.
-- Linear 이슈 상태 변경은 자동화에 위임 — 직접 변경 금지.
+- Linear 티켓 상태는 자동화에 위임하지 않고 직접 `Todo` → `In Progress` → `Done` 으로만 처리한다.
 - 상태 파일이 없는 케이스(takeoff 후 정상 정리)도 정상 동작이다 — 이슈 키 → 브랜치명 변환만 가능하면 된다.
 - PR 미머지 상태에서 워크트리만 정리하고 브랜치를 보존하려면 `/landing` 대신 `/rejoin` 을 사용한다. `/rejoin` 후 PR 이 머지되면 그대로 `/landing` 을 호출하면 된다 (워크트리 부재 케이스는 5단계에서 스킵 처리).
 
