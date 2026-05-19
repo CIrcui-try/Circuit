@@ -499,7 +499,7 @@ type InputSummaryItem = {
 
 function shouldStackInputSummary(items: InputSummaryItem[]): boolean {
   const keys = new Set(items.map((item) => item.key));
-  return keys.has("arguments") && keys.has("prompt");
+  return keys.has("arguments") && (keys.has("prompt") || keys.has("model"));
 }
 
 function summarizeInput(input: unknown): InputSummary {

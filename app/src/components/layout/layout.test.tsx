@@ -1240,6 +1240,37 @@ describe("Layout shell", () => {
     expect(summary).not.toHaveTextContent(", prompt");
   });
 
+  it("SkillNode stacks arguments and model summaries", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "planning",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/planning/SKILL.md",
+        },
+        execution: {
+          model: "gpt-5.5",
+        },
+        input: {
+          arguments: "1",
+        },
+      },
+    });
+
+    const summary = screen.getByTestId("skill-node-input-summary");
+    const innerSummary = summary.querySelector(".skill-node__input-summary");
+    const tokens = summary.querySelectorAll(".skill-node__input-token");
+
+    expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toHaveTextContent("arguments: 1");
+    expect(tokens[1]).toHaveClass("skill-node__input-token--model");
+    expect(tokens[1]).toHaveTextContent("model: gpt-5.5");
+    expect(summary).not.toHaveTextContent(", model");
+  });
+
   it("SkillNode marks non-object input as invalid", () => {
     renderSkillNode({
       id: "node-1",
