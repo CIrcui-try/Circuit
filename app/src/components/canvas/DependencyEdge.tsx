@@ -13,27 +13,44 @@ const CURVE_MIN = 48;
 const CURVE_MAX = 180;
 const PORT_SLOT_GAP = 20;
 const PORT_SLOT_PADDING = 24;
+export const DEPENDENCY_NODE_FALLBACK_WIDTH = FALLBACK_NODE_WIDTH;
+export const DEPENDENCY_NODE_FALLBACK_HEIGHT = FALLBACK_NODE_HEIGHT;
 
-type Anchor = {
+export type DependencyEndpointSide = "top" | "right" | "bottom" | "left";
+
+export type DependencyEndpointHint = {
+  side: DependencyEndpointSide;
+  offset: number;
+};
+
+export type DependencyAnchor = {
   x: number;
   y: number;
+  side: DependencyEndpointSide;
   dir: {
     x: number;
     y: number;
   };
 };
 
-type DependencyRoute = {
-  source: Anchor;
-  target: Anchor;
+export type DependencyRoute = {
+  source: DependencyAnchor;
+  target: DependencyAnchor;
 };
 
-type RouteSlot = {
+export type DependencyNodeRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type RouteSlot = {
   index: number;
   count: number;
 };
 
-type RouteSlotData = {
+export type RouteSlotData = {
   source: RouteSlot;
   target: RouteSlot;
 };
@@ -53,7 +70,7 @@ export function DependencyEdge({
 }: EdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
-  const routeSlot = readRouteSlotData(data);
+  const routeSlot = readDependencyRouteSlotData(data);
   const route =
     sourceNode && targetNode
       ? getDependencyRoute(sourceNode, targetNode, routeSlot)
@@ -65,15 +82,35 @@ export function DependencyEdge({
   };
 
   return (
-    <BaseEdge
-      id={id}
-      path={path}
-      labelX={labelPoint.x}
-      labelY={labelPoint.y}
-      markerEnd={markerEnd}
-      style={style}
-      interactionWidth={interactionWidth}
-    />
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        labelX={labelPoint.x}
+        labelY={labelPoint.y}
+        markerEnd={markerEnd}
+        style={style}
+        interactionWidth={interactionWidth}
+      />
+      <rect
+        aria-hidden="true"
+        className="dependency-edge__endpoint dependency-edge__endpoint--source"
+        x={route.source.x - 3}
+        y={route.source.y - 3}
+        width={6}
+        height={6}
+        rx={1.5}
+        data-testid="dependency-edge-source-endpoint"
+      />
+      <circle
+        aria-hidden="true"
+        className="dependency-edge__endpoint dependency-edge__endpoint--target"
+        cx={route.target.x}
+        cy={route.target.y}
+        r={3}
+        data-testid="dependency-edge-target-endpoint"
+      />
+    </>
   );
 }
 
@@ -82,8 +119,18 @@ function getDependencyRoute(
   targetNode: InternalNode<Node>,
   routeSlot: RouteSlotData,
 ): DependencyRoute {
-  const sourceRect = getNodeRect(sourceNode);
-  const targetRect = getNodeRect(targetNode);
+  return getDependencyRouteForRects(
+    getNodeRect(sourceNode),
+    getNodeRect(targetNode),
+    routeSlot,
+  );
+}
+
+export function getDependencyRouteForRects(
+  sourceRect: DependencyNodeRect,
+  targetRect: DependencyNodeRect,
+  routeSlot: RouteSlotData,
+): DependencyRoute {
   const sourceCenter = {
     x: sourceRect.x + sourceRect.width / 2,
     y: sourceRect.y + sourceRect.height / 2,
@@ -151,6 +198,23 @@ function getDependencyRoute(
   };
 }
 
+export function toDependencyEndpointHint(
+  anchor: DependencyAnchor,
+  rect: DependencyNodeRect,
+): DependencyEndpointHint {
+  const center = {
+    x: rect.x + rect.width / 2,
+    y: rect.y + rect.height / 2,
+  };
+  return {
+    side: anchor.side,
+    offset:
+      anchor.side === "top" || anchor.side === "bottom"
+        ? Math.round(anchor.x - center.x)
+        : Math.round(anchor.y - center.y),
+  };
+}
+
 function offsetInsideSpan(
   center: number,
   span: number,
@@ -163,7 +227,7 @@ function offsetInsideSpan(
   return Math.round(center + offset);
 }
 
-function readRouteSlotData(data: unknown): RouteSlotData {
+export function readDependencyRouteSlotData(data: unknown): RouteSlotData {
   if (!isRecord(data) || !isRecord(data.routeSlot)) {
     return DEFAULT_ROUTE_SLOT_DATA;
   }
@@ -204,6 +268,13 @@ function getFallbackRoute(
     source: {
       x: sourceX,
       y: sourceY,
+      side: horizontal
+        ? Math.sign(targetX - sourceX) >= 0
+          ? "right"
+          : "left"
+        : Math.sign(targetY - sourceY) >= 0
+          ? "bottom"
+          : "top",
       dir: horizontal
         ? { x: Math.sign(targetX - sourceX) || 1, y: 0 }
         : { x: 0, y: Math.sign(targetY - sourceY) || 1 },
@@ -211,6 +282,13 @@ function getFallbackRoute(
     target: {
       x: targetX,
       y: targetY,
+      side: horizontal
+        ? Math.sign(sourceX - targetX) >= 0
+          ? "right"
+          : "left"
+        : Math.sign(sourceY - targetY) >= 0
+          ? "bottom"
+          : "top",
       dir: horizontal
         ? { x: Math.sign(sourceX - targetX) || -1, y: 0 }
         : { x: 0, y: Math.sign(sourceY - targetY) || -1 },
@@ -242,44 +320,52 @@ function toFlowCurvePath(route: DependencyRoute): string {
   ].join(" ");
 }
 
-type NodeRect = ReturnType<typeof getNodeRect>;
-
 function shouldDockSideTargetVertically(
   dy: number,
-  targetRect: NodeRect,
+  targetRect: DependencyNodeRect,
 ): boolean {
   return Math.abs(dy) > targetRect.height * 0.75;
 }
 
 function verticalSideBranchTargetAnchor(
-  rect: NodeRect,
+  rect: DependencyNodeRect,
   x: number,
   dx: number,
   dy: number,
-): Anchor {
+): DependencyAnchor {
   if (dy > 0 || (dx < 0 && dy < 0)) {
     return topAnchor(rect, x);
   }
   return bottomAnchor(rect, x);
 }
 
-function topAnchor(rect: NodeRect, x: number): Anchor {
-  return { x, y: rect.y, dir: { x: 0, y: -1 } };
+function topAnchor(rect: DependencyNodeRect, x: number): DependencyAnchor {
+  return { x, y: rect.y, side: "top", dir: { x: 0, y: -1 } };
 }
 
-function bottomAnchor(rect: NodeRect, x: number): Anchor {
-  return { x, y: rect.y + rect.height, dir: { x: 0, y: 1 } };
+function bottomAnchor(rect: DependencyNodeRect, x: number): DependencyAnchor {
+  return {
+    x,
+    y: rect.y + rect.height,
+    side: "bottom",
+    dir: { x: 0, y: 1 },
+  };
 }
 
-function leftAnchor(rect: NodeRect, y: number): Anchor {
-  return { x: rect.x, y, dir: { x: -1, y: 0 } };
+function leftAnchor(rect: DependencyNodeRect, y: number): DependencyAnchor {
+  return { x: rect.x, y, side: "left", dir: { x: -1, y: 0 } };
 }
 
-function rightAnchor(rect: NodeRect, y: number): Anchor {
-  return { x: rect.x + rect.width, y, dir: { x: 1, y: 0 } };
+function rightAnchor(rect: DependencyNodeRect, y: number): DependencyAnchor {
+  return {
+    x: rect.x + rect.width,
+    y,
+    side: "right",
+    dir: { x: 1, y: 0 },
+  };
 }
 
-function getNodeRect(node: InternalNode<Node>) {
+function getNodeRect(node: InternalNode<Node>): DependencyNodeRect {
   return {
     x: node.internals.positionAbsolute.x,
     y: node.internals.positionAbsolute.y,

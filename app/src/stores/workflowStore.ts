@@ -307,7 +307,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const baseEdges = edges.filter(
       (e) => e.source !== conn.source && e.target !== conn.target,
     );
-    const nextEdges = addEdge(conn, baseEdges);
+    const nextEdges = addEdge(
+      {
+        source: conn.source,
+        target: conn.target,
+        sourceHandle: null,
+        targetHandle: null,
+      },
+      baseEdges,
+    );
     const sorted = topoSort(
       get().nodes.map((n) => n.id),
       nextEdges,

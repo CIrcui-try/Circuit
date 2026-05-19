@@ -1,5 +1,6 @@
 import {
   Background,
+  ConnectionMode,
   Controls,
   MarkerType,
   ReactFlow,
@@ -24,7 +25,16 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { nodeTypes } from "../canvas/SkillNode";
-import { edgeTypes } from "../canvas/DependencyEdge";
+import {
+  DEPENDENCY_NODE_FALLBACK_HEIGHT,
+  DEPENDENCY_NODE_FALLBACK_WIDTH,
+  edgeTypes,
+  getDependencyRouteForRects,
+  readDependencyRouteSlotData,
+  toDependencyEndpointHint,
+  type DependencyEndpointHint,
+  type DependencyNodeRect,
+} from "../canvas/DependencyEdge";
 import {
   SkillNodeMenu,
   type SkillNodeMenuItem,
@@ -56,6 +66,17 @@ export const CANVAS_DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
   type: "dependency",
   markerEnd: CANVAS_EDGE_MARKER,
   interactionWidth: 18,
+};
+export const CANVAS_CONNECTION_MODE = ConnectionMode.Loose;
+const HANDLE_OVERLAP_THRESHOLD = 10;
+const HANDLE_OVERLAP_OFFSET = 7;
+const DEFAULT_SOURCE_HANDLE_HINT: DependencyEndpointHint = {
+  side: "bottom",
+  offset: 0,
+};
+const DEFAULT_TARGET_HANDLE_HINT: DependencyEndpointHint = {
+  side: "top",
+  offset: 0,
 };
 
 export function toCanvasDropPosition(
@@ -159,6 +180,85 @@ function toEdgeSlotMap(
   return slots;
 }
 
+type EdgeHandleHints = {
+  source?: DependencyEndpointHint;
+  target?: DependencyEndpointHint;
+};
+
+function toEdgeHandleHints(
+  nodes: RFNode[],
+  edges: RFEdge[],
+): Map<string, EdgeHandleHints> {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const hints = new Map<string, EdgeHandleHints>();
+
+  for (const edge of edges) {
+    const sourceNode = nodesById.get(edge.source);
+    const targetNode = nodesById.get(edge.target);
+    if (!sourceNode || !targetNode) continue;
+
+    const sourceRect = toNodeRect(sourceNode);
+    const targetRect = toNodeRect(targetNode);
+    const route = getDependencyRouteForRects(
+      sourceRect,
+      targetRect,
+      readDependencyRouteSlotData(edge.data),
+    );
+
+    hints.set(edge.source, {
+      ...(hints.get(edge.source) ?? {}),
+      source: toDependencyEndpointHint(route.source, sourceRect),
+    });
+    hints.set(edge.target, {
+      ...(hints.get(edge.target) ?? {}),
+      target: toDependencyEndpointHint(route.target, targetRect),
+    });
+  }
+
+  return new Map(
+    [...hints].map(([nodeId, hint]) => [
+      nodeId,
+      resolveEdgeHandleOverlap(hint),
+    ]),
+  );
+}
+
+export function resolveEdgeHandleOverlap(
+  hints: EdgeHandleHints,
+): EdgeHandleHints {
+  const source = hints.source ?? DEFAULT_SOURCE_HANDLE_HINT;
+  const target = hints.target ?? DEFAULT_TARGET_HANDLE_HINT;
+  if (source.side !== target.side) return hints;
+  if (Math.abs(source.offset - target.offset) > HANDLE_OVERLAP_THRESHOLD) {
+    return hints;
+  }
+
+  const midpoint = Math.round((source.offset + target.offset) / 2);
+  return {
+    target: { ...target, offset: midpoint - HANDLE_OVERLAP_OFFSET },
+    source: { ...source, offset: midpoint + HANDLE_OVERLAP_OFFSET },
+  };
+}
+
+function toNodeRect(node: RFNode): DependencyNodeRect {
+  const width = readNodeNumber(node, "width") ?? DEPENDENCY_NODE_FALLBACK_WIDTH;
+  const height =
+    readNodeNumber(node, "height") ?? DEPENDENCY_NODE_FALLBACK_HEIGHT;
+  return {
+    x: node.position.x - width / 2,
+    y: node.position.y - height / 2,
+    width,
+    height,
+  };
+}
+
+function readNodeNumber(node: RFNode, key: "width" | "height"): number | null {
+  const measured = node.measured?.[key];
+  if (typeof measured === "number") return measured;
+  const value = node[key];
+  return typeof value === "number" ? value : null;
+}
+
 function isPointInsideElement(
   event: ReactMouseEvent,
   element: HTMLElement | null,
@@ -211,8 +311,9 @@ function CanvasInner() {
     );
     const rootNodeId = graph.valid ? graph.rootNodeId : null;
     const activeEdge =
-      edges.find((edge) => edge.id === hoveredEdgeId) ??
-      edges.find((edge) => edge.selected);
+      renderedEdges.find((edge) => edge.id === hoveredEdgeId) ??
+      renderedEdges.find((edge) => edge.selected);
+    const edgeHandleHints = toEdgeHandleHints(nodes, renderedEdges);
     return nodes.map((node) => ({
       ...node,
       data: {
@@ -226,9 +327,10 @@ function CanvasInner() {
               : activeEdge?.target === node.id
                 ? "target"
                 : null,
+        edgeHandleHints: edgeHandleHints.get(node.id) ?? null,
       },
     }));
-  }, [edges, hoveredEdgeId, nodes]);
+  }, [edges, hoveredEdgeId, nodes, renderedEdges]);
 
   useEffect(() => {
     if (!connectionWarning) return;
@@ -391,6 +493,7 @@ function CanvasInner() {
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         onPaneClick={() => setMenu(null)}
+        connectionMode={CANVAS_CONNECTION_MODE}
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"
         fitView
