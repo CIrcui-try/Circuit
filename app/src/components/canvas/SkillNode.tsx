@@ -22,6 +22,10 @@ const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const provider = data.skillRef.provider;
+  const configuredModel =
+    typeof data.execution?.model === "string"
+      ? data.execution.model.trim()
+      : "";
   const storedDescription =
     typeof data.description === "string" ? data.description.trim() : "";
   const scannedDescription = useSkillStore((state) =>
@@ -57,7 +61,18 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       ? data.edgeRole
       : null;
   const edgeHandleHints = readEdgeHandleHints(data.edgeHandleHints);
-  const stackInputSummary = shouldStackInputSummary(inputSummary.items);
+  const visibleSummaryItems = configuredModel
+    ? [...inputSummary.items, { key: "model", value: configuredModel }]
+    : inputSummary.items;
+  const stackInputSummary = shouldStackInputSummary(visibleSummaryItems);
+  const summaryState =
+    inputSummary.state === "none" && configuredModel
+      ? "present"
+      : inputSummary.state;
+  const summaryTitle =
+    visibleSummaryItems.length > 0
+      ? visibleSummaryItems.map((item) => `${item.key}: ${item.value}`).join(", ")
+      : inputSummary.summary;
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
@@ -162,22 +177,29 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         </HoverTooltip>
       ) : null}
       <div className="skill-node__input" data-testid="skill-node-input-summary">
-        {inputSummary.state === "present" ? (
+        {summaryState === "present" ? (
           <span
             className={`skill-node__input-summary${stackInputSummary ? " skill-node__input-summary--stacked" : ""}`}
-            title={inputSummary.summary}
+            title={summaryTitle}
           >
-            {inputSummary.items.map((item, index) => (
+            {visibleSummaryItems.map((item, index) => (
               <span
                 key={item.key}
                 className={`skill-node__input-token${item.key === "arguments" ? " skill-node__input-token--arguments" : ""}`}
+                data-testid={
+                  item.key === "model" ? "skill-node-model" : undefined
+                }
               >
                 {index > 0 && !stackInputSummary ? (
                   <span className="skill-node__input-separator">, </span>
                 ) : null}
                 <span className="skill-node__input-key">{item.key}</span>
                 <span className="skill-node__input-separator">: </span>
-                <span>{item.value}</span>
+                <span
+                  title={item.key === "model" ? `Model: ${item.value}` : undefined}
+                >
+                  {item.value}
+                </span>
               </span>
             ))}
           </span>
@@ -477,7 +499,7 @@ type InputSummaryItem = {
 
 function shouldStackInputSummary(items: InputSummaryItem[]): boolean {
   const keys = new Set(items.map((item) => item.key));
-  return keys.has("arguments") && keys.has("prompt");
+  return keys.has("arguments") && (keys.has("prompt") || keys.has("model"));
 }
 
 function summarizeInput(input: unknown): InputSummary {

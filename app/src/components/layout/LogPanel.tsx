@@ -34,17 +34,19 @@ type RunLogDisplayItem =
       events: Extract<AgentRunEvent, { type: "stdout" | "stderr" }>[];
     };
 
-type RunLogColumnKey = "provider" | "skill" | "type" | "message";
+type RunLogColumnKey = "provider" | "skill" | "model" | "type" | "message";
 type RunLogColumnWidths = Record<RunLogColumnKey, number>;
 type RunLogNodeMeta = {
   provider?: WorkflowSkillProvider;
   skillLabel: string;
+  model?: string;
 };
 
 const RUN_LOG_COLUMN_STORAGE_KEY = "circuit.runLog.columns.v1";
 const RUN_LOG_COLUMN_DEFAULTS: RunLogColumnWidths = {
   provider: 90,
   skill: 150,
+  model: 110,
   type: 70,
   message: 520,
 };
@@ -54,6 +56,7 @@ const RUN_LOG_COLUMN_BOUNDS: Record<
 > = {
   provider: { min: 72, max: 160 },
   skill: { min: 96, max: 340 },
+  model: { min: 72, max: 220 },
   type: { min: 56, max: 140 },
   message: { min: 180, max: 1200 },
 };
@@ -330,6 +333,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
     return {
       provider: node?.data.skillRef.provider,
       skillLabel: node?.data.label ?? nodeId,
+      model: readRunLogModel(node?.data.execution?.model),
     };
   };
 
@@ -509,6 +513,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
               data-testid="run-log-line"
             >
               <RunLogProviderCell provider={getNodeMeta(item.nodeId).provider} />
+              <RunLogModelCell model={getNodeMeta(item.nodeId).model} />
               <RunLogSkillCell
                 nodeId={item.nodeId}
                 label={getNodeMeta(item.nodeId).skillLabel}
@@ -526,6 +531,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             request={approval}
             provider={getNodeMeta(approval.nodeId).provider}
             skillLabel={getNodeMeta(approval.nodeId).skillLabel}
+            model={getNodeMeta(approval.nodeId).model}
             onRespond={(text) => handleRespond(approval, text)}
             onDismiss={() => resolvePendingApproval(approval.requestId)}
           />
@@ -537,6 +543,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             data-testid="run-log-result"
           >
             <RunLogProviderCell provider={getNodeMeta(nodeId).provider} />
+            <RunLogModelCell model={getNodeMeta(nodeId).model} />
             <RunLogSkillCell nodeId={nodeId} label={getNodeMeta(nodeId).skillLabel} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
@@ -564,10 +571,12 @@ function RunLogColumnHeader({
 }) {
   return (
     <li className="run-log__header" data-testid="run-log-column-header">
-      {(["provider", "skill", "type", "message"] as RunLogColumnKey[]).map(
+      {(["provider", "model", "skill", "type", "message"] as RunLogColumnKey[]).map(
         (column) => (
           <span key={column} className={`run-log__header-cell run-log__header-cell--${column}`}>
-            {formatRunLogColumnLabel(column)}
+            <span className="run-log__header-label">
+              {formatRunLogColumnLabel(column)}
+            </span>
             <button
               type="button"
               className="run-log__resize-handle"
@@ -602,6 +611,7 @@ function StreamLogGroup({
       <details className="run-log__details">
         <summary className="run-log__summary-row">
           <RunLogProviderCell provider={nodeMeta.provider} />
+          <RunLogModelCell model={nodeMeta.model} />
           <RunLogSkillCell nodeId={item.nodeId} label={nodeMeta.skillLabel} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
@@ -646,6 +656,15 @@ function RunLogSkillCell({
   return (
     <span className="run-log__skill" data-testid="run-log-skill" title={nodeId}>
       {label}
+    </span>
+  );
+}
+
+function RunLogModelCell({ model }: { model?: string }) {
+  if (!model) return <span className="run-log__model run-log__model--empty">-</span>;
+  return (
+    <span className="run-log__model" data-testid="run-log-model" title={model}>
+      {model}
     </span>
   );
 }
@@ -856,6 +875,7 @@ function readStoredRunLogColumnWidths(): RunLogColumnWidths {
     return {
       provider: parseStoredRunLogColumnWidth("provider", parsed.provider),
       skill: parseStoredRunLogColumnWidth("skill", parsed.skill),
+      model: parseStoredRunLogColumnWidth("model", parsed.model),
       type: parseStoredRunLogColumnWidth("type", parsed.type),
       message: parseStoredRunLogColumnWidth("message", parsed.message),
     };
@@ -885,11 +905,21 @@ function toRunLogColumnStyle(
   widths: RunLogColumnWidths,
 ): CSSProperties & Record<string, string> {
   return {
-    "--run-log-provider-width": `${widths.provider}px`,
-    "--run-log-skill-width": `${widths.skill}px`,
-    "--run-log-type-width": `${widths.type}px`,
-    "--run-log-message-width": `${widths.message}px`,
+    "--run-log-provider-width": `${resolveRunLogColumnWidth("provider", widths.provider)}px`,
+    "--run-log-skill-width": `${resolveRunLogColumnWidth("skill", widths.skill)}px`,
+    "--run-log-model-width": `${resolveRunLogColumnWidth("model", widths.model)}px`,
+    "--run-log-type-width": `${resolveRunLogColumnWidth("type", widths.type)}px`,
+    "--run-log-message-width": `${resolveRunLogColumnWidth("message", widths.message)}px`,
   } as CSSProperties & Record<string, string>;
+}
+
+function resolveRunLogColumnWidth(
+  column: RunLogColumnKey,
+  width: unknown,
+): number {
+  return typeof width === "number" && Number.isFinite(width)
+    ? clampRunLogColumnWidth(column, width)
+    : RUN_LOG_COLUMN_DEFAULTS[column];
 }
 
 function formatRunLogColumnLabel(column: RunLogColumnKey): string {
@@ -898,6 +928,8 @@ function formatRunLogColumnLabel(column: RunLogColumnKey): string {
       return "Provider";
     case "skill":
       return "Skill";
+    case "model":
+      return "Model";
     case "type":
       return "Type";
     case "message":
@@ -932,6 +964,7 @@ function formatRunLogForClipboard(
   const lines = events.map((entry) =>
     [
       getNodeMeta(entry.nodeId).skillLabel,
+      getNodeMeta(entry.nodeId).model ?? "",
       entry.event.type,
       formatPayload(entry.event),
     ].join("\t"),
@@ -941,9 +974,16 @@ function formatRunLogForClipboard(
       result.exitCode != null
         ? `${result.status} (exit ${result.exitCode})`
         : result.status;
-    lines.push([getNodeMeta(nodeId).skillLabel, "result", payload].join("\t"));
+    const meta = getNodeMeta(nodeId);
+    lines.push([meta.skillLabel, meta.model ?? "", "result", payload].join("\t"));
   }
   return lines.join("\n");
+}
+
+function readRunLogModel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function shortId(id: string): string {

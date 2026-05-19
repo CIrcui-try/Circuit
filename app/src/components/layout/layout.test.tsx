@@ -202,9 +202,9 @@ describe("Layout shell", () => {
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0][0];
-    expect(copied).toContain("Foo\tstdout\thello from stdout");
-    expect(copied).toContain("node-b\tstatus\trunning command");
-    expect(copied).toContain("Foo\tresult\tsuccess (exit 0)");
+    expect(copied).toContain("Foo\t\tstdout\thello from stdout");
+    expect(copied).toContain("node-b\t\tstatus\trunning command");
+    expect(copied).toContain("Foo\t\tresult\tsuccess (exit 0)");
     expect(await screen.findByTestId("run-log-copy-feedback")).toHaveTextContent(
       "Copied",
     );
@@ -258,8 +258,14 @@ describe("Layout shell", () => {
     const header = screen.getByTestId("run-log-column-header");
     expect(header).toHaveTextContent("Provider");
     expect(header).toHaveTextContent("Skill");
+    expect(header).toHaveTextContent("Model");
     expect(header).toHaveTextContent("Type");
     expect(header).toHaveTextContent("Message");
+    expect(
+      Array.from(header.querySelectorAll(".run-log__header-label")).map((el) =>
+        el.textContent?.trim(),
+      ),
+    ).toEqual(["Provider", "Model", "Skill", "Type", "Message"]);
     expect(screen.getByTestId("run-log").firstElementChild).toBe(header);
   });
 
@@ -290,10 +296,43 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel resizes the model column and persists the selected width", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    act(() => {
+      fireEvent.pointerDown(screen.getByTestId("run-log-resize-model"), {
+        clientX: 100,
+        pointerId: 1,
+      });
+    });
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 145 });
+    });
+
+    const log = screen.getByTestId("run-log");
+    expect(log).toHaveStyle({ "--run-log-model-width": "155px" });
+    expect(window.localStorage.getItem("circuit.runLog.columns.v1")).toContain(
+      '"model":155',
+    );
+  });
+
   it("LogPanel restores persisted column widths from localStorage", () => {
     window.localStorage.setItem(
       "circuit.runLog.columns.v1",
-      JSON.stringify({ provider: 120, skill: 260, type: 90, message: 640 }),
+      JSON.stringify({
+        provider: 120,
+        skill: 260,
+        model: 130,
+        type: 90,
+        message: 640,
+      }),
     );
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
@@ -307,12 +346,41 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("run-log")).toHaveStyle({
       "--run-log-provider-width": "120px",
       "--run-log-skill-width": "260px",
+      "--run-log-model-width": "130px",
       "--run-log-type-width": "90px",
       "--run-log-message-width": "640px",
     });
   });
 
-  it("LogPanel shows provider chips and skill names when available", () => {
+  it("LogPanel falls back to a default model width for older persisted columns", () => {
+    window.localStorage.setItem(
+      "circuit.runLog.columns.v1",
+      JSON.stringify({
+        provider: 120,
+        skill: 260,
+        type: 90,
+        message: 640,
+      }),
+    );
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log")).toHaveStyle({
+      "--run-log-provider-width": "120px",
+      "--run-log-skill-width": "260px",
+      "--run-log-model-width": "110px",
+      "--run-log-type-width": "90px",
+      "--run-log-message-width": "640px",
+    });
+  });
+
+  it("LogPanel shows provider chips, skill names, and models when available", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
         id: "codex:.codex/skills/foo",
@@ -324,6 +392,7 @@ describe("Layout shell", () => {
       },
       { x: 0, y: 0 },
     );
+    useWorkflowStore.getState().setNodeModel(id, "gpt-5.5");
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent(id, {
       type: "stdout",
@@ -348,6 +417,10 @@ describe("Layout shell", () => {
     expect(skills).toHaveLength(2);
     expect(skills[0]).toHaveTextContent("Foo");
     expect(skills[0]).toHaveAttribute("title", id);
+    const models = screen.getAllByTestId("run-log-model");
+    expect(models).toHaveLength(2);
+    expect(models[0]).toHaveTextContent("gpt-5.5");
+    expect(models[0]).toHaveAttribute("title", "gpt-5.5");
     expect(screen.getByTestId("run-log")).not.toHaveTextContent(id);
   });
 
@@ -871,6 +944,45 @@ describe("Layout shell", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("SkillNode shows the configured execution model", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+        execution: {
+          model: "gpt-5.4-mini",
+        },
+      },
+    });
+
+    const model = screen.getByTestId("skill-node-model");
+    expect(model).toHaveTextContent("model: gpt-5.4-mini");
+    expect(screen.getByTestId("skill-node-input-summary")).toHaveTextContent(
+      "model: gpt-5.4-mini",
+    );
+  });
+
+  it("SkillNode hides the model summary when no execution model is configured", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "claude",
+          skillFile: ".claude/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    expect(screen.queryByTestId("skill-node-model")).not.toBeInTheDocument();
+  });
+
   it("SkillNode keeps input and output handles visible at top and bottom without edges", () => {
     renderSkillNode({
       id: "node-1",
@@ -1198,6 +1310,36 @@ describe("Layout shell", () => {
     expect(tokens[0]).toHaveTextContent("arguments: Hello_world.md 적용하기");
     expect(tokens[1]).toHaveTextContent("prompt: 한국어로 작성할 것");
     expect(summary).not.toHaveTextContent(", prompt");
+  });
+
+  it("SkillNode stacks arguments and model summaries", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "planning",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/planning/SKILL.md",
+        },
+        execution: {
+          model: "gpt-5.5",
+        },
+        input: {
+          arguments: "1",
+        },
+      },
+    });
+
+    const summary = screen.getByTestId("skill-node-input-summary");
+    const innerSummary = summary.querySelector(".skill-node__input-summary");
+    const tokens = summary.querySelectorAll(".skill-node__input-token");
+
+    expect(innerSummary).toHaveClass("skill-node__input-summary--stacked");
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toHaveTextContent("arguments: 1");
+    expect(tokens[1]).toHaveTextContent("model: gpt-5.5");
+    expect(summary).not.toHaveTextContent(", model");
   });
 
   it("SkillNode marks non-object input as invalid", () => {

@@ -908,19 +908,23 @@ a:hover {
 .run-log {
   --run-log-provider-width: 90px;
   --run-log-skill-width: 150px;
+  --run-log-model-width: 110px;
   --run-log-type-width: 70px;
   --run-log-message-width: 520px;
-  --run-log-grid-template: minmax(72px, var(--run-log-provider-width))
-    minmax(96px, var(--run-log-skill-width))
-    minmax(56px, var(--run-log-type-width))
-    minmax(var(--run-log-message-width), 1fr);
+  --run-log-grid-template: minmax(72px, var(--run-log-provider-width, 90px))
+    minmax(72px, var(--run-log-model-width, 110px))
+    minmax(96px, var(--run-log-skill-width, 150px))
+    minmax(56px, var(--run-log-type-width, 70px))
+    minmax(var(--run-log-message-width, 520px), 1fr);
   --run-log-min-grid-width: calc(
-    var(--run-log-provider-width) + var(--run-log-skill-width) +
-      var(--run-log-type-width) + var(--run-log-message-width) + 48px
+    var(--run-log-provider-width, 90px) + var(--run-log-skill-width, 150px) +
+      var(--run-log-model-width, 110px) + var(--run-log-type-width, 70px) +
+      var(--run-log-message-width, 520px) + 56px
   );
   --run-log-message-offset: calc(
-    12px + var(--run-log-provider-width) + var(--run-log-skill-width) +
-      var(--run-log-type-width) + 24px
+    12px + var(--run-log-provider-width, 90px) +
+      var(--run-log-skill-width, 150px) + var(--run-log-model-width, 110px) +
+      var(--run-log-type-width, 70px) + 32px
   );
   flex: 1 1 auto;
   min-height: 0;
@@ -974,6 +978,12 @@ a:hover {
   position: relative;
   min-width: 0;
   padding-right: 12px;
+  overflow: visible;
+}
+
+.run-log__header-label {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -982,8 +992,9 @@ a:hover {
 .run-log__resize-handle {
   position: absolute;
   top: -2px;
-  right: -6px;
-  width: 11px;
+  right: -8px;
+  z-index: 2;
+  width: 15px;
   height: calc(100% + 4px);
   padding: 0;
   cursor: col-resize;
@@ -1148,6 +1159,18 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.run-log__model {
+  min-width: 0;
+  color: #8f8f9a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log__model--empty {
+  color: #5f5f68;
 }
 
 .run-log__type {
