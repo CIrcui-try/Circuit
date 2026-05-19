@@ -29,6 +29,7 @@ import {
   CANVAS_CONNECTION_MODE,
   CANVAS_EDGE_MARKER,
   CANVAS_FIT_VIEW_OPTIONS,
+  CANVAS_MAX_ZOOM,
   CANVAS_NODE_ORIGIN,
   Canvas,
   getCanvasNodeIdAtPoint,
@@ -691,6 +692,10 @@ describe("Layout shell", () => {
 
   it("Canvas caps fitView zoom so a single node is not enlarged", () => {
     expect(CANVAS_FIT_VIEW_OPTIONS.maxZoom).toBe(1);
+  });
+
+  it("Canvas allows user zoom beyond the fitView cap", () => {
+    expect(CANVAS_MAX_ZOOM).toBeGreaterThan(CANVAS_FIT_VIEW_OPTIONS.maxZoom);
   });
 
   it("Canvas uses the node card center as the coordinate origin", () => {
