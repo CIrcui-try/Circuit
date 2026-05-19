@@ -44,9 +44,9 @@ export const CANVAS_NODE_ORIGIN: NodeOrigin = [0.5, 0.5];
 export const CANVAS_FIT_VIEW_OPTIONS = { maxZoom: 1, padding: 0.25 };
 export const CANVAS_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
   type: MarkerType.ArrowClosed,
-  color: "#6f7480",
-  width: 16,
-  height: 16,
+  color: "#8790a0",
+  width: 20,
+  height: 20,
 };
 export const CANVAS_SELECTED_EDGE_MARKER: NonNullable<RFEdge["markerEnd"]> = {
   ...CANVAS_EDGE_MARKER,
@@ -146,6 +146,7 @@ function CanvasInner() {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [isNodeDragging, setIsNodeDragging] = useState(false);
   const [isTrashTarget, setIsTrashTarget] = useState(false);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
@@ -176,14 +177,25 @@ function CanvasInner() {
       edges,
     );
     const rootNodeId = graph.valid ? graph.rootNodeId : null;
+    const activeEdge =
+      edges.find((edge) => edge.id === hoveredEdgeId) ??
+      edges.find((edge) => edge.selected);
     return nodes.map((node) => ({
       ...node,
       data: {
         ...node.data,
         isRoot: node.id === rootNodeId,
+        edgeRole:
+          activeEdge?.source === node.id && activeEdge?.target === node.id
+            ? "both"
+            : activeEdge?.source === node.id
+              ? "source"
+              : activeEdge?.target === node.id
+                ? "target"
+                : null,
       },
     }));
-  }, [edges, nodes]);
+  }, [edges, hoveredEdgeId, nodes]);
 
   useEffect(() => {
     if (!connectionWarning) return;
@@ -343,6 +355,8 @@ function CanvasInner() {
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+        onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         onPaneClick={() => setMenu(null)}
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode="dark"

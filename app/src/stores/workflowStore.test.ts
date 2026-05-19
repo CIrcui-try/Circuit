@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Skill } from "./skillStore";
 import {
+  AUTO_LAYOUT_NODE_X_GAP,
+  AUTO_LAYOUT_NODE_Y_GAP,
+  AUTO_LAYOUT_ORIGIN_X,
+  AUTO_LAYOUT_ORIGIN_Y,
   DEFAULT_WORKFLOW_NAME,
   WORKFLOW_CYCLE_WARNING_MESSAGE,
+  layoutWorkflowNodes,
   useWorkflowStore,
   type SkillNode,
 } from "./workflowStore";
@@ -25,6 +30,25 @@ const codexSkill: Skill = {
   rootDir: ".codex/skills/bar",
   skillFile: ".codex/skills/bar/SKILL.md",
 };
+
+function workflowNode(id: string, position: { x: number; y: number }): SkillNode {
+  return {
+    id,
+    type: "skill",
+    position,
+    data: {
+      label: id,
+      skillRef: {
+        provider: "codex",
+        skillFile: `.codex/skills/${id}/SKILL.md`,
+      },
+    },
+  };
+}
+
+function edge(id: string, source: string, target: string): Edge {
+  return { id, source, target };
+}
 
 beforeEach(() => {
   useWorkflowStore.getState().resetWorkflow();
@@ -380,6 +404,75 @@ describe("workflowStore", () => {
   it("WS14b: setContinueOnFailure updates the workflow setting", () => {
     useWorkflowStore.getState().setContinueOnFailure(true);
     expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
+  });
+
+  it("WS14c: autoLayoutWorkflow aligns DAG depth vertically and side branches horizontally", () => {
+    const nodes = [
+      workflowNode("root", { x: 900, y: 20 }),
+      workflowNode("main", { x: -40, y: 800 }),
+      workflowNode("side", { x: 460, y: -120 }),
+      workflowNode("join", { x: 10, y: 10 }),
+    ];
+    const edges: Edge[] = [
+      edge("e-root-main", "root", "main"),
+      edge("e-root-side", "root", "side"),
+      edge("e-main-join", "main", "join"),
+      edge("e-side-join", "side", "join"),
+    ];
+
+    useWorkflowStore.getState().replaceCanvas({
+      nodes,
+      edges,
+      workflowId: "wf",
+      workflowName: "Flow",
+    });
+    useWorkflowStore.getState().autoLayoutWorkflow();
+
+    const byId = new Map(
+      useWorkflowStore.getState().nodes.map((node) => [node.id, node]),
+    );
+    expect(byId.get("root")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y,
+    });
+    expect(byId.get("main")?.position.y).toBe(
+      AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    );
+    expect(byId.get("side")?.position.y).toBe(
+      AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    );
+    expect(Math.abs(
+      (byId.get("main")?.position.x ?? 0) -
+        (byId.get("side")?.position.x ?? 0),
+    )).toBe(AUTO_LAYOUT_NODE_X_GAP);
+    expect(byId.get("join")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 2,
+    });
+  });
+
+  it("WS14d: layoutWorkflowNodes ignores cycle-closing edges when placing loop graphs", () => {
+    const laidOut = layoutWorkflowNodes(
+      [
+        workflowNode("a", { x: 0, y: 0 }),
+        workflowNode("b", { x: 0, y: 0 }),
+        workflowNode("c", { x: 0, y: 0 }),
+      ],
+      [
+        edge("e1", "a", "b"),
+        edge("e2", "b", "c"),
+        edge("e3", "c", "b"),
+      ],
+    );
+    const byId = new Map(laidOut.map((node) => [node.id, node]));
+
+    expect(byId.get("a")?.position.y).toBe(AUTO_LAYOUT_ORIGIN_Y);
+    expect(byId.get("b")?.position.y).toBe(
+      AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    );
+    expect(byId.get("c")?.position.y).toBe(
+      AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 2,
+    );
   });
 
   it("WS15: setNodeInput stores input on the targeted node only", () => {

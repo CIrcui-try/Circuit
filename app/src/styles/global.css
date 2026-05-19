@@ -450,16 +450,24 @@ a:hover {
 }
 
 .workspace__canvas .react-flow__edge-path {
-  stroke: #6f7480;
-  stroke-width: 1.35;
-  stroke-opacity: 0.48;
+  stroke: #8790a0;
+  stroke-width: 1.5;
+  stroke-opacity: 0.62;
 }
 
 .workspace__canvas .react-flow__edge:hover .react-flow__edge-path,
 .workspace__canvas .react-flow__edge.selected .react-flow__edge-path {
   stroke: #9fc7ff;
-  stroke-width: 1.8;
-  stroke-opacity: 0.92;
+  stroke-width: 2.1;
+  stroke-opacity: 1;
+  stroke-dasharray: 10 7;
+  animation: dependency-edge-flow 0.9s linear infinite;
+}
+
+@keyframes dependency-edge-flow {
+  to {
+    stroke-dashoffset: -17;
+  }
 }
 
 .workspace__canvas .react-flow__edge-interaction {
@@ -1675,6 +1683,39 @@ a:hover {
 .skill-node.is-selected {
   outline: 2px solid #6aa9ff;
   outline-offset: 1px;
+}
+
+.skill-node--edge-source,
+.skill-node--edge-target,
+.skill-node--edge-both {
+  border-color: #8fbcff;
+  box-shadow: 0 0 0 1px rgba(143, 188, 255, 0.35);
+}
+
+.skill-node--edge-source .skill-node__handle--source,
+.skill-node--edge-target .skill-node__handle--target,
+.skill-node--edge-both .skill-node__handle {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(143, 188, 255, 0.22);
+}
+
+.skill-node__handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #1b1b1f;
+  opacity: 0.72;
+}
+
+.skill-node__handle--target {
+  background: #7aa7ff;
+}
+
+.skill-node__handle--source {
+  background: #8bd98b;
+}
+
+.skill-node__handle--side {
+  top: 50%;
 }
 
 .skill-node--queued {

@@ -69,6 +69,7 @@ type WorkflowState = {
   resetWorkflow: () => void;
   setWorkflowName: (name: string) => void;
   setContinueOnFailure: (enabled: boolean) => void;
+  autoLayoutWorkflow: () => void;
   replaceCanvas: (args: ReplaceCanvasArgs) => void;
   clearConnectionWarning: (id?: string) => void;
 };
@@ -76,6 +77,10 @@ type WorkflowState = {
 export const DEFAULT_WORKFLOW_NAME = "Untitled workflow";
 export const WORKFLOW_CYCLE_WARNING_MESSAGE =
   "This workflow may run indefinitely.";
+export const AUTO_LAYOUT_NODE_X_GAP = 340;
+export const AUTO_LAYOUT_NODE_Y_GAP = 190;
+export const AUTO_LAYOUT_ORIGIN_X = 240;
+export const AUTO_LAYOUT_ORIGIN_Y = 100;
 
 function nextNodeId(): string {
   return crypto.randomUUID();
@@ -112,6 +117,101 @@ function hasAlternatePath(
     }
   }
   return false;
+}
+
+export function layoutWorkflowNodes(
+  nodes: readonly SkillNode[],
+  edges: readonly Edge[],
+): SkillNode[] {
+  if (nodes.length === 0) return [];
+  const nodeIds = nodes.map((node) => node.id);
+  const depthById = calculateLayoutDepths(nodeIds, edges);
+  const sorted = topoSort(nodeIds, edges);
+  const order = sorted.cycle ? nodeIds : sorted.order;
+  const orderIndex = new Map(order.map((id, index) => [id, index]));
+  const depthGroups = new Map<number, string[]>();
+
+  for (const id of nodeIds) {
+    const depth = depthById.get(id) ?? 0;
+    depthGroups.set(depth, [...(depthGroups.get(depth) ?? []), id]);
+  }
+
+  const positions = new Map<string, XYPosition>();
+  for (const depth of [...depthGroups.keys()].sort((a, b) => a - b)) {
+    const group = [...(depthGroups.get(depth) ?? [])].sort(
+      (a, b) => (orderIndex.get(a) ?? 0) - (orderIndex.get(b) ?? 0),
+    );
+    const centerOffset = (group.length - 1) / 2;
+    group.forEach((id, index) => {
+      positions.set(id, {
+        x: Math.round(AUTO_LAYOUT_ORIGIN_X + (index - centerOffset) * AUTO_LAYOUT_NODE_X_GAP),
+        y: Math.round(AUTO_LAYOUT_ORIGIN_Y + depth * AUTO_LAYOUT_NODE_Y_GAP),
+      });
+    });
+  }
+
+  return nodes.map((node) => ({
+    ...node,
+    position: positions.get(node.id) ?? node.position,
+  })) as SkillNode[];
+}
+
+function calculateLayoutDepths(
+  nodeIds: readonly string[],
+  edges: readonly Edge[],
+): Map<string, number> {
+  const nodeIdSet = new Set(nodeIds);
+  const validEdges = edges.filter(
+    (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target),
+  );
+  const sorted = topoSort([...nodeIds], validEdges);
+  const dagEdges = sorted.cycle ? removeBackEdges(nodeIds, validEdges) : validEdges;
+  const order = sorted.cycle ? nodeIds : sorted.order;
+  const depthById = new Map(nodeIds.map((id) => [id, 0]));
+
+  for (const id of order) {
+    const sourceDepth = depthById.get(id) ?? 0;
+    for (const edge of dagEdges) {
+      if (edge.source !== id) continue;
+      depthById.set(
+        edge.target,
+        Math.max(depthById.get(edge.target) ?? 0, sourceDepth + 1),
+      );
+    }
+  }
+
+  return depthById;
+}
+
+function removeBackEdges(
+  nodeIds: readonly string[],
+  edges: readonly Edge[],
+): Edge[] {
+  const outgoing = new Map<string, Edge[]>();
+  for (const id of nodeIds) outgoing.set(id, []);
+  for (const edge of edges) {
+    outgoing.get(edge.source)?.push(edge);
+  }
+
+  const state = new Map<string, "visiting" | "visited">();
+  const dagEdges: Edge[] = [];
+
+  const visit = (id: string) => {
+    state.set(id, "visiting");
+    for (const edge of outgoing.get(id) ?? []) {
+      const targetState = state.get(edge.target);
+      if (targetState === "visiting") continue;
+      dagEdges.push(edge);
+      if (!targetState) visit(edge.target);
+    }
+    state.set(id, "visited");
+  };
+
+  for (const id of nodeIds) {
+    if (!state.has(id)) visit(id);
+  }
+
+  return dagEdges;
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -319,6 +419,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setContinueOnFailure: (enabled) => {
     set({ continueOnFailure: enabled });
+  },
+
+  autoLayoutWorkflow: () => {
+    set((s) => ({
+      nodes: layoutWorkflowNodes(s.nodes, s.edges),
+    }));
   },
 
   replaceCanvas: ({
