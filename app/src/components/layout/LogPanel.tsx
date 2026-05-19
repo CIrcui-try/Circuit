@@ -513,11 +513,11 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
               data-testid="run-log-line"
             >
               <RunLogProviderCell provider={getNodeMeta(item.nodeId).provider} />
+              <RunLogModelCell model={getNodeMeta(item.nodeId).model} />
               <RunLogSkillCell
                 nodeId={item.nodeId}
                 label={getNodeMeta(item.nodeId).skillLabel}
               />
-              <RunLogModelCell model={getNodeMeta(item.nodeId).model} />
               <span className="run-log__type">{formatEventType(item.event)}</span>
               <span className="run-log__payload">
                 {formatSummaryPayload(item.event)}
@@ -543,8 +543,8 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             data-testid="run-log-result"
           >
             <RunLogProviderCell provider={getNodeMeta(nodeId).provider} />
-            <RunLogSkillCell nodeId={nodeId} label={getNodeMeta(nodeId).skillLabel} />
             <RunLogModelCell model={getNodeMeta(nodeId).model} />
+            <RunLogSkillCell nodeId={nodeId} label={getNodeMeta(nodeId).skillLabel} />
             <span className="run-log__type">result</span>
             <span className="run-log__payload">
               {r.status}
@@ -571,10 +571,12 @@ function RunLogColumnHeader({
 }) {
   return (
     <li className="run-log__header" data-testid="run-log-column-header">
-      {(["provider", "skill", "model", "type", "message"] as RunLogColumnKey[]).map(
+      {(["provider", "model", "skill", "type", "message"] as RunLogColumnKey[]).map(
         (column) => (
           <span key={column} className={`run-log__header-cell run-log__header-cell--${column}`}>
-            {formatRunLogColumnLabel(column)}
+            <span className="run-log__header-label">
+              {formatRunLogColumnLabel(column)}
+            </span>
             <button
               type="button"
               className="run-log__resize-handle"
@@ -609,8 +611,8 @@ function StreamLogGroup({
       <details className="run-log__details">
         <summary className="run-log__summary-row">
           <RunLogProviderCell provider={nodeMeta.provider} />
-          <RunLogSkillCell nodeId={item.nodeId} label={nodeMeta.skillLabel} />
           <RunLogModelCell model={nodeMeta.model} />
+          <RunLogSkillCell nodeId={item.nodeId} label={nodeMeta.skillLabel} />
           <span className="run-log__type">{item.stream}</span>
           <span className="run-log__payload">
             {lineCount} {lineCount === 1 ? "line" : "lines"}

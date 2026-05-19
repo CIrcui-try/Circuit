@@ -48,15 +48,15 @@ export function ApprovalPrompt({
       ) : (
         <span className="run-log__provider run-log__provider--empty">-</span>
       )}
+      <span className={`run-log__model${model ? "" : " run-log__model--empty"}`}>
+        {model ?? "-"}
+      </span>
       <span
         className="run-log__skill"
         data-testid="run-log-skill"
         title={request.nodeId}
       >
         {skillLabel}
-      </span>
-      <span className={`run-log__model${model ? "" : " run-log__model--empty"}`}>
-        {model ?? "-"}
       </span>
       <span className="run-log__type">approval</span>
       <span className="run-log__payload run-log__payload--approval">

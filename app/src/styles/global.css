@@ -912,8 +912,8 @@ a:hover {
   --run-log-type-width: 70px;
   --run-log-message-width: 520px;
   --run-log-grid-template: minmax(72px, var(--run-log-provider-width, 90px))
-    minmax(96px, var(--run-log-skill-width, 150px))
     minmax(72px, var(--run-log-model-width, 110px))
+    minmax(96px, var(--run-log-skill-width, 150px))
     minmax(56px, var(--run-log-type-width, 70px))
     minmax(var(--run-log-message-width, 520px), 1fr);
   --run-log-min-grid-width: calc(
@@ -978,6 +978,12 @@ a:hover {
   position: relative;
   min-width: 0;
   padding-right: 12px;
+  overflow: visible;
+}
+
+.run-log__header-label {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -986,8 +992,9 @@ a:hover {
 .run-log__resize-handle {
   position: absolute;
   top: -2px;
-  right: -6px;
-  width: 11px;
+  right: -8px;
+  z-index: 2;
+  width: 15px;
   height: calc(100% + 4px);
   padding: 0;
   cursor: col-resize;

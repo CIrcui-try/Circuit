@@ -261,6 +261,11 @@ describe("Layout shell", () => {
     expect(header).toHaveTextContent("Model");
     expect(header).toHaveTextContent("Type");
     expect(header).toHaveTextContent("Message");
+    expect(
+      Array.from(header.querySelectorAll(".run-log__header-label")).map((el) =>
+        el.textContent?.trim(),
+      ),
+    ).toEqual(["Provider", "Model", "Skill", "Type", "Message"]);
     expect(screen.getByTestId("run-log").firstElementChild).toBe(header);
   });
 
@@ -288,6 +293,33 @@ describe("Layout shell", () => {
     expect(log).toHaveStyle({ "--run-log-skill-width": "190px" });
     expect(window.localStorage.getItem("circuit.runLog.columns.v1")).toContain(
       '"skill":190',
+    );
+  });
+
+  it("LogPanel resizes the model column and persists the selected width", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    act(() => {
+      fireEvent.pointerDown(screen.getByTestId("run-log-resize-model"), {
+        clientX: 100,
+        pointerId: 1,
+      });
+    });
+    act(() => {
+      fireEvent.pointerMove(window, { clientX: 145 });
+    });
+
+    const log = screen.getByTestId("run-log");
+    expect(log).toHaveStyle({ "--run-log-model-width": "155px" });
+    expect(window.localStorage.getItem("circuit.runLog.columns.v1")).toContain(
+      '"model":155',
     );
   });
 
