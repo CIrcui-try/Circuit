@@ -217,3 +217,103 @@ test("F7: input popover keeps its visual size when the canvas zoom changes", asy
   expect(Math.abs(popoverAfter.width - popoverBefore.width)).toBeLessThan(2);
   expect(Math.abs(popoverAfter.height - popoverBefore.height)).toBeLessThan(2);
 });
+
+test("F8: Auto layout restores a readable branch layout", async ({ page }) => {
+  await openWorkspace(page);
+
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __WORKFLOW_STORE__?: {
+        getState: () => {
+          replaceCanvas: (args: {
+            nodes: Array<{
+              id: string;
+              type: "skill";
+              position: { x: number; y: number };
+              data: {
+                label: string;
+                skillRef: {
+                  provider: "claude" | "codex";
+                  skillFile: string;
+                };
+              };
+            }>;
+            edges: Array<{ id: string; source: string; target: string }>;
+            workflowId: string | null;
+            workflowName: string;
+          }) => void;
+        };
+      };
+    };
+    const state = w.__WORKFLOW_STORE__!.getState();
+    state.replaceCanvas({
+      nodes: [
+        {
+          id: "root",
+          type: "skill",
+          position: { x: 900, y: 900 },
+          data: {
+            label: "Root",
+            skillRef: {
+              provider: "codex",
+              skillFile: ".codex/skills/root/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "main",
+          type: "skill",
+          position: { x: -400, y: 200 },
+          data: {
+            label: "Main",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/main/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "side",
+          type: "skill",
+          position: { x: 40, y: -300 },
+          data: {
+            label: "Side",
+            skillRef: {
+              provider: "codex",
+              skillFile: ".codex/skills/side/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [
+        { id: "e-root-main", source: "root", target: "main" },
+        { id: "e-root-side", source: "root", target: "side" },
+      ],
+      workflowId: null,
+      workflowName: "Branch flow",
+    });
+  });
+
+  await expect(page.getByTestId("workflow-node")).toHaveCount(3);
+
+  await page.getByTestId("workflow-auto-layout").click();
+  const positions = await page.evaluate<Record<string, { x: number; y: number }>>(() => {
+    const w = window as unknown as {
+      __WORKFLOW_STORE__?: {
+        getState: () => {
+          nodes: Array<{ data: { label: string }; position: { x: number; y: number } }>;
+        };
+      };
+    };
+    return Object.fromEntries(
+      w.__WORKFLOW_STORE__!.getState().nodes.map((node) => [
+        node.data.label,
+        node.position,
+      ]),
+    );
+  });
+
+  expect(positions.Root.y).toBeLessThan(positions.Main.y);
+  expect(positions.Root.y).toBeLessThan(positions.Side.y);
+  expect(Math.abs(positions.Main.x - positions.Side.x)).toBeGreaterThan(250);
+});

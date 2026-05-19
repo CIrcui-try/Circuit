@@ -5,6 +5,7 @@ import {
   Ellipsis,
   FileText,
   FolderOpen,
+  GitBranch,
   Play,
   RotateCcw,
   Save,
@@ -64,6 +65,7 @@ export function Workspace() {
   const continueOnFailure = useWorkflowStore((s) => s.continueOnFailure);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const setContinueOnFailure = useWorkflowStore((s) => s.setContinueOnFailure);
+  const autoLayoutWorkflow = useWorkflowStore((s) => s.autoLayoutWorkflow);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
   const runRecord = useRunStore((s) =>
     repo?.id ? s.getRunForRepository(repo.id) : s,
@@ -325,6 +327,10 @@ export function Workspace() {
     [repo, resetWorkflow],
   );
 
+  const handleAutoLayout = useCallback(() => {
+    autoLayoutWorkflow();
+  }, [autoLayoutWorkflow]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
@@ -519,6 +525,24 @@ export function Workspace() {
             </option>
           ))}
         </select>
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content="Auto layout"
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-auto-layout-tooltip"
+        >
+          <button
+            type="button"
+            data-testid="workflow-auto-layout"
+            className="workspace__toolbar-action-button"
+            aria-label="Auto layout"
+            onClick={handleAutoLayout}
+            disabled={!repo || isRunningHere || nodeCount === 0}
+          >
+            <GitBranch size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Auto layout</span>
+          </button>
+        </HoverTooltip>
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Save workflow (⌘S)"

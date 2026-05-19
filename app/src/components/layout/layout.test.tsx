@@ -658,7 +658,35 @@ describe("Layout shell", () => {
         source: "a",
         target: "b",
         type: "dependency",
+        data: {
+          routeSlot: {
+            source: { index: 0, count: 1 },
+            target: { index: 0, count: 1 },
+          },
+        },
         markerEnd: CANVAS_EDGE_MARKER,
+      },
+    ]);
+  });
+
+  it("Canvas assigns separate route slots to edges sharing a source", () => {
+    const edges: Edge[] = [
+      { id: "a-b", source: "a", target: "b" },
+      { id: "a-c", source: "a", target: "c" },
+    ];
+
+    expect(toRenderedCanvasEdges(edges).map((edge) => edge.data)).toEqual([
+      {
+        routeSlot: {
+          source: { index: 0, count: 2 },
+          target: { index: 0, count: 1 },
+        },
+      },
+      {
+        routeSlot: {
+          source: { index: 1, count: 2 },
+          target: { index: 0, count: 1 },
+        },
       },
     ]);
   });

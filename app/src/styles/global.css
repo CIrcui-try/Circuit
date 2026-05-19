@@ -427,6 +427,37 @@ a:hover {
   background: #2d2d33;
 }
 
+.workspace__toolbar-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 10px;
+  color: #d7d7dd;
+  background: #2d2d33;
+  border-color: #3a3a42;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.workspace__toolbar-action-button:hover,
+.workspace__toolbar-action-button:focus-visible {
+  color: #ffffff;
+  background: #36363d;
+}
+
+.workspace__toolbar-action-button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.workspace__toolbar-action-button:disabled:hover {
+  color: #d7d7dd;
+  background: #2d2d33;
+}
+
 .workspace__toolbar-tooltip-anchor {
   display: inline-flex;
   flex: 0 0 auto;
@@ -450,16 +481,24 @@ a:hover {
 }
 
 .workspace__canvas .react-flow__edge-path {
-  stroke: #6f7480;
-  stroke-width: 1.35;
-  stroke-opacity: 0.48;
+  stroke: #8790a0;
+  stroke-width: 1.5;
+  stroke-opacity: 0.62;
 }
 
 .workspace__canvas .react-flow__edge:hover .react-flow__edge-path,
 .workspace__canvas .react-flow__edge.selected .react-flow__edge-path {
   stroke: #9fc7ff;
-  stroke-width: 1.8;
-  stroke-opacity: 0.92;
+  stroke-width: 2.1;
+  stroke-opacity: 1;
+  stroke-dasharray: 10 7;
+  animation: dependency-edge-flow 0.9s linear infinite;
+}
+
+@keyframes dependency-edge-flow {
+  to {
+    stroke-dashoffset: -17;
+  }
 }
 
 .workspace__canvas .react-flow__edge-interaction {
@@ -1675,6 +1714,49 @@ a:hover {
 .skill-node.is-selected {
   outline: 2px solid #6aa9ff;
   outline-offset: 1px;
+}
+
+.skill-node--edge-source,
+.skill-node--edge-target,
+.skill-node--edge-both {
+  border-color: #8fbcff;
+  box-shadow: 0 0 0 1px rgba(143, 188, 255, 0.35);
+}
+
+.skill-node--edge-source .skill-node__handle--source,
+.skill-node--edge-target .skill-node__handle--target,
+.skill-node--edge-both .skill-node__handle {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(143, 188, 255, 0.22);
+}
+
+.skill-node--edge-source .skill-node__handle--side,
+.skill-node--edge-target .skill-node__handle--side,
+.skill-node--edge-both .skill-node__handle--side {
+  opacity: 0;
+  box-shadow: none;
+}
+
+.skill-node__handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #1b1b1f;
+  opacity: 0.72;
+}
+
+.skill-node__handle--target {
+  background: #7aa7ff;
+}
+
+.skill-node__handle--source {
+  background: #8bd98b;
+}
+
+.skill-node__handle--side {
+  top: 50%;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0;
 }
 
 .skill-node--queued {

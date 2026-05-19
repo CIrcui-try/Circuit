@@ -31,7 +31,13 @@ vi.mock("@tauri-apps/plugin-opener", () => openerMock);
 import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { useWorkflowStore } from "../stores/workflowStore";
+import {
+  AUTO_LAYOUT_NODE_X_GAP,
+  AUTO_LAYOUT_NODE_Y_GAP,
+  AUTO_LAYOUT_ORIGIN_X,
+  AUTO_LAYOUT_ORIGIN_Y,
+  useWorkflowStore,
+} from "../stores/workflowStore";
 import { useRunStore } from "../runner/runStore";
 import { useRunLogStore } from "../runner/runLogStore";
 import { createMockRuntimeBridge } from "../runtime/bridge/RuntimeBridge.mock";
@@ -384,6 +390,10 @@ describe("Workspace", () => {
     );
     expect(screen.getByTestId("workflow-save")).toHaveTextContent("");
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-auto-layout")).toBeDisabled();
+    expect(screen.getByTestId("workflow-auto-layout")).toHaveTextContent(
+      "Auto layout",
+    );
     const startBtn = screen.getByTestId("workflow-start");
     expect(startBtn).toBeDisabled();
     expect(startBtn).toHaveAccessibleName("Start Circuit");
@@ -404,7 +414,142 @@ describe("Workspace", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
+    expect(screen.getByTestId("workflow-auto-layout")).not.toBeDisabled();
     expect(screen.getByTestId("workflow-start")).toHaveTextContent("");
+  });
+
+  it("W5c: Auto layout button repositions connected workflow nodes", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    const a = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 900, y: 900 },
+    );
+    const b = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/bar",
+        provider: "codex",
+        name: "Bar",
+        description: "",
+        rootDir: ".codex/skills/bar",
+        skillFile: ".codex/skills/bar/SKILL.md",
+      },
+      { x: -300, y: -300 },
+    );
+    useWorkflowStore.getState().onConnect({
+      source: a,
+      target: b,
+      sourceHandle: null,
+      targetHandle: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-auto-layout")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-auto-layout"));
+
+    const byId = new Map(
+      useWorkflowStore.getState().nodes.map((node) => [node.id, node]),
+    );
+    expect(byId.get(a)?.position.y).toBe(AUTO_LAYOUT_ORIGIN_Y);
+    expect(byId.get(b)?.position.y).toBeGreaterThan(
+      byId.get(a)?.position.y ?? 0,
+    );
+  });
+
+  it("W5d: Auto layout button moves loop targets into a side lane", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: [
+        {
+          id: "planning",
+          type: "skill",
+          position: { x: 900, y: 900 },
+          data: {
+            label: "planning",
+            skillRef: {
+              provider: "codex",
+              skillFile: ".codex/skills/planning/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "implement-plan",
+          type: "skill",
+          position: { x: -300, y: -300 },
+          data: {
+            label: "implement-plan",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/implement-plan/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "review-and-fix",
+          type: "skill",
+          position: { x: -200, y: -100 },
+          data: {
+            label: "review-and-fix",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/review-and-fix/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "wrap-up",
+          type: "skill",
+          position: { x: -100, y: 100 },
+          data: {
+            label: "wrap-up",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/wrap-up/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "planning", target: "implement-plan" },
+        { id: "e2", source: "implement-plan", target: "review-and-fix" },
+        { id: "e3", source: "review-and-fix", target: "wrap-up" },
+        { id: "e4", source: "wrap-up", target: "planning" },
+      ],
+      workflowId: "wf-loop",
+      workflowName: "Loop flow",
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-auto-layout")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-auto-layout"));
+
+    const byId = new Map(
+      useWorkflowStore.getState().nodes.map((node) => [node.id, node]),
+    );
+    expect(byId.get("planning")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X + AUTO_LAYOUT_NODE_X_GAP,
+      y: AUTO_LAYOUT_ORIGIN_Y,
+    });
+    expect(byId.get("implement-plan")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    });
+    expect(byId.get("wrap-up")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 3,
+    });
   });
 
   it("W6: workspace root and workflow-canvas testids are present", () => {

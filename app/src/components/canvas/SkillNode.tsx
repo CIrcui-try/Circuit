@@ -48,6 +48,12 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const selectedRepositoryId = useRepositoryStore((state) => state.selectedId);
   const runState = useNodeRunState(id, selectedRepositoryId);
   const inputSummary = summarizeInput(data.input);
+  const edgeRole =
+    data.edgeRole === "source" ||
+    data.edgeRole === "target" ||
+    data.edgeRole === "both"
+      ? data.edgeRole
+      : null;
   const stackInputSummary = shouldStackInputSummary(inputSummary.items);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
@@ -111,14 +117,27 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
 
   return (
     <div
-      className={`skill-node skill-node--${provider} skill-node--${runState} skill-node--input-${inputSummary.state}${selected ? " is-selected" : ""}`}
+      className={`skill-node skill-node--${provider} skill-node--${runState} skill-node--input-${inputSummary.state}${selected ? " is-selected" : ""}${edgeRole ? ` skill-node--edge-${edgeRole}` : ""}`}
       data-testid="workflow-node"
       data-node-id={id}
       data-skill-provider={provider}
       data-run-state={runState}
       data-input-state={inputSummary.state}
     >
-      <Handle type="target" position={Position.Top} />
+      <Handle
+        id="input-top"
+        type="target"
+        position={Position.Top}
+        className="skill-node__handle skill-node__handle--target"
+        data-testid="skill-node-target-handle"
+      />
+      <Handle
+        id="input-left"
+        type="target"
+        position={Position.Left}
+        className="skill-node__handle skill-node__handle--target skill-node__handle--side"
+        data-testid="skill-node-target-handle"
+      />
       <div className="skill-node__row">
         <span className="skill-node__name">{data.label}</span>
         {data.isRoot === true ? (
@@ -242,7 +261,20 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
             document.body,
           )
         : null}
-      <Handle type="source" position={Position.Bottom} />
+      <Handle
+        id="output-bottom"
+        type="source"
+        position={Position.Bottom}
+        className="skill-node__handle skill-node__handle--source"
+        data-testid="skill-node-source-handle"
+      />
+      <Handle
+        id="output-right"
+        type="source"
+        position={Position.Right}
+        className="skill-node__handle skill-node__handle--source skill-node__handle--side"
+        data-testid="skill-node-source-handle"
+      />
     </div>
   );
 }
