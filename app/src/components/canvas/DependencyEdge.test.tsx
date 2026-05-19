@@ -29,12 +29,12 @@ describe("DependencyEdge", () => {
     );
 
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "cx",
-      "10",
+      "x",
+      "7",
     );
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "cy",
-      "20",
+      "y",
+      "17",
     );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",
@@ -62,12 +62,12 @@ describe("DependencyEdge", () => {
     );
 
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "cx",
-      "320",
+      "x",
+      "317",
     );
     expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
-      "cy",
-      "98",
+      "y",
+      "95",
     );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",

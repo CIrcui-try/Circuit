@@ -131,7 +131,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         id="input-top"
         type="target"
         position={toHandlePosition(edgeHandleHints.target, Position.Top)}
-        style={toHandleStyle(edgeHandleHints.target)}
+        style={toHandleStyle(edgeHandleHints.target, "target")}
         className={`skill-node__handle skill-node__handle--target${toHandleClass(edgeHandleHints.target)}`}
         data-testid="skill-node-target-handle"
       />
@@ -262,7 +262,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         id="output-bottom"
         type="source"
         position={toHandlePosition(edgeHandleHints.source, Position.Bottom)}
-        style={toHandleStyle(edgeHandleHints.source)}
+        style={toHandleStyle(edgeHandleHints.source, "source")}
         className={`skill-node__handle skill-node__handle--source${toHandleClass(edgeHandleHints.source)}`}
         data-testid="skill-node-source-handle"
       />
@@ -404,6 +404,7 @@ function toHandlePosition(
 
 function toHandleStyle(
   hint: DependencyEndpointHint | undefined,
+  kind: "source" | "target",
 ): CSSProperties | undefined {
   if (!hint) return undefined;
   const offset = toHandleOffset(hint.offset);
@@ -413,7 +414,7 @@ function toHandleStyle(
       right: "auto",
       bottom: "auto",
       left: offset,
-      transform: "translate(-50%, -50%)",
+      transform: toHandleTransform(kind, "translate(-50%, -50%)"),
     };
   }
   if (hint.side === "bottom") {
@@ -422,7 +423,7 @@ function toHandleStyle(
       right: "auto",
       bottom: 0,
       left: offset,
-      transform: "translate(-50%, 50%)",
+      transform: toHandleTransform(kind, "translate(-50%, 50%)"),
     };
   }
   if (hint.side === "right") {
@@ -431,7 +432,7 @@ function toHandleStyle(
       right: 0,
       bottom: "auto",
       left: "auto",
-      transform: "translate(50%, -50%)",
+      transform: toHandleTransform(kind, "translate(50%, -50%)"),
     };
   }
   return {
@@ -439,8 +440,15 @@ function toHandleStyle(
     right: "auto",
     bottom: "auto",
     left: 0,
-    transform: "translate(-50%, -50%)",
+    transform: toHandleTransform(kind, "translate(-50%, -50%)"),
   };
+}
+
+function toHandleTransform(
+  kind: "source" | "target",
+  translate: string,
+): string {
+  return `${translate}${kind === "source" ? " rotate(45deg)" : ""}`;
 }
 
 function toHandleOffset(offset: number): string {

@@ -92,12 +92,14 @@ export function DependencyEdge({
         style={style}
         interactionWidth={interactionWidth}
       />
-      <circle
+      <rect
         aria-hidden="true"
         className="dependency-edge__endpoint dependency-edge__endpoint--source"
-        cx={route.source.x}
-        cy={route.source.y}
-        r={4}
+        x={route.source.x - 3}
+        y={route.source.y - 3}
+        width={6}
+        height={6}
+        rx={1.5}
         data-testid="dependency-edge-source-endpoint"
       />
       <circle
@@ -105,7 +107,7 @@ export function DependencyEdge({
         className="dependency-edge__endpoint dependency-edge__endpoint--target"
         cx={route.target.x}
         cy={route.target.y}
-        r={4}
+        r={3}
         data-testid="dependency-edge-target-endpoint"
       />
     </>
