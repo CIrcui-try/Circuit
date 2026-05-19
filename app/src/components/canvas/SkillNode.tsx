@@ -151,6 +151,8 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
         <span className={`skill-list__chip skill-list__chip--${provider}`}>
           {provider}
         </span>
+      </div>
+      <div className="skill-node__model-row">
         <span
           className={`skill-node__model${configuredModel ? "" : " skill-node__model--default"}`}
           data-testid="skill-node-model"

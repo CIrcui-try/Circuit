@@ -1906,10 +1906,16 @@ a:hover {
   padding: 0.22rem 0.36rem;
 }
 
-.skill-node__model {
-  flex: 0 1 112px;
+.skill-node__model-row {
+  display: flex;
   min-width: 0;
-  max-width: 112px;
+  margin-top: 5px;
+}
+
+.skill-node__model {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

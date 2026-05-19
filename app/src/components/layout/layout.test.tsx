@@ -889,6 +889,7 @@ describe("Layout shell", () => {
 
     const model = screen.getByTestId("skill-node-model");
     expect(model).toHaveTextContent("model: gpt-5.4-mini");
+    expect(model.closest(".skill-node__model-row")).not.toBeNull();
     expect(model).toHaveAttribute("title", "Model: gpt-5.4-mini");
   });
 
