@@ -903,12 +903,21 @@ function toRunLogColumnStyle(
   widths: RunLogColumnWidths,
 ): CSSProperties & Record<string, string> {
   return {
-    "--run-log-provider-width": `${widths.provider}px`,
-    "--run-log-skill-width": `${widths.skill}px`,
-    "--run-log-model-width": `${widths.model}px`,
-    "--run-log-type-width": `${widths.type}px`,
-    "--run-log-message-width": `${widths.message}px`,
+    "--run-log-provider-width": `${resolveRunLogColumnWidth("provider", widths.provider)}px`,
+    "--run-log-skill-width": `${resolveRunLogColumnWidth("skill", widths.skill)}px`,
+    "--run-log-model-width": `${resolveRunLogColumnWidth("model", widths.model)}px`,
+    "--run-log-type-width": `${resolveRunLogColumnWidth("type", widths.type)}px`,
+    "--run-log-message-width": `${resolveRunLogColumnWidth("message", widths.message)}px`,
   } as CSSProperties & Record<string, string>;
+}
+
+function resolveRunLogColumnWidth(
+  column: RunLogColumnKey,
+  width: unknown,
+): number {
+  return typeof width === "number" && Number.isFinite(width)
+    ? clampRunLogColumnWidth(column, width)
+    : RUN_LOG_COLUMN_DEFAULTS[column];
 }
 
 function formatRunLogColumnLabel(column: RunLogColumnKey): string {

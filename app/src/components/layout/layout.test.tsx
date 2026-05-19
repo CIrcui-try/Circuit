@@ -320,6 +320,34 @@ describe("Layout shell", () => {
     });
   });
 
+  it("LogPanel falls back to a default model width for older persisted columns", () => {
+    window.localStorage.setItem(
+      "circuit.runLog.columns.v1",
+      JSON.stringify({
+        provider: 120,
+        skill: 260,
+        type: 90,
+        message: 640,
+      }),
+    );
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "status",
+      timestamp: "t1",
+      status: "running command",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log")).toHaveStyle({
+      "--run-log-provider-width": "120px",
+      "--run-log-skill-width": "260px",
+      "--run-log-model-width": "110px",
+      "--run-log-type-width": "90px",
+      "--run-log-message-width": "640px",
+    });
+  });
+
   it("LogPanel shows provider chips, skill names, and models when available", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
