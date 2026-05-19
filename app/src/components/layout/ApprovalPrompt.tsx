@@ -6,6 +6,7 @@ export interface ApprovalPromptProps {
   request: PendingApproval;
   provider?: WorkflowSkillProvider;
   skillLabel?: string;
+  model?: string;
   onRespond: (text: string) => void | Promise<void>;
   onDismiss?: () => void;
 }
@@ -14,6 +15,7 @@ export function ApprovalPrompt({
   request,
   provider,
   skillLabel = request.nodeId,
+  model,
   onRespond,
   onDismiss,
 }: ApprovalPromptProps) {
@@ -52,6 +54,9 @@ export function ApprovalPrompt({
         title={request.nodeId}
       >
         {skillLabel}
+      </span>
+      <span className={`run-log__model${model ? "" : " run-log__model--empty"}`}>
+        {model ?? "-"}
       </span>
       <span className="run-log__type">approval</span>
       <span className="run-log__payload run-log__payload--approval">

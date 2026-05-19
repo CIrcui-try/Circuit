@@ -202,9 +202,9 @@ describe("Layout shell", () => {
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0][0];
-    expect(copied).toContain("Foo\tstdout\thello from stdout");
-    expect(copied).toContain("node-b\tstatus\trunning command");
-    expect(copied).toContain("Foo\tresult\tsuccess (exit 0)");
+    expect(copied).toContain("Foo\t\tstdout\thello from stdout");
+    expect(copied).toContain("node-b\t\tstatus\trunning command");
+    expect(copied).toContain("Foo\t\tresult\tsuccess (exit 0)");
     expect(await screen.findByTestId("run-log-copy-feedback")).toHaveTextContent(
       "Copied",
     );
@@ -258,6 +258,7 @@ describe("Layout shell", () => {
     const header = screen.getByTestId("run-log-column-header");
     expect(header).toHaveTextContent("Provider");
     expect(header).toHaveTextContent("Skill");
+    expect(header).toHaveTextContent("Model");
     expect(header).toHaveTextContent("Type");
     expect(header).toHaveTextContent("Message");
     expect(screen.getByTestId("run-log").firstElementChild).toBe(header);
@@ -293,7 +294,13 @@ describe("Layout shell", () => {
   it("LogPanel restores persisted column widths from localStorage", () => {
     window.localStorage.setItem(
       "circuit.runLog.columns.v1",
-      JSON.stringify({ provider: 120, skill: 260, type: 90, message: 640 }),
+      JSON.stringify({
+        provider: 120,
+        skill: 260,
+        model: 130,
+        type: 90,
+        message: 640,
+      }),
     );
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {
@@ -307,12 +314,13 @@ describe("Layout shell", () => {
     expect(screen.getByTestId("run-log")).toHaveStyle({
       "--run-log-provider-width": "120px",
       "--run-log-skill-width": "260px",
+      "--run-log-model-width": "130px",
       "--run-log-type-width": "90px",
       "--run-log-message-width": "640px",
     });
   });
 
-  it("LogPanel shows provider chips and skill names when available", () => {
+  it("LogPanel shows provider chips, skill names, and models when available", () => {
     const id = useWorkflowStore.getState().addSkillNode(
       {
         id: "codex:.codex/skills/foo",
@@ -324,6 +332,7 @@ describe("Layout shell", () => {
       },
       { x: 0, y: 0 },
     );
+    useWorkflowStore.getState().setNodeModel(id, "gpt-5.5");
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent(id, {
       type: "stdout",
@@ -348,6 +357,10 @@ describe("Layout shell", () => {
     expect(skills).toHaveLength(2);
     expect(skills[0]).toHaveTextContent("Foo");
     expect(skills[0]).toHaveAttribute("title", id);
+    const models = screen.getAllByTestId("run-log-model");
+    expect(models).toHaveLength(2);
+    expect(models[0]).toHaveTextContent("gpt-5.5");
+    expect(models[0]).toHaveAttribute("title", "gpt-5.5");
     expect(screen.getByTestId("run-log")).not.toHaveTextContent(id);
   });
 

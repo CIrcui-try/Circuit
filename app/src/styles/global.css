@@ -908,19 +908,22 @@ a:hover {
 .run-log {
   --run-log-provider-width: 90px;
   --run-log-skill-width: 150px;
+  --run-log-model-width: 110px;
   --run-log-type-width: 70px;
   --run-log-message-width: 520px;
   --run-log-grid-template: minmax(72px, var(--run-log-provider-width))
     minmax(96px, var(--run-log-skill-width))
+    minmax(72px, var(--run-log-model-width))
     minmax(56px, var(--run-log-type-width))
     minmax(var(--run-log-message-width), 1fr);
   --run-log-min-grid-width: calc(
     var(--run-log-provider-width) + var(--run-log-skill-width) +
-      var(--run-log-type-width) + var(--run-log-message-width) + 48px
+      var(--run-log-model-width) + var(--run-log-type-width) +
+      var(--run-log-message-width) + 56px
   );
   --run-log-message-offset: calc(
     12px + var(--run-log-provider-width) + var(--run-log-skill-width) +
-      var(--run-log-type-width) + 24px
+      var(--run-log-model-width) + var(--run-log-type-width) + 32px
   );
   flex: 1 1 auto;
   min-height: 0;
@@ -1148,6 +1151,18 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.run-log__model {
+  min-width: 0;
+  color: #8f8f9a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log__model--empty {
+  color: #5f5f68;
 }
 
 .run-log__type {
