@@ -117,13 +117,46 @@ function resolveSkillFilePath(
 }
 
 export function toRenderedCanvasEdges(edges: RFEdge[]): RFEdge[] {
+  const outgoing = toEdgeSlotMap(edges, "source");
+  const incoming = toEdgeSlotMap(edges, "target");
+
   return edges.map((edge) => ({
     ...edge,
     type: "dependency",
+    data: {
+      ...edge.data,
+      routeSlot: {
+        source: outgoing.get(edge.id) ?? { index: 0, count: 1 },
+        target: incoming.get(edge.id) ?? { index: 0, count: 1 },
+      },
+    },
     markerEnd:
       edge.markerEnd ??
       (edge.selected ? CANVAS_SELECTED_EDGE_MARKER : CANVAS_EDGE_MARKER),
   }));
+}
+
+function toEdgeSlotMap(
+  edges: RFEdge[],
+  key: "source" | "target",
+): Map<string, { index: number; count: number }> {
+  const groups = new Map<string, RFEdge[]>();
+  for (const edge of edges) {
+    groups.set(edge[key], [...(groups.get(edge[key]) ?? []), edge]);
+  }
+
+  const slots = new Map<string, { index: number; count: number }>();
+  for (const group of groups.values()) {
+    const sorted = [...group].sort((a, b) => {
+      const aOther = key === "source" ? a.target : a.source;
+      const bOther = key === "source" ? b.target : b.source;
+      return `${aOther}:${a.id}`.localeCompare(`${bOther}:${b.id}`);
+    });
+    sorted.forEach((edge, index) => {
+      slots.set(edge.id, { index, count: sorted.length });
+    });
+  }
+  return slots;
 }
 
 function isPointInsideElement(

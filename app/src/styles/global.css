@@ -1730,6 +1730,13 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(143, 188, 255, 0.22);
 }
 
+.skill-node--edge-source .skill-node__handle--side,
+.skill-node--edge-target .skill-node__handle--side,
+.skill-node--edge-both .skill-node__handle--side {
+  opacity: 0;
+  box-shadow: none;
+}
+
 .skill-node__handle {
   width: 9px;
   height: 9px;
@@ -1747,6 +1754,9 @@ a:hover {
 
 .skill-node__handle--side {
   top: 50%;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0;
 }
 
 .skill-node--queued {
