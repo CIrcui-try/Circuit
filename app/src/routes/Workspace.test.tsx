@@ -32,6 +32,9 @@ import { useRepositoryStore, type Repository } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import {
+  AUTO_LAYOUT_NODE_X_GAP,
+  AUTO_LAYOUT_NODE_Y_GAP,
+  AUTO_LAYOUT_ORIGIN_X,
   AUTO_LAYOUT_ORIGIN_Y,
   useWorkflowStore,
 } from "../stores/workflowStore";
@@ -460,6 +463,93 @@ describe("Workspace", () => {
     expect(byId.get(b)?.position.y).toBeGreaterThan(
       byId.get(a)?.position.y ?? 0,
     );
+  });
+
+  it("W5d: Auto layout button moves loop targets into a side lane", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: [
+        {
+          id: "planning",
+          type: "skill",
+          position: { x: 900, y: 900 },
+          data: {
+            label: "planning",
+            skillRef: {
+              provider: "codex",
+              skillFile: ".codex/skills/planning/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "implement-plan",
+          type: "skill",
+          position: { x: -300, y: -300 },
+          data: {
+            label: "implement-plan",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/implement-plan/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "review-and-fix",
+          type: "skill",
+          position: { x: -200, y: -100 },
+          data: {
+            label: "review-and-fix",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/review-and-fix/SKILL.md",
+            },
+          },
+        },
+        {
+          id: "wrap-up",
+          type: "skill",
+          position: { x: -100, y: 100 },
+          data: {
+            label: "wrap-up",
+            skillRef: {
+              provider: "claude",
+              skillFile: ".claude/skills/wrap-up/SKILL.md",
+            },
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "planning", target: "implement-plan" },
+        { id: "e2", source: "implement-plan", target: "review-and-fix" },
+        { id: "e3", source: "review-and-fix", target: "wrap-up" },
+        { id: "e4", source: "wrap-up", target: "planning" },
+      ],
+      workflowId: "wf-loop",
+      workflowName: "Loop flow",
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-auto-layout")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-auto-layout"));
+
+    const byId = new Map(
+      useWorkflowStore.getState().nodes.map((node) => [node.id, node]),
+    );
+    expect(byId.get("planning")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X + AUTO_LAYOUT_NODE_X_GAP,
+      y: AUTO_LAYOUT_ORIGIN_Y,
+    });
+    expect(byId.get("implement-plan")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    });
+    expect(byId.get("wrap-up")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 3,
+    });
   });
 
   it("W6: workspace root and workflow-canvas testids are present", () => {

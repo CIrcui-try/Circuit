@@ -475,6 +475,41 @@ describe("workflowStore", () => {
     );
   });
 
+  it("WS14e: layoutWorkflowNodes moves loop targets into a side lane", () => {
+    const laidOut = layoutWorkflowNodes(
+      [
+        workflowNode("planning", { x: 0, y: 0 }),
+        workflowNode("implement-plan", { x: 0, y: 0 }),
+        workflowNode("review-and-fix", { x: 0, y: 0 }),
+        workflowNode("wrap-up", { x: 0, y: 0 }),
+      ],
+      [
+        edge("e1", "planning", "implement-plan"),
+        edge("e2", "implement-plan", "review-and-fix"),
+        edge("e3", "review-and-fix", "wrap-up"),
+        edge("e4", "wrap-up", "planning"),
+      ],
+    );
+    const byId = new Map(laidOut.map((node) => [node.id, node]));
+
+    expect(byId.get("planning")?.position.y).toBe(AUTO_LAYOUT_ORIGIN_Y);
+    expect(byId.get("implement-plan")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP,
+    });
+    expect(byId.get("review-and-fix")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 2,
+    });
+    expect(byId.get("wrap-up")?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y + AUTO_LAYOUT_NODE_Y_GAP * 3,
+    });
+    expect(byId.get("planning")?.position.x).toBe(
+      AUTO_LAYOUT_ORIGIN_X + AUTO_LAYOUT_NODE_X_GAP,
+    );
+  });
+
   it("WS15: setNodeInput stores input on the targeted node only", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });

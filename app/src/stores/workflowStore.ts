@@ -127,6 +127,9 @@ export function layoutWorkflowNodes(
   const nodeIds = nodes.map((node) => node.id);
   const depthById = calculateLayoutDepths(nodeIds, edges);
   const sorted = topoSort(nodeIds, edges);
+  const backEdges = sorted.cycle
+    ? partitionBackEdges(nodeIds, getValidLayoutEdges(nodeIds, edges)).backEdges
+    : [];
   const order = sorted.cycle ? nodeIds : sorted.order;
   const orderIndex = new Map(order.map((id, index) => [id, index]));
   const depthGroups = new Map<number, string[]>();
@@ -150,22 +153,33 @@ export function layoutWorkflowNodes(
     });
   }
 
+  moveLoopTargetsToRightLane(positions, depthById, backEdges);
+
   return nodes.map((node) => ({
     ...node,
     position: positions.get(node.id) ?? node.position,
   })) as SkillNode[];
 }
 
+function getValidLayoutEdges(
+  nodeIds: readonly string[],
+  edges: readonly Edge[],
+): Edge[] {
+  const nodeIdSet = new Set(nodeIds);
+  return edges.filter(
+    (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target),
+  );
+}
+
 function calculateLayoutDepths(
   nodeIds: readonly string[],
   edges: readonly Edge[],
 ): Map<string, number> {
-  const nodeIdSet = new Set(nodeIds);
-  const validEdges = edges.filter(
-    (edge) => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target),
-  );
+  const validEdges = getValidLayoutEdges(nodeIds, edges);
   const sorted = topoSort([...nodeIds], validEdges);
-  const dagEdges = sorted.cycle ? removeBackEdges(nodeIds, validEdges) : validEdges;
+  const dagEdges = sorted.cycle
+    ? partitionBackEdges(nodeIds, validEdges).dagEdges
+    : validEdges;
   const order = sorted.cycle ? nodeIds : sorted.order;
   const depthById = new Map(nodeIds.map((id) => [id, 0]));
 
@@ -183,10 +197,38 @@ function calculateLayoutDepths(
   return depthById;
 }
 
-function removeBackEdges(
+function moveLoopTargetsToRightLane(
+  positions: Map<string, XYPosition>,
+  depthById: Map<string, number>,
+  backEdges: readonly Edge[],
+) {
+  const loopTargetIds = new Set<string>();
+  for (const edge of backEdges) {
+    const sourceDepth = depthById.get(edge.source);
+    const targetDepth = depthById.get(edge.target);
+    if (sourceDepth == null || targetDepth == null) continue;
+    if (sourceDepth <= targetDepth) continue;
+    loopTargetIds.add(edge.target);
+  }
+  if (loopTargetIds.size === 0) return;
+
+  const rightLaneX =
+    Math.max(...[...positions.values()].map((position) => position.x)) +
+    AUTO_LAYOUT_NODE_X_GAP;
+  for (const id of loopTargetIds) {
+    const position = positions.get(id);
+    if (!position) continue;
+    positions.set(id, {
+      ...position,
+      x: rightLaneX,
+    });
+  }
+}
+
+function partitionBackEdges(
   nodeIds: readonly string[],
   edges: readonly Edge[],
-): Edge[] {
+): { dagEdges: Edge[]; backEdges: Edge[] } {
   const outgoing = new Map<string, Edge[]>();
   for (const id of nodeIds) outgoing.set(id, []);
   for (const edge of edges) {
@@ -195,12 +237,16 @@ function removeBackEdges(
 
   const state = new Map<string, "visiting" | "visited">();
   const dagEdges: Edge[] = [];
+  const backEdges: Edge[] = [];
 
   const visit = (id: string) => {
     state.set(id, "visiting");
     for (const edge of outgoing.get(id) ?? []) {
       const targetState = state.get(edge.target);
-      if (targetState === "visiting") continue;
+      if (targetState === "visiting") {
+        backEdges.push(edge);
+        continue;
+      }
       dagEdges.push(edge);
       if (!targetState) visit(edge.target);
     }
@@ -211,7 +257,7 @@ function removeBackEdges(
     if (!state.has(id)) visit(id);
   }
 
-  return dagEdges;
+  return { dagEdges, backEdges };
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
