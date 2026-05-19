@@ -152,15 +152,17 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           {provider}
         </span>
       </div>
-      <div className="skill-node__model-row">
-        <span
-          className={`skill-node__model${configuredModel ? "" : " skill-node__model--default"}`}
-          data-testid="skill-node-model"
-          title={`Model: ${modelLabel}`}
-        >
-          model: {modelLabel}
-        </span>
-      </div>
+      {configuredModel ? (
+        <div className="skill-node__model-row">
+          <span
+            className="skill-node__model"
+            data-testid="skill-node-model"
+            title={`Model: ${modelLabel}`}
+          >
+            {modelLabel}
+          </span>
+        </div>
+      ) : null}
       {description ? (
         <HoverTooltip
           className="skill-node__description-wrap"

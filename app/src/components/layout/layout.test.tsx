@@ -888,12 +888,12 @@ describe("Layout shell", () => {
     });
 
     const model = screen.getByTestId("skill-node-model");
-    expect(model).toHaveTextContent("model: gpt-5.4-mini");
+    expect(model).toHaveTextContent("gpt-5.4-mini");
     expect(model.closest(".skill-node__model-row")).not.toBeNull();
     expect(model).toHaveAttribute("title", "Model: gpt-5.4-mini");
   });
 
-  it("SkillNode shows default when no execution model is configured", () => {
+  it("SkillNode hides the model row when no execution model is configured", () => {
     renderSkillNode({
       id: "node-1",
       selected: false,
@@ -906,10 +906,7 @@ describe("Layout shell", () => {
       },
     });
 
-    const model = screen.getByTestId("skill-node-model");
-    expect(model).toHaveTextContent("model: default");
-    expect(model).toHaveClass("skill-node__model--default");
-    expect(model).toHaveAttribute("title", "Model: default");
+    expect(screen.queryByTestId("skill-node-model")).not.toBeInTheDocument();
   });
 
   it("SkillNode keeps input and output handles visible at top and bottom without edges", () => {
