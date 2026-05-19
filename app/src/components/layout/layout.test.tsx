@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import {
+  ConnectionMode,
   MarkerType,
   ReactFlowProvider,
   type Edge,
@@ -25,10 +26,12 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { LogPanel } from "./LogPanel";
 import {
   CANVAS_DEFAULT_EDGE_OPTIONS,
+  CANVAS_CONNECTION_MODE,
   CANVAS_EDGE_MARKER,
   CANVAS_FIT_VIEW_OPTIONS,
   CANVAS_NODE_ORIGIN,
   Canvas,
+  resolveEdgeHandleOverlap,
   toCanvasDropPosition,
   toRenderedCanvasEdges,
 } from "./Canvas";
@@ -649,6 +652,10 @@ describe("Layout shell", () => {
     });
   });
 
+  it("Canvas uses loose connection mode so either handle can be a drop target", () => {
+    expect(CANVAS_CONNECTION_MODE).toBe(ConnectionMode.Loose);
+  });
+
   it("Canvas renders workflow edges as dependency edges with arrow markers", () => {
     const edges: Edge[] = [{ id: "a-b", source: "a", target: "b" }];
 
@@ -689,6 +696,38 @@ describe("Layout shell", () => {
         },
       },
     ]);
+  });
+
+  it("Canvas separates overlapping input and output handle hints", () => {
+    expect(
+      resolveEdgeHandleOverlap({
+        target: { side: "bottom", offset: 1 },
+        source: { side: "bottom", offset: 3 },
+      }),
+    ).toEqual({
+      target: { side: "bottom", offset: -5 },
+      source: { side: "bottom", offset: 9 },
+    });
+  });
+
+  it("Canvas separates a routed input handle from the default output handle", () => {
+    expect(
+      resolveEdgeHandleOverlap({
+        target: { side: "bottom", offset: 0 },
+      }),
+    ).toEqual({
+      target: { side: "bottom", offset: -7 },
+      source: { side: "bottom", offset: 7 },
+    });
+  });
+
+  it("Canvas keeps handle hints unchanged when they are on different sides", () => {
+    const hints = {
+      target: { side: "top" as const, offset: 0 },
+      source: { side: "right" as const, offset: 0 },
+    };
+
+    expect(resolveEdgeHandleOverlap(hints)).toEqual(hints);
   });
 
   it("nodeTypes registers a 'skill' custom node", () => {
@@ -798,6 +837,84 @@ describe("Layout shell", () => {
     expect(
       document.querySelector(".skill-node__description"),
     ).not.toBeInTheDocument();
+  });
+
+  it("SkillNode keeps input and output handles visible at top and bottom without edges", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    const targetHandle = screen.getByTestId("skill-node-target-handle");
+    const sourceHandle = screen.getByTestId("skill-node-source-handle");
+
+    expect(targetHandle).toHaveClass("react-flow__handle-top");
+    expect(sourceHandle).toHaveClass("react-flow__handle-bottom");
+    expect(targetHandle).not.toHaveClass("skill-node__handle--route-active");
+    expect(sourceHandle).not.toHaveClass("skill-node__handle--route-active");
+  });
+
+  it("SkillNode moves the output handle to the routed edge side", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        edgeHandleHints: {
+          source: { side: "right", offset: 12 },
+        },
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    const activeHandle = document.querySelector(
+      ".skill-node__handle--source.skill-node__handle--route-active",
+    );
+
+    expect(activeHandle).not.toHaveClass("skill-node__handle--side");
+    expect(activeHandle).toHaveStyle({
+      right: "0px",
+      top: "calc(50% + 12px)",
+    });
+    expect(screen.getAllByTestId("skill-node-source-handle")).toHaveLength(1);
+  });
+
+  it("SkillNode moves the input handle to bottom routed endpoints", () => {
+    renderSkillNode({
+      id: "node-1",
+      selected: false,
+      data: {
+        label: "Foo",
+        edgeHandleHints: {
+          target: { side: "bottom", offset: -10 },
+        },
+        skillRef: {
+          provider: "codex",
+          skillFile: ".codex/skills/foo/SKILL.md",
+        },
+      },
+    });
+
+    const activeHandle = document.querySelector(
+      ".skill-node__handle--target.skill-node__handle--route-active",
+    );
+
+    expect(activeHandle).not.toHaveClass("skill-node__handle--side");
+    expect(activeHandle).toHaveStyle({
+      bottom: "0px",
+      left: "calc(50% - 10px)",
+    });
+    expect(screen.getAllByTestId("skill-node-target-handle")).toHaveLength(1);
   });
 
   it("SkillNode Edit selects the node for input editing", () => {

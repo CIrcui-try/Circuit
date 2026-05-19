@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type SyntheticEvent,
 } from "react";
@@ -15,6 +16,7 @@ import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import type { SkillNode as SkillNodeType } from "../../stores/workflowStore";
 import type { SkillInputHint } from "../../host/bridge";
+import type { DependencyEndpointHint } from "./DependencyEdge";
 
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 
@@ -54,6 +56,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     data.edgeRole === "both"
       ? data.edgeRole
       : null;
+  const edgeHandleHints = readEdgeHandleHints(data.edgeHandleHints);
   const stackInputSummary = shouldStackInputSummary(inputSummary.items);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const [isEditingInput, setIsEditingInput] = useState(false);
@@ -127,15 +130,9 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       <Handle
         id="input-top"
         type="target"
-        position={Position.Top}
-        className="skill-node__handle skill-node__handle--target"
-        data-testid="skill-node-target-handle"
-      />
-      <Handle
-        id="input-left"
-        type="target"
-        position={Position.Left}
-        className="skill-node__handle skill-node__handle--target skill-node__handle--side"
+        position={toHandlePosition(edgeHandleHints.target, Position.Top)}
+        style={toHandleStyle(edgeHandleHints.target)}
+        className={`skill-node__handle skill-node__handle--target${toHandleClass(edgeHandleHints.target)}`}
         data-testid="skill-node-target-handle"
       />
       <div className="skill-node__row">
@@ -264,15 +261,9 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       <Handle
         id="output-bottom"
         type="source"
-        position={Position.Bottom}
-        className="skill-node__handle skill-node__handle--source"
-        data-testid="skill-node-source-handle"
-      />
-      <Handle
-        id="output-right"
-        type="source"
-        position={Position.Right}
-        className="skill-node__handle skill-node__handle--source skill-node__handle--side"
+        position={toHandlePosition(edgeHandleHints.source, Position.Bottom)}
+        style={toHandleStyle(edgeHandleHints.source)}
+        className={`skill-node__handle skill-node__handle--source${toHandleClass(edgeHandleHints.source)}`}
         data-testid="skill-node-source-handle"
       />
     </div>
@@ -369,6 +360,97 @@ function isSkillInputHint(value: unknown): value is SkillInputHint {
     typeof value.label === "string" &&
     typeof value.placeholder === "string"
   );
+}
+
+type EdgeHandleHints = {
+  source?: DependencyEndpointHint;
+  target?: DependencyEndpointHint;
+};
+
+function readEdgeHandleHints(value: unknown): EdgeHandleHints {
+  if (!isRecord(value)) return {};
+  return {
+    source: readEndpointHint(value.source),
+    target: readEndpointHint(value.target),
+  };
+}
+
+function readEndpointHint(value: unknown): DependencyEndpointHint | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    value.side !== "top" &&
+    value.side !== "right" &&
+    value.side !== "bottom" &&
+    value.side !== "left"
+  ) {
+    return undefined;
+  }
+  return {
+    side: value.side,
+    offset: typeof value.offset === "number" ? value.offset : 0,
+  };
+}
+
+function toHandlePosition(
+  hint: DependencyEndpointHint | undefined,
+  fallback: Position,
+): Position {
+  if (!hint) return fallback;
+  if (hint.side === "top") return Position.Top;
+  if (hint.side === "right") return Position.Right;
+  if (hint.side === "bottom") return Position.Bottom;
+  return Position.Left;
+}
+
+function toHandleStyle(
+  hint: DependencyEndpointHint | undefined,
+): CSSProperties | undefined {
+  if (!hint) return undefined;
+  const offset = toHandleOffset(hint.offset);
+  if (hint.side === "top") {
+    return {
+      top: 0,
+      right: "auto",
+      bottom: "auto",
+      left: offset,
+      transform: "translate(-50%, -50%)",
+    };
+  }
+  if (hint.side === "bottom") {
+    return {
+      top: "auto",
+      right: "auto",
+      bottom: 0,
+      left: offset,
+      transform: "translate(-50%, 50%)",
+    };
+  }
+  if (hint.side === "right") {
+    return {
+      top: offset,
+      right: 0,
+      bottom: "auto",
+      left: "auto",
+      transform: "translate(50%, -50%)",
+    };
+  }
+  return {
+    top: offset,
+    right: "auto",
+    bottom: "auto",
+    left: 0,
+    transform: "translate(-50%, -50%)",
+  };
+}
+
+function toHandleOffset(offset: number): string {
+  if (offset === 0) return "50%";
+  const sign = offset > 0 ? "+" : "-";
+  return `calc(50% ${sign} ${Math.abs(offset)}px)`;
+}
+
+function toHandleClass(hint: DependencyEndpointHint | undefined): string {
+  return hint ? " skill-node__handle--route-active" : "";
 }
 
 export const nodeTypes = { skill: SkillNode };

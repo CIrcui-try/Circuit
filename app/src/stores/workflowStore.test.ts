@@ -126,7 +126,28 @@ describe("workflowStore", () => {
       source: a,
       target: b,
     });
+    expect(useWorkflowStore.getState().edges[0]).not.toHaveProperty("sourceHandle");
+    expect(useWorkflowStore.getState().edges[0]).not.toHaveProperty("targetHandle");
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
+  });
+
+  it("WS3a: onConnect strips handle ids from loose-mode connections", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+
+    useWorkflowStore.getState().onConnect({
+      source: a,
+      target: b,
+      sourceHandle: "output-bottom",
+      targetHandle: "output-bottom",
+    });
+
+    expect(useWorkflowStore.getState().edges[0]).toMatchObject({
+      source: a,
+      target: b,
+    });
+    expect(useWorkflowStore.getState().edges[0]).not.toHaveProperty("sourceHandle");
+    expect(useWorkflowStore.getState().edges[0]).not.toHaveProperty("targetHandle");
   });
 
   it("WS4: onConnect rejects self-loops", () => {

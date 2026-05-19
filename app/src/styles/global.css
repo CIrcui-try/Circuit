@@ -1764,6 +1764,7 @@ a:hover {
   height: 9px;
   border: 1px solid #1b1b1f;
   opacity: 0.72;
+  z-index: 2;
 }
 
 .skill-node__handle--target {
@@ -1779,6 +1780,23 @@ a:hover {
   background: transparent;
   border-color: transparent;
   opacity: 0;
+}
+
+.skill-node__handle--route-active {
+  opacity: 1;
+}
+
+.skill-node__handle--side.skill-node__handle--route-active {
+  background: currentColor;
+  border-color: #1b1b1f;
+}
+
+.skill-node__handle--target.skill-node__handle--route-active {
+  color: #7aa7ff;
+}
+
+.skill-node__handle--source.skill-node__handle--route-active {
+  color: #8bd98b;
 }
 
 .skill-node--queued {

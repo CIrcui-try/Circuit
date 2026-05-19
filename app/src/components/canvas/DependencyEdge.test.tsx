@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useInternalNode, type EdgeProps } from "@xyflow/react";
+import { Position, useInternalNode, type EdgeProps } from "@xyflow/react";
 import { DependencyEdge } from "./DependencyEdge";
 
 vi.mock("@xyflow/react", async (importOriginal) => {
@@ -87,8 +87,8 @@ function edgeProps(
     id: "source-target",
     source: "source",
     target: "target",
-    sourcePosition: undefined,
-    targetPosition: undefined,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     selected: false,
     animated: false,
     markerStart: undefined,
