@@ -65,15 +65,33 @@ export function DependencyEdge({
   };
 
   return (
-    <BaseEdge
-      id={id}
-      path={path}
-      labelX={labelPoint.x}
-      labelY={labelPoint.y}
-      markerEnd={markerEnd}
-      style={style}
-      interactionWidth={interactionWidth}
-    />
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        labelX={labelPoint.x}
+        labelY={labelPoint.y}
+        markerEnd={markerEnd}
+        style={style}
+        interactionWidth={interactionWidth}
+      />
+      <circle
+        aria-hidden="true"
+        className="dependency-edge__endpoint dependency-edge__endpoint--source"
+        cx={route.source.x}
+        cy={route.source.y}
+        r={4}
+        data-testid="dependency-edge-source-endpoint"
+      />
+      <circle
+        aria-hidden="true"
+        className="dependency-edge__endpoint dependency-edge__endpoint--target"
+        cx={route.target.x}
+        cy={route.target.y}
+        r={4}
+        data-testid="dependency-edge-target-endpoint"
+      />
+    </>
   );
 }
 

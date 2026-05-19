@@ -505,6 +505,28 @@ a:hover {
   stroke-width: 18;
 }
 
+.dependency-edge__endpoint {
+  pointer-events: none;
+  stroke: #1b1b1f;
+  stroke-width: 1.5;
+  opacity: 0.82;
+}
+
+.dependency-edge__endpoint--source {
+  fill: #8bd98b;
+}
+
+.dependency-edge__endpoint--target {
+  fill: #7aa7ff;
+}
+
+.workspace__canvas .react-flow__edge:hover .dependency-edge__endpoint,
+.workspace__canvas .react-flow__edge.selected .dependency-edge__endpoint {
+  opacity: 1;
+  stroke: #dce9ff;
+  stroke-width: 2;
+}
+
 .starter-flow-empty {
   grid-area: canvas;
   align-self: center;
@@ -1727,7 +1749,7 @@ a:hover {
 .skill-node--edge-target .skill-node__handle--target,
 .skill-node--edge-both .skill-node__handle {
   opacity: 1;
-  box-shadow: 0 0 0 3px rgba(143, 188, 255, 0.22);
+  box-shadow: 0 0 0 2px rgba(143, 188, 255, 0.14);
 }
 
 .skill-node--edge-source .skill-node__handle--side,
