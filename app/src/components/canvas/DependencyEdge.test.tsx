@@ -36,6 +36,10 @@ describe("DependencyEdge", () => {
       "cy",
       "20",
     );
+    expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
+      "r",
+      "3.4",
+    );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",
       "90",
@@ -43,6 +47,10 @@ describe("DependencyEdge", () => {
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cy",
       "30",
+    );
+    expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
+      "r",
+      "3.4",
     );
   });
 
@@ -69,6 +77,10 @@ describe("DependencyEdge", () => {
       "cy",
       "98",
     );
+    expect(screen.getByTestId("dependency-edge-source-endpoint")).toHaveAttribute(
+      "r",
+      "3.4",
+    );
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cx",
       "400",
@@ -76,6 +88,10 @@ describe("DependencyEdge", () => {
     expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
       "cy",
       "128",
+    );
+    expect(screen.getByTestId("dependency-edge-target-endpoint")).toHaveAttribute(
+      "r",
+      "3.4",
     );
   });
 });

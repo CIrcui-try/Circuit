@@ -97,7 +97,7 @@ export function DependencyEdge({
         className="dependency-edge__endpoint dependency-edge__endpoint--source"
         cx={route.source.x}
         cy={route.source.y}
-        r={4}
+        r={3.4}
         data-testid="dependency-edge-source-endpoint"
       />
       <circle
@@ -105,7 +105,7 @@ export function DependencyEdge({
         className="dependency-edge__endpoint dependency-edge__endpoint--target"
         cx={route.target.x}
         cy={route.target.y}
-        r={4}
+        r={3.4}
         data-testid="dependency-edge-target-endpoint"
       />
     </>
