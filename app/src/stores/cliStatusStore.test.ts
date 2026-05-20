@@ -4,6 +4,7 @@ import {
   type SpawnScenario,
 } from "../runtime/bridge/RuntimeBridge.mock";
 import { useCliStatusStore } from "./cliStatusStore";
+import type { McpConfigStatus } from "../host/bridge";
 
 function reset() {
   useCliStatusStore.setState({
@@ -11,8 +12,53 @@ function reset() {
       claude: { status: "idle" },
       codex: { status: "idle" },
     },
+    mcpEntries: {
+      claude: { status: "idle" },
+      codex: { status: "idle" },
+    },
     isChecking: false,
+    isCheckingMcp: false,
   });
+}
+
+function mcpStatus(
+  overrides: Partial<McpConfigStatus> = {},
+): McpConfigStatus {
+  return {
+    claude: {
+      config: {
+        path: "/Users/me/.claude.json",
+        ok: true,
+        missing: false,
+        message: null,
+      },
+      authCache: {
+        path: "/Users/me/.claude/mcp-needs-auth-cache.json",
+        ok: false,
+        missing: true,
+        message: "file not found",
+      },
+      servers: [
+        {
+          provider: "claude",
+          scope: "global",
+          name: "linear",
+          args: [],
+          hasEnv: false,
+        },
+      ],
+    },
+    codex: {
+      config: {
+        path: "/Users/me/.codex/config.toml",
+        ok: true,
+        missing: false,
+        message: null,
+      },
+      servers: [],
+    },
+    ...overrides,
+  };
 }
 
 describe("useCliStatusStore", () => {
@@ -139,5 +185,87 @@ describe("useCliStatusStore", () => {
     expect(snapshot.entries.codex.status).toBe("checking");
 
     return promise;
+  });
+
+  it("maps MCP bridge status per provider", async () => {
+    await useCliStatusStore.getState().runMcpChecks({
+      bridge: {
+        readMcpConfigStatus: async () => mcpStatus(),
+      },
+    });
+
+    const { mcpEntries, isCheckingMcp } = useCliStatusStore.getState();
+    expect(isCheckingMcp).toBe(false);
+    expect(mcpEntries.claude.status).toBe("ok");
+    expect(mcpEntries.claude.serverCount).toBe(1);
+    expect(mcpEntries.codex.status).toBe("ok");
+    expect(mcpEntries.codex.serverCount).toBe(0);
+  });
+
+  it("keeps missing and parse failures as provider-specific MCP errors", async () => {
+    await useCliStatusStore.getState().runMcpChecks({
+      bridge: {
+        readMcpConfigStatus: async () =>
+          mcpStatus({
+            claude: {
+              config: {
+                path: "/Users/me/.claude.json",
+                ok: false,
+                missing: true,
+                message: "file not found",
+              },
+              authCache: {
+                path: "/Users/me/.claude/mcp-needs-auth-cache.json",
+                ok: false,
+                missing: true,
+                message: "file not found",
+              },
+              servers: [],
+            },
+            codex: {
+              config: {
+                path: "/Users/me/.codex/config.toml",
+                ok: false,
+                missing: false,
+                message: "failed to parse TOML",
+              },
+              servers: [],
+            },
+          }),
+      },
+    });
+
+    const { mcpEntries } = useCliStatusStore.getState();
+    expect(mcpEntries.claude.status).toBe("missing");
+    expect(mcpEntries.claude.errorMessage).toBe("file not found");
+    expect(mcpEntries.claude.detailLog).toContain("Config:");
+    expect(mcpEntries.codex.status).toBe("error");
+    expect(mcpEntries.codex.errorMessage).toBe("failed to parse TOML");
+    expect(mcpEntries.codex.detailLog).toContain("failed to parse TOML");
+  });
+
+  it("refreshAll runs CLI and MCP checks together", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: (opts) => [
+        { event: { type: "stdout", text: `${opts.command} 1.0.0\n` } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+    let mcpCalls = 0;
+
+    await useCliStatusStore.getState().refreshAll({
+      bridge,
+      hostBridge: {
+        readMcpConfigStatus: async () => {
+          mcpCalls += 1;
+          return mcpStatus();
+        },
+      },
+    });
+
+    const { entries, mcpEntries } = useCliStatusStore.getState();
+    expect(entries.claude.status).toBe("ok");
+    expect(mcpEntries.claude.status).toBe("ok");
+    expect(mcpCalls).toBe(1);
   });
 });
