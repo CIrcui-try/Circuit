@@ -1769,7 +1769,102 @@ a:hover {
 }
 
 .skill-create-modal {
-  min-width: 420px;
+  width: min(560px, 80vw);
+}
+
+.skill-create-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skill-create-panel__title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.skill-create-panel__copy {
+  margin: 3px 0 0;
+  color: #a6a6b0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.skill-create-panel__hide {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  font-size: 11px;
+  background: transparent;
+}
+
+.skill-create-panel__generate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 5px 8px;
+  color: #f0f0f3;
+  background: #2d3c34;
+  border-color: #466453;
+  font-size: 12px;
+}
+
+.skill-create-panel__generate:hover {
+  background: #34483d;
+}
+
+.skill-create-panel__generate:disabled {
+  cursor: default;
+  color: #b8b8c0;
+  background: #303038;
+  border-color: #45454d;
+}
+
+.skill-create-panel__generate:disabled:hover {
+  background: #303038;
+}
+
+.skill-create-panel__edit-prompt {
+  align-self: flex-start;
+  padding: 4px 8px;
+  color: #c8c8d0;
+  background: transparent;
+  border-color: #3a3a42;
+  font-size: 11px;
+}
+
+.skill-create-panel__edit-prompt:hover {
+  background: #2d2d33;
+}
+
+.skill-create-panel__manual {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+.skill-create-panel__manual[open] {
+  gap: 10px;
+}
+
+.skill-create-panel__manual summary {
+  cursor: pointer;
+  color: #c8c8d0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.skill-create-panel__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.skill-create-panel__footer button {
+  padding: 5px 9px;
+  font-size: 12px;
 }
 
 .skill-create-modal__provider {

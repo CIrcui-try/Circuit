@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMockRuntimeBridge } from "../../runtime/bridge/RuntimeBridge.mock";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
@@ -371,23 +372,25 @@ describe("Sidebar", () => {
       screen.getByRole("button", { name: /Create repository skill/i }),
     );
 
-    const dialog = screen.getByRole("dialog", {
-      name: /Create repository skill/i,
-    });
+    const panel = screen.getByTestId("skill-create-panel");
+    expect(
+      screen.getByRole("dialog", { name: /New skill/i }),
+    ).toBeInTheDocument();
+    expect(panel).toHaveTextContent("New Skill");
+    expect(screen.getByTestId("skill-draft-goal")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("or... do it yourself"));
     expect(screen.getByPlaceholderText("Skill name")).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("What this skill helps the agent do"),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText("skill-slug")).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("Default slash-command arguments"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("<ISSUE_ID> [--force]")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Default free-form prompt")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Codex model name")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Name"), "New Skill");
     await userEvent.type(screen.getByLabelText("Description"), "Creates a skill");
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
-    await userEvent.type(screen.getByLabelText("Arguments"), "CIR-94");
+    await userEvent.type(screen.getByLabelText("Argument format"), "<ISSUE_ID>");
     await userEvent.type(screen.getByLabelText("Prompt"), "Check the implementation");
     await userEvent.type(screen.getByLabelText("Model"), "gpt-5.4");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
@@ -397,11 +400,11 @@ describe("Sidebar", () => {
       name: "New Skill",
       description: "Creates a skill",
       slug: "new-skill",
-      defaultArguments: "CIR-94",
+      argumentHint: "<ISSUE_ID>",
       defaultPrompt: "Check the implementation",
       defaultModel: "gpt-5.4",
     });
-    expect(dialog).toHaveTextContent("Created New Skill.");
+    expect(panel).toHaveTextContent("Created New Skill.");
 
     createRepositorySkill.mockRestore();
   });
@@ -429,9 +432,8 @@ describe("Sidebar", () => {
     render(<Sidebar repoId="r1" />);
     await userEvent.click(screen.getByTestId("skill-create-empty"));
 
-    expect(
-      screen.getByRole("dialog", { name: /Create repository skill/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("skill-create-panel")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("skill-draft-goal")).toHaveFocus());
   });
 
   it("SB13: validates required creation fields before saving", async () => {
@@ -462,6 +464,7 @@ describe("Sidebar", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /Create repository skill/i }),
     );
+    await userEvent.click(screen.getByText("or... do it yourself"));
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
     expect(screen.getByText("Name is required.")).toBeInTheDocument();
@@ -498,11 +501,122 @@ describe("Sidebar", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /Create repository skill/i }),
     );
+    await userEvent.click(screen.getByText("or... do it yourself"));
     await userEvent.type(screen.getByLabelText("Name"), "New Skill");
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
     expect(screen.getByRole("alert")).toHaveTextContent("skill already exists");
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB15: generates a skill draft into the manual fields", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        {
+          delayMs: 20,
+          event: {
+            type: "stdout",
+            text: JSON.stringify({
+              provider: "codex",
+              name: "Release Config Review",
+              description: "Reviews iOS release configs before submission.",
+              slug: "release-config-review",
+              argumentHint: "<SDK> <VERSION>",
+              defaultPrompt: "Check release config consistency.",
+              defaultModel: "gpt-5.4",
+            }),
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(
+      screen.getByTestId("skill-draft-goal"),
+      "리릴즈 config를 검토하는 스킬",
+    );
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+    expect(screen.getByTestId("skill-draft-generate")).toBeDisabled();
+    expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Release Config Review")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("skill-draft-goal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skill-draft-edit-prompt")).toBeInTheDocument();
+    expect(screen.getByText("Review generated skill")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("release-config-review")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("<SDK> <VERSION>")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("Check release config consistency."),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Draft ready");
+  });
+
+  it("SB16: keeps draft generation failures visible without creating a skill", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "stdout", text: "not json" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(screen.getByTestId("skill-draft-goal"), "make anything");
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Codex returned a draft without a JSON object.",
+      ),
+    );
+    expect(createRepositorySkill).not.toHaveBeenCalled();
 
     createRepositorySkill.mockRestore();
   });

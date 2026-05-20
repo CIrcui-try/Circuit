@@ -88,6 +88,7 @@ pub fn create_repository_skill(
     slug: String,
     name: String,
     description: String,
+    argument_hint: Option<String>,
     default_arguments: Option<String>,
     default_prompt: Option<String>,
     default_model: Option<String>,
@@ -97,6 +98,7 @@ pub fn create_repository_skill(
     let slug = validate_slug(&slug)?;
     let name = validate_required_text(&name, "skill name")?;
     let description = normalize_description(&description);
+    let argument_hint = normalize_optional_frontmatter_text(argument_hint);
     let default_arguments = normalize_optional_frontmatter_text(default_arguments);
     let default_prompt = normalize_optional_frontmatter_text(default_prompt);
     let default_model = normalize_optional_frontmatter_text(default_model);
@@ -122,6 +124,7 @@ pub fn create_repository_skill(
     let content = render_skill_template(
         &name,
         &description,
+        argument_hint.as_deref(),
         default_arguments.as_deref(),
         default_prompt.as_deref(),
         default_model.as_deref(),
@@ -247,6 +250,7 @@ fn ensure_existing_path_inside_repo(repo: &Path, path: &Path) -> Result<(), Stri
 fn render_skill_template(
     name: &str,
     description: &str,
+    argument_hint: Option<&str>,
     default_arguments: Option<&str>,
     default_prompt: Option<&str>,
     default_model: Option<&str>,
@@ -256,6 +260,12 @@ fn render_skill_template(
         escape_frontmatter_value(name),
         escape_frontmatter_value(description),
     );
+    if let Some(value) = argument_hint {
+        frontmatter.push_str(&format!(
+            "argument-hint: \"{}\"\n",
+            escape_frontmatter_value(value),
+        ));
+    }
     if let Some(value) = default_arguments {
         frontmatter.push_str(&format!(
             "default-arguments: \"{}\"\n",
@@ -526,6 +536,7 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "Creates a local skill file.".into(),
+            Some("<ISSUE_ID> [--force]".into()),
             Some("CIR-94 --force".into()),
             Some("Review the implementation.".into()),
             Some("gpt-5.4".into()),
@@ -541,6 +552,9 @@ mod tests {
         assert!(created
             .content
             .contains("description: \"Creates a local skill file.\""));
+        assert!(created
+            .content
+            .contains("argument-hint: \"<ISSUE_ID> [--force]\""));
         assert!(created
             .content
             .contains("default-arguments: \"CIR-94 --force\""));
@@ -576,6 +590,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert!(invalid_provider
             .unwrap_err()
@@ -587,6 +602,7 @@ mod tests {
             " ".into(),
             "New Skill".into(),
             "".into(),
+            None,
             None,
             None,
             None,
@@ -602,6 +618,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert!(traversal_slug.unwrap_err().contains("skill slug may only"));
 
@@ -614,6 +631,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert!(empty_name.unwrap_err().contains("skill name is required"));
 
@@ -623,6 +641,7 @@ mod tests {
             "new-skill".into(),
             "New\nSkill".into(),
             "".into(),
+            None,
             None,
             None,
             None,
@@ -646,6 +665,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .expect("initial create failed");
 
@@ -655,6 +675,7 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "".into(),
+            None,
             None,
             None,
             None,

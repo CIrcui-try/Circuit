@@ -1,6 +1,7 @@
-import { useState, type DragEvent, type FormEvent } from "react";
+import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Plus } from "lucide-react";
+import { generateSkillDraft } from "../../skills/generateSkillDraft";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import {
   useSkillStore,
@@ -32,7 +33,7 @@ type CreateForm = {
   name: string;
   description: string;
   slug: string;
-  defaultArguments: string;
+  argumentHint: string;
   defaultPrompt: string;
   defaultModel: string;
 };
@@ -43,7 +44,7 @@ const EMPTY_CREATE_FORM: CreateForm = {
   name: "",
   description: "",
   slug: "",
-  defaultArguments: "",
+  argumentHint: "",
   defaultPrompt: "",
   defaultModel: "",
 };
@@ -97,10 +98,17 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [defaultCollapsed, setDefaultCollapsed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(true);
+  const [draftGenerated, setDraftGenerated] = useState(false);
+  const [draftGoal, setDraftGoal] = useState("");
+  const [generatingDraft, setGeneratingDraft] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [fieldErrors, setFieldErrors] = useState<CreateFieldErrors>({});
-  const [modalError, setModalError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -126,17 +134,48 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     addSkillNode(skill, dropPosition(count));
   };
 
-  const openCreateModal = () => {
+  const openCreatePanel = () => {
     setCreateForm(EMPTY_CREATE_FORM);
     setFieldErrors({});
-    setModalError(null);
+    setDraftError(null);
+    setCreateError(null);
     setCreateSuccess(null);
+    setManualOpen(false);
+    setDraftPromptOpen(true);
+    setDraftGenerated(false);
+    setDraftGoal("");
     setCreateOpen(true);
+    window.setTimeout(() => draftInputRef.current?.focus(), 0);
   };
 
-  const closeCreateModal = () => {
-    if (creating) return;
+  const closeCreatePanel = () => {
+    if (creating || generatingDraft) return;
     setCreateOpen(false);
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!repoPath) return;
+    setDraftError(null);
+    setCreateError(null);
+    setCreateSuccess(null);
+    setFieldErrors({});
+    setGeneratingDraft(true);
+    try {
+      const draft = await generateSkillDraft({
+        goal: draftGoal,
+        preferredProvider: createForm.provider,
+        repoPath,
+      });
+      setCreateForm(draft);
+      setManualOpen(true);
+      setDraftPromptOpen(false);
+      setDraftGenerated(true);
+      setCreateSuccess("Draft ready. Review it, then create the skill.");
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGeneratingDraft(false);
+    }
   };
 
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -145,7 +184,8 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
 
     const validation = validateCreateForm(createForm);
     setFieldErrors(validation);
-    setModalError(null);
+    setCreateError(null);
+    setDraftError(null);
     setCreateSuccess(null);
     if (Object.keys(validation).length > 0) return;
 
@@ -155,14 +195,18 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         name: createForm.name.trim(),
         description: createForm.description.trim(),
         slug: createForm.slug.trim(),
-        defaultArguments: createForm.defaultArguments.trim(),
+        argumentHint: createForm.argumentHint.trim(),
         defaultPrompt: createForm.defaultPrompt.trim(),
         defaultModel: createForm.defaultModel.trim(),
       });
       setCreateForm(EMPTY_CREATE_FORM);
+      setDraftGoal("");
+      setManualOpen(false);
+      setDraftPromptOpen(true);
+      setDraftGenerated(false);
       setCreateSuccess(`Created ${skill.name}.`);
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : String(err));
+      setCreateError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -202,6 +246,261 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       },
     ];
   };
+
+  const createBusy = creating || generatingDraft;
+  const createPanel = repoId ? (
+    <form
+      className="modal__panel skill-create-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="New skill"
+      data-testid="skill-create-panel"
+      onSubmit={(event) => void handleCreateSubmit(event)}
+    >
+      <div className="skill-create-panel__header">
+        <div>
+          <h2 className="skill-create-panel__title">New Skill</h2>
+          <p className="skill-create-panel__copy">
+            Describe what you want to do. Circuit will make the skill for you 🤖
+          </p>
+        </div>
+        <button
+          type="button"
+          className="skill-create-panel__hide"
+          onClick={closeCreatePanel}
+          disabled={createBusy}
+        >
+          Close
+        </button>
+      </div>
+
+      {draftPromptOpen ? (
+        <>
+          <label className="skill-create-modal__field">
+            <span>What do you want?</span>
+            <textarea
+              ref={draftInputRef}
+              value={draftGoal}
+              disabled={createBusy}
+              rows={5}
+              data-testid="skill-draft-goal"
+              placeholder="Just describe the skill you want. For example: review an iOS SDK release config and catch missing version bumps."
+              onChange={(event) => setDraftGoal(event.target.value)}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="skill-create-panel__generate"
+            data-testid="skill-draft-generate"
+            disabled={createBusy || !repoPath}
+            onClick={() => void handleGenerateDraft()}
+          >
+            {generatingDraft ? (
+              <>
+                <span
+                  className="cli-status-spinner cli-status-spinner--inline"
+                  data-testid="skill-draft-spinner"
+                  aria-hidden="true"
+                />
+                <span>Generating...</span>
+              </>
+            ) : (
+              "Generate draft"
+            )}
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="skill-create-panel__edit-prompt"
+          data-testid="skill-draft-edit-prompt"
+          disabled={createBusy}
+          onClick={() => {
+            setDraftPromptOpen(true);
+            window.setTimeout(() => draftInputRef.current?.focus(), 0);
+          }}
+        >
+          Edit prompt
+        </button>
+      )}
+
+      {draftError ? (
+        <div className="skill-create-modal__error" role="alert">
+          {draftError}
+        </div>
+      ) : null}
+
+      <details
+        className="skill-create-panel__manual"
+        open={manualOpen}
+        onToggle={(event) => setManualOpen(event.currentTarget.open)}
+      >
+        <summary>{draftGenerated ? "Review generated skill" : "or... do it yourself"}</summary>
+
+        <fieldset className="skill-create-modal__provider" disabled={createBusy}>
+          <legend>Provider</legend>
+          {(["codex", "claude"] as const).map((provider) => (
+            <label
+              key={provider}
+              className={
+                createForm.provider === provider
+                  ? "skill-create-modal__provider-option skill-create-modal__provider-option--selected"
+                  : "skill-create-modal__provider-option"
+              }
+            >
+              <input
+                type="radio"
+                name="provider"
+                value={provider}
+                checked={createForm.provider === provider}
+                onChange={() =>
+                  setCreateForm((form) => ({
+                    ...form,
+                    provider,
+                    defaultModel: "",
+                  }))
+                }
+              />
+              {provider}
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="skill-create-modal__field">
+          <span>Name</span>
+          <input
+            value={createForm.name}
+            disabled={createBusy}
+            placeholder="Skill name"
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={
+              fieldErrors.name ? "skill-create-name-error" : undefined
+            }
+            onChange={(event) =>
+              setCreateForm((form) => ({ ...form, name: event.target.value }))
+            }
+          />
+        </label>
+        {fieldErrors.name ? (
+          <div id="skill-create-name-error" className="skill-create-modal__error">
+            {fieldErrors.name}
+          </div>
+        ) : null}
+
+        <label className="skill-create-modal__field">
+          <span>Description</span>
+          <textarea
+            value={createForm.description}
+            disabled={createBusy}
+            rows={3}
+            placeholder="What this skill helps the agent do"
+            onChange={(event) =>
+              setCreateForm((form) => ({
+                ...form,
+                description: event.target.value,
+              }))
+            }
+          />
+        </label>
+
+        <label className="skill-create-modal__field">
+          <span>Slug</span>
+          <input
+            value={createForm.slug}
+            disabled={createBusy}
+            aria-invalid={Boolean(fieldErrors.slug)}
+            aria-describedby={
+              fieldErrors.slug ? "skill-create-slug-error" : undefined
+            }
+            placeholder="skill-slug"
+            onChange={(event) =>
+              setCreateForm((form) => ({ ...form, slug: event.target.value }))
+            }
+          />
+        </label>
+        {fieldErrors.slug ? (
+          <div id="skill-create-slug-error" className="skill-create-modal__error">
+            {fieldErrors.slug}
+          </div>
+        ) : null}
+
+        <label className="skill-create-modal__field">
+          <span>Argument format</span>
+          <textarea
+            value={createForm.argumentHint}
+            disabled={createBusy}
+            rows={2}
+            placeholder="<ISSUE_ID> [--force]"
+            onChange={(event) =>
+              setCreateForm((form) => ({
+                ...form,
+                argumentHint: event.target.value,
+              }))
+            }
+          />
+        </label>
+
+        <label className="skill-create-modal__field">
+          <span>Prompt</span>
+          <textarea
+            value={createForm.defaultPrompt}
+            disabled={createBusy}
+            rows={3}
+            placeholder="Default free-form prompt"
+            onChange={(event) =>
+              setCreateForm((form) => ({
+                ...form,
+                defaultPrompt: event.target.value,
+              }))
+            }
+          />
+        </label>
+
+        <label className="skill-create-modal__field">
+          <span>Model</span>
+          <input
+            value={createForm.defaultModel}
+            disabled={createBusy}
+            list={`skill-create-model-options-${createForm.provider}`}
+            placeholder={modelPlaceholder(createForm.provider)}
+            onChange={(event) =>
+              setCreateForm((form) => ({
+                ...form,
+                defaultModel: event.target.value,
+              }))
+            }
+          />
+          <datalist id={`skill-create-model-options-${createForm.provider}`}>
+            {MODEL_OPTIONS_BY_PROVIDER[createForm.provider].map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
+        </label>
+      </details>
+
+      {createError ? (
+        <div className="skill-create-modal__error" role="alert">
+          {createError}
+        </div>
+      ) : null}
+      {createSuccess ? (
+        <div className="skill-create-modal__success" role="status">
+          {createSuccess}
+        </div>
+      ) : null}
+
+      <div className="skill-create-panel__footer">
+        <button
+          type="submit"
+          data-testid="skill-create-submit"
+          disabled={createBusy || !repoPath}
+        >
+          {creating ? "Creating..." : "Create"}
+        </button>
+      </div>
+    </form>
+  ) : null;
 
   const defaultSkillSection = repoId ? (
     <section className="skill-list__section" data-testid="default-skill-section">
@@ -285,7 +584,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
               aria-label="Create repository skill"
               title="Create repository skill"
               disabled={!repoPath}
-              onClick={openCreateModal}
+              onClick={openCreatePanel}
             >
               <Plus className="panel-header__icon" aria-hidden="true" />
             </button>
@@ -309,72 +608,78 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           <div className="empty-state">No repository selected.</div>
         ) : loading && !skills ? (
           <div className="empty-state">Scanning repository…</div>
-        ) : !skills || skills.length === 0 ? (
-          <div
-            className="empty-state skill-list__empty"
-            data-testid="skill-list-empty"
-          >
-            <span className="skill-list__empty-text">
-              No repository skills found. Add <code>SKILL.md</code> files under{" "}
-              <code>.claude/skills/&lt;name&gt;/SKILL.md</code> or{" "}
-              <code>.codex/skills/&lt;name&gt;/SKILL.md</code>.
-            </span>
-            <button
-              type="button"
-              className="skill-list__create-cta"
-              data-testid="skill-create-empty"
-              onClick={openCreateModal}
-              disabled={!repoPath}
-            >
-              <Plus className="skill-list__create-icon" aria-hidden="true" />
-              Create Skill
-            </button>
-          </div>
         ) : (
-          <ul className="skill-list" data-testid="skill-list">
-            {skills.map((skill) => (
-              <li
-                key={skill.id}
-                className="skill-list__item"
-                data-testid="skill-list__item"
-                data-skill-id={skill.id}
-                draggable
-                onDragStart={(event) => handleDragStart(event, skill)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setMenu({ x: event.clientX, y: event.clientY, skill });
-                }}
+          <>
+            {!skills || skills.length === 0 ? (
+              <div
+                className="empty-state skill-list__empty"
+                data-testid="skill-list-empty"
               >
-                <div className="skill-list__row">
-                  <span className="skill-list__name">{skill.name}</span>
-                  <span
-                    className={`skill-list__chip skill-list__chip--${skill.provider}`}
-                  >
-                    {skill.provider}
-                  </span>
+                <span className="skill-list__empty-text">
+                  No repository skills found. Add <code>SKILL.md</code> files under{" "}
+                  <code>.claude/skills/&lt;name&gt;/SKILL.md</code> or{" "}
+                  <code>.codex/skills/&lt;name&gt;/SKILL.md</code>.
+                </span>
+                {!createOpen ? (
                   <button
                     type="button"
-                    className="skill-list__add"
-                    data-testid="skill-list__add"
-                    aria-label={`Add ${skill.name} to canvas`}
-                    onClick={() => handleAdd(skill)}
+                    className="skill-list__create-cta"
+                    data-testid="skill-create-empty"
+                    onClick={openCreatePanel}
+                    disabled={!repoPath}
                   >
-                    +
+                    <Plus className="skill-list__create-icon" aria-hidden="true" />
+                    New Skill
                   </button>
-                </div>
-                {skill.description && (
-                  <HoverTooltip
-                    className="skill-list__desc-wrap"
-                    content={skill.description}
-                    testId="skill-list-description-tooltip"
+                ) : null}
+              </div>
+            ) : (
+              <ul className="skill-list" data-testid="skill-list">
+                {skills.map((skill) => (
+                  <li
+                    key={skill.id}
+                    className="skill-list__item"
+                    data-testid="skill-list__item"
+                    data-skill-id={skill.id}
+                    draggable
+                    onDragStart={(event) => handleDragStart(event, skill)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMenu({ x: event.clientX, y: event.clientY, skill });
+                    }}
                   >
-                    <div className="skill-list__desc">{skill.description}</div>
-                  </HoverTooltip>
-                )}
-              </li>
-            ))}
-          </ul>
+                    <div className="skill-list__row">
+                      <span className="skill-list__name">{skill.name}</span>
+                      <span
+                        className={`skill-list__chip skill-list__chip--${skill.provider}`}
+                      >
+                        {skill.provider}
+                      </span>
+                      <button
+                        type="button"
+                        className="skill-list__add"
+                        data-testid="skill-list__add"
+                        aria-label={`Add ${skill.name} to canvas`}
+                        onClick={() => handleAdd(skill)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {skill.description && (
+                      <HoverTooltip
+                        className="skill-list__desc-wrap"
+                        content={skill.description}
+                        testId="skill-list-description-tooltip"
+                      >
+                        <div className="skill-list__desc">{skill.description}</div>
+                      </HoverTooltip>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
 
@@ -392,190 +697,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         />
       )}
 
-      {createOpen ? (
-        <div className="modal__backdrop">
-          <form
-            className="modal__panel skill-create-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="skill-create-title"
-            onSubmit={(event) => void handleCreateSubmit(event)}
-          >
-            <h2 id="skill-create-title" className="modal__title">
-              Create repository skill
-            </h2>
-            <fieldset className="skill-create-modal__provider" disabled={creating}>
-              <legend>Provider</legend>
-              {(["codex", "claude"] as const).map((provider) => (
-                <label
-                  key={provider}
-                  className={
-                    createForm.provider === provider
-                      ? "skill-create-modal__provider-option skill-create-modal__provider-option--selected"
-                      : "skill-create-modal__provider-option"
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="provider"
-                    value={provider}
-                    checked={createForm.provider === provider}
-                    onChange={() =>
-                      setCreateForm((form) => ({
-                        ...form,
-                        provider,
-                        defaultModel: "",
-                      }))
-                    }
-                  />
-                  {provider}
-                </label>
-              ))}
-            </fieldset>
-
-            <label className="skill-create-modal__field">
-              <span>Name</span>
-              <input
-                value={createForm.name}
-                disabled={creating}
-                placeholder="Skill name"
-                aria-invalid={Boolean(fieldErrors.name)}
-                aria-describedby={
-                  fieldErrors.name ? "skill-create-name-error" : undefined
-                }
-                onChange={(event) =>
-                  setCreateForm((form) => ({ ...form, name: event.target.value }))
-                }
-              />
-            </label>
-            {fieldErrors.name ? (
-              <div
-                id="skill-create-name-error"
-                className="skill-create-modal__error"
-              >
-                {fieldErrors.name}
-              </div>
-            ) : null}
-
-            <label className="skill-create-modal__field">
-              <span>Description</span>
-              <textarea
-                value={createForm.description}
-                disabled={creating}
-                rows={3}
-                placeholder="What this skill helps the agent do"
-                onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    description: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <label className="skill-create-modal__field">
-              <span>Slug</span>
-              <input
-                value={createForm.slug}
-                disabled={creating}
-                aria-invalid={Boolean(fieldErrors.slug)}
-                aria-describedby={
-                  fieldErrors.slug ? "skill-create-slug-error" : undefined
-                }
-                placeholder="skill-slug"
-                onChange={(event) =>
-                  setCreateForm((form) => ({ ...form, slug: event.target.value }))
-                }
-              />
-            </label>
-            {fieldErrors.slug ? (
-              <div
-                id="skill-create-slug-error"
-                className="skill-create-modal__error"
-              >
-                {fieldErrors.slug}
-              </div>
-            ) : null}
-
-            <label className="skill-create-modal__field">
-              <span>Arguments</span>
-              <textarea
-                value={createForm.defaultArguments}
-                disabled={creating}
-                rows={2}
-                placeholder="Default slash-command arguments"
-                onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    defaultArguments: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <label className="skill-create-modal__field">
-              <span>Prompt</span>
-              <textarea
-                value={createForm.defaultPrompt}
-                disabled={creating}
-                rows={3}
-                placeholder="Default free-form prompt"
-                onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    defaultPrompt: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <label className="skill-create-modal__field">
-              <span>Model</span>
-              <input
-                value={createForm.defaultModel}
-                disabled={creating}
-                list={`skill-create-model-options-${createForm.provider}`}
-                placeholder={modelPlaceholder(createForm.provider)}
-                onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    defaultModel: event.target.value,
-                  }))
-                }
-              />
-              <datalist id={`skill-create-model-options-${createForm.provider}`}>
-                {MODEL_OPTIONS_BY_PROVIDER[createForm.provider].map((model) => (
-                  <option key={model} value={model} />
-                ))}
-              </datalist>
-            </label>
-
-            {modalError ? (
-              <div className="skill-create-modal__error" role="alert">
-                {modalError}
-              </div>
-            ) : null}
-            {createSuccess ? (
-              <div className="skill-create-modal__success" role="status">
-                {createSuccess}
-              </div>
-            ) : null}
-
-            <div className="modal__footer">
-              <button type="button" onClick={closeCreateModal} disabled={creating}>
-                Close
-              </button>
-              <button
-                type="submit"
-                data-testid="skill-create-submit"
-                disabled={creating || !repoPath}
-              >
-                {creating ? "Creating..." : "Create"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      {createOpen ? <div className="modal__backdrop">{createPanel}</div> : null}
     </aside>
   );
 }

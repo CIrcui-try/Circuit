@@ -16,6 +16,7 @@ export type CreateRepositorySkillInput = {
   slug: string;
   name: string;
   description: string;
+  argumentHint?: string;
   defaultArguments?: string;
   defaultPrompt?: string;
   defaultModel?: string;
