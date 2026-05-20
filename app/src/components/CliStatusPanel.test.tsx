@@ -21,7 +21,7 @@ function resetStore() {
   });
 }
 
-function mcpStatus(serverCount = 1): McpConfigStatus {
+function mcpStatus(claudeCount = 1, codexCount = 1): McpConfigStatus {
   return {
     claude: {
       config: {
@@ -36,12 +36,17 @@ function mcpStatus(serverCount = 1): McpConfigStatus {
         missing: true,
         message: "file not found",
       },
-      servers: Array.from({ length: serverCount }, (_, index) => ({
+      servers: Array.from({ length: claudeCount }, (_, index) => ({
         provider: "claude",
-        scope: "global",
+        scope: index === 0 ? "global" : "project",
+        projectPath: index === 0 ? null : "/repo",
         name: `claude-${index}`,
+        transport: index === 0 ? "http" : "stdio",
+        url: index === 0 ? "https://mcp.example.com" : null,
+        command: index === 0 ? null : "node",
         args: [],
         hasEnv: false,
+        authRequired: index === 0,
       })),
     },
     codex: {
@@ -51,7 +56,18 @@ function mcpStatus(serverCount = 1): McpConfigStatus {
         missing: false,
         message: null,
       },
-      servers: [],
+      servers: Array.from({ length: codexCount }, (_, index) => ({
+        provider: "codex",
+        scope: "user",
+        projectPath: null,
+        name: `codex-${index}`,
+        transport: "stdio",
+        command: "node",
+        args: ["server.js"],
+        url: null,
+        hasEnv: false,
+        authRequired: null,
+      })),
     },
   };
 }
@@ -105,9 +121,10 @@ describe("CliStatusPanel", () => {
     await waitFor(() => {
       expect(useCliStatusStore.getState().mcpEntries.claude.status).toBe("ok");
     });
-    expect(screen.getByTestId("mcp-status-row-claude")).toHaveTextContent(
-      "1 server",
+    expect(screen.getByTestId("mcp-servers-toggle")).toHaveTextContent(
+      "Claude 1",
     );
+    expect(screen.queryByTestId("mcp-servers-panel")).not.toBeInTheDocument();
     expect(claudeCalls).toBe(1);
   });
 
@@ -324,8 +341,45 @@ describe("CliStatusPanel", () => {
     });
     expect(useCliStatusStore.getState().entries.claude.status).toBe("ok");
     expect(useCliStatusStore.getState().mcpEntries.claude.serverCount).toBe(2);
-    expect(screen.getByTestId("mcp-status-row-claude")).toHaveTextContent(
-      "2 servers",
+    expect(screen.getByTestId("mcp-servers-toggle")).toHaveTextContent(
+      "Claude 2",
+    );
+  });
+
+  it("keeps MCP Servers collapsed by default and expands server details on click", async () => {
+    installBridge((opts) => [
+      { event: { type: "stdout", text: `${opts.command} 1.0.0\n` } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+
+    render(<CliStatusPanel />);
+
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().mcpEntries.claude.status).toBe("ok");
+    });
+
+    const toggle = screen.getByTestId("mcp-servers-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveTextContent("Claude 1");
+    expect(toggle).toHaveTextContent("Codex 1");
+    expect(toggle).toHaveTextContent("1 auth required");
+    expect(screen.queryByTestId("mcp-servers-panel")).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(toggle);
+    });
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("mcp-servers-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("mcp-server-claude-claude-0")).toHaveTextContent(
+      "https://mcp.example.com",
+    );
+    expect(screen.getByTestId("mcp-server-codex-codex-0")).toHaveTextContent(
+      "user",
+    );
+    expect(screen.getByTestId("mcp-auth-required-claude-0")).toHaveTextContent(
+      "auth-required",
     );
   });
 
@@ -366,26 +420,25 @@ describe("CliStatusPanel", () => {
     render(<CliStatusPanel />);
 
     await waitFor(() => {
-      expect(useCliStatusStore.getState().mcpEntries.codex.status).toBe(
+    expect(useCliStatusStore.getState().mcpEntries.codex.status).toBe(
         "error",
       );
     });
 
-    expect(screen.getByTestId("mcp-status-row-claude")).toHaveAttribute(
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByTestId("mcp-servers-toggle"));
+    });
+
+    expect(screen.getByTestId("mcp-provider-claude")).toHaveAttribute(
       "data-status",
       "missing",
     );
-    expect(screen.getByTestId("mcp-status-row-codex")).toHaveTextContent(
+    expect(screen.getByTestId("mcp-provider-error-codex")).toHaveTextContent(
       "failed to parse TOML",
     );
-
-    const user = userEvent.setup();
-    await act(async () => {
-      await user.click(screen.getByTestId("mcp-status-detail-codex"));
-    });
-
-    expect(screen.getByTestId("mcp-status-detail-log")).toHaveTextContent(
-      "failed to parse TOML",
+    expect(screen.getByTestId("mcp-provider-error-claude")).toHaveTextContent(
+      "file not found",
     );
   });
 

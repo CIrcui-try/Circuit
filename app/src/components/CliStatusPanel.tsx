@@ -13,7 +13,7 @@ import {
   saveCliSettings,
   setManualPath,
 } from "../stores/cliSettingsStore";
-import type { CliSettingsDTO } from "../host/bridge";
+import type { CliSettingsDTO, McpServerSummary } from "../host/bridge";
 
 const CLI_LABELS: Record<CliId, string> = {
   claude: "Claude CLI",
@@ -26,8 +26,8 @@ const CLI_COMMANDS: Record<CliId, string> = {
 };
 
 const MCP_LABELS: Record<McpProviderId, string> = {
-  claude: "Claude MCP",
-  codex: "Codex MCP",
+  claude: "Claude",
+  codex: "Codex",
 };
 
 const STATUS_LABEL: Record<CliStatus, string> = {
@@ -54,27 +54,61 @@ function describe(entry: CliEntry): string {
   }
 }
 
-function describeMcp(entry: McpEntry): string {
-  switch (entry.status) {
-    case "ok": {
-      const count = entry.serverCount ?? 0;
-      const label = `${count} server${count === 1 ? "" : "s"}`;
-      const names = entry.servers?.map((server) => server.name).filter(Boolean);
-      if (!names?.length) return label;
-      return `${label}: ${names.slice(0, 3).join(", ")}${
-        names.length > 3 ? ", ..." : ""
-      }`;
-    }
-    case "missing":
-      return entry.errorMessage ?? "Config file not found";
-    case "error":
-      return entry.errorMessage ?? "Error";
-    case "checking":
-      return entry.errorMessage ?? "Checking...";
-    case "idle":
-    default:
-      return "Not checked";
+function serverCountLabel(count: number): string {
+  return `${count} server${count === 1 ? "" : "s"}`;
+}
+
+function mcpTotal(entries: Record<McpProviderId, McpEntry>): number {
+  return (entries.claude.serverCount ?? 0) + (entries.codex.serverCount ?? 0);
+}
+
+function authRequiredCount(entries: Record<McpProviderId, McpEntry>): number {
+  return (entries.claude.servers ?? []).filter(
+    (server) => server.authRequired === true,
+  ).length;
+}
+
+function mcpSummary(entries: Record<McpProviderId, McpEntry>): string {
+  const claude = entries.claude.serverCount ?? 0;
+  const codex = entries.codex.serverCount ?? 0;
+  const auth = authRequiredCount(entries);
+  return [
+    `Claude ${claude}`,
+    `Codex ${codex}`,
+    auth ? `${auth} auth required` : "no auth required",
+  ].join(" · ");
+}
+
+function mcpStatus(entries: Record<McpProviderId, McpEntry>): CliStatus {
+  if (entries.claude.status === "checking" || entries.codex.status === "checking") {
+    return "checking";
   }
+  if (entries.claude.status === "error" || entries.codex.status === "error") {
+    return "error";
+  }
+  if (entries.claude.status === "missing" || entries.codex.status === "missing") {
+    return "missing";
+  }
+  if (entries.claude.status === "ok" || entries.codex.status === "ok") {
+    return "ok";
+  }
+  return "idle";
+}
+
+function serverEndpoint(server: McpServerSummary): string {
+  if (server.url) return server.url;
+  if (server.command) {
+    const args = server.args.length ? ` ${server.args.join(" ")}` : "";
+    return `${server.command}${args}`;
+  }
+  return "no endpoint";
+}
+
+function serverSource(server: McpServerSummary): string {
+  if (server.scope === "project" && server.projectPath) {
+    return `project · ${server.projectPath}`;
+  }
+  return server.scope;
 }
 
 export function CliStatusPanel() {
@@ -84,7 +118,7 @@ export function CliStatusPanel() {
   const isCheckingMcp = useCliStatusStore((s) => s.isCheckingMcp);
   const refreshAll = useCliStatusStore((s) => s.refreshAll);
   const [detailId, setDetailId] = useState<CliId | null>(null);
-  const [mcpDetailId, setMcpDetailId] = useState<McpProviderId | null>(null);
+  const [mcpExpanded, setMcpExpanded] = useState(false);
   const [settings, setSettings] = useState<CliSettingsDTO>({});
   const [editorId, setEditorId] = useState<CliId | null>(null);
   const [draftPath, setDraftPath] = useState("");
@@ -105,9 +139,8 @@ export function CliStatusPanel() {
   const mcpIds: McpProviderId[] = ["claude", "codex"];
   const detailEntry = detailId ? entries[detailId] : null;
   const detailLog = detailEntry?.detailLog;
-  const mcpDetailEntry = mcpDetailId ? mcpEntries[mcpDetailId] : null;
-  const mcpDetailLog = mcpDetailEntry?.detailLog;
   const isRefreshing = isChecking || isCheckingMcp;
+  const mcpAggregateStatus = mcpStatus(mcpEntries);
 
   const openPathEditor = (id: CliId) => {
     const command = CLI_COMMANDS[id];
@@ -212,51 +245,115 @@ export function CliStatusPanel() {
             </div>
           );
         })}
-        {mcpIds.map((id) => {
-          const entry = mcpEntries[id];
-          return (
-            <div
-              key={`mcp-${id}`}
-              className="cli-status-row"
-              data-testid={`mcp-status-row-${id}`}
-              data-status={entry.status}
-            >
-              {entry.status === "checking" ? (
-                <span
-                  className="cli-status-spinner"
-                  aria-hidden="true"
-                  role="presentation"
-                />
-              ) : (
-                <span
-                  className={`cli-status-dot cli-status-dot--${entry.status}`}
-                  aria-hidden="true"
-                />
-              )}
-              <span className="cli-status-row__name">{MCP_LABELS[id]}</span>
+        <div
+          className="mcp-servers-section"
+          data-testid="mcp-servers-section"
+          data-expanded={mcpExpanded ? "true" : "false"}
+        >
+          <button
+            type="button"
+            className="cli-status-row mcp-servers-toggle"
+            onClick={() => setMcpExpanded((value) => !value)}
+            aria-expanded={mcpExpanded}
+            data-testid="mcp-servers-toggle"
+            data-status={mcpAggregateStatus}
+          >
+            {isCheckingMcp ? (
               <span
-                className="cli-status-row__detail"
-                title={describeMcp(entry)}
-              >
-                {describeMcp(entry)}
-              </span>
-              {entry.detailLog &&
-              (entry.status === "missing" || entry.status === "error") ? (
-                <button
-                  type="button"
-                  className="cli-status-row__detail-button"
-                  onClick={() => setMcpDetailId(id)}
-                  data-testid={`mcp-status-detail-${id}`}
-                >
-                  Detail
-                </button>
-              ) : null}
-              <span className="cli-status-row__sr">
-                {STATUS_LABEL[entry.status]}
-              </span>
+                className="cli-status-spinner"
+                aria-hidden="true"
+                role="presentation"
+              />
+            ) : (
+              <span
+                className={`cli-status-dot cli-status-dot--${mcpAggregateStatus}`}
+                aria-hidden="true"
+              />
+            )}
+            <span className="mcp-servers-toggle__chevron" aria-hidden="true">
+              {mcpExpanded ? "v" : ">"}
+            </span>
+            <span className="cli-status-row__name">MCP Servers</span>
+            <span className="cli-status-row__detail">
+              {mcpSummary(mcpEntries)}
+            </span>
+            <span className="cli-status-row__sr">
+              {STATUS_LABEL[mcpAggregateStatus]}
+            </span>
+          </button>
+          {mcpExpanded ? (
+            <div
+              className="mcp-servers-panel"
+              data-testid="mcp-servers-panel"
+            >
+              {mcpIds.map((id) => {
+                const entry = mcpEntries[id];
+                return (
+                  <div
+                    key={id}
+                    className="mcp-provider"
+                    data-testid={`mcp-provider-${id}`}
+                    data-status={entry.status}
+                  >
+                    <div className="mcp-provider__header">
+                      <span className="mcp-provider__name">
+                        {MCP_LABELS[id]}
+                      </span>
+                      <span className="mcp-provider__count">
+                        {serverCountLabel(entry.serverCount ?? 0)}
+                      </span>
+                    </div>
+                    {entry.status === "missing" || entry.status === "error" ? (
+                      <div
+                        className="mcp-provider__error"
+                        data-testid={`mcp-provider-error-${id}`}
+                      >
+                        {entry.errorMessage ?? "MCP config unavailable"}
+                      </div>
+                    ) : null}
+                    {entry.status === "ok" && !entry.servers?.length ? (
+                      <div className="mcp-provider__empty">
+                        No servers configured
+                      </div>
+                    ) : null}
+                    {entry.servers?.map((server) => (
+                      <div
+                        key={`${server.scope}-${server.name}-${server.projectPath ?? ""}`}
+                        className="mcp-server-row"
+                        data-testid={`mcp-server-${id}-${server.name}`}
+                      >
+                        <div className="mcp-server-row__main">
+                          <span className="mcp-server-row__name">
+                            {server.name}
+                          </span>
+                          {server.authRequired ? (
+                            <span
+                              className="mcp-server-row__badge"
+                              data-testid={`mcp-auth-required-${server.name}`}
+                            >
+                              auth-required
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mcp-server-row__meta">
+                          <span>{server.transport ?? "unknown"}</span>
+                          <span>{serverEndpoint(server)}</span>
+                          <span>{serverSource(server)}</span>
+                          <span>
+                            {server.authRequired ? "auth required" : "auth ok"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              <div className="mcp-servers-panel__summary">
+                {serverCountLabel(mcpTotal(mcpEntries))} total
+              </div>
             </div>
-          );
-        })}
+          ) : null}
+        </div>
       </div>
       {detailId && detailLog ? (
         <div className="modal__backdrop">
@@ -281,36 +378,6 @@ export function CliStatusPanel() {
                 type="button"
                 onClick={() => setDetailId(null)}
                 data-testid="cli-status-detail-close"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {mcpDetailId && mcpDetailLog ? (
-        <div className="modal__backdrop">
-          <div
-            className="modal__panel cli-status-detail-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="mcp-status-detail-title"
-            data-testid="mcp-status-detail-modal"
-          >
-            <h2 id="mcp-status-detail-title" className="modal__title">
-              {MCP_LABELS[mcpDetailId]} details
-            </h2>
-            <pre
-              className="cli-status-detail-modal__log"
-              data-testid="mcp-status-detail-log"
-            >
-              {mcpDetailLog}
-            </pre>
-            <div className="modal__footer">
-              <button
-                type="button"
-                onClick={() => setMcpDetailId(null)}
-                data-testid="mcp-status-detail-close"
               >
                 Close
               </button>

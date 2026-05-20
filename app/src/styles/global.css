@@ -1467,6 +1467,131 @@ a:hover {
   clip: rect(0 0 0 0);
 }
 
+.mcp-servers-section {
+  border-bottom: 1px solid #2f2f36;
+}
+
+.mcp-servers-section:last-child {
+  border-bottom: none;
+}
+
+.mcp-servers-toggle {
+  width: 100%;
+  border: none;
+  border-bottom: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mcp-servers-toggle:hover {
+  background: #2b2b31;
+}
+
+.mcp-servers-toggle__chevron {
+  width: 10px;
+  color: #8a8a92;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.mcp-servers-panel {
+  padding: 0 12px 12px 30px;
+}
+
+.mcp-provider {
+  padding-top: 10px;
+}
+
+.mcp-provider__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcp-provider__name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mcp-provider__count,
+.mcp-provider__empty,
+.mcp-provider__error,
+.mcp-server-row__meta,
+.mcp-servers-panel__summary {
+  color: #8a8a92;
+  font-size: 12px;
+}
+
+.mcp-provider__error {
+  padding: 8px 10px;
+  border: 1px solid rgba(229, 120, 106, 0.26);
+  border-radius: 6px;
+  background: rgba(229, 120, 106, 0.08);
+  color: #c8a097;
+}
+
+.mcp-provider__empty {
+  padding: 4px 0;
+}
+
+.mcp-server-row {
+  padding: 8px 10px;
+  border: 1px solid #34343c;
+  border-radius: 6px;
+  background: #222228;
+}
+
+.mcp-server-row + .mcp-server-row {
+  margin-top: 6px;
+}
+
+.mcp-server-row__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mcp-server-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mcp-server-row__badge {
+  padding: 1px 6px;
+  border: 1px solid rgba(216, 184, 106, 0.44);
+  border-radius: 999px;
+  color: #d8b86a;
+  font-size: 11px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.mcp-server-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.mcp-server-row__meta span:not(:last-child)::after {
+  content: "·";
+  margin-left: 8px;
+  color: #5f5f68;
+}
+
+.mcp-servers-panel__summary {
+  margin-top: 10px;
+}
+
 .cli-status-dot {
   width: 8px;
   height: 8px;
