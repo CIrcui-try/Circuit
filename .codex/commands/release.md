@@ -8,7 +8,7 @@ develop의 변경사항을 모아 `release/x.y.z` 브랜치를 만들고 main으
 
 `$ARGUMENTS`로 버전을 **반드시** 명시해야 한다 (예: `/release 0.2.1`). 비어 있거나 `x.y.z` 형식이 아니면 즉시 중단한다.
 
-기존 PR 본문 톤 ground truth: PR #50 (`gh pr view 50`).
+기존 PR 본문 구조 ground truth: PR #50 (`gh pr view 50`). 실제 PR 제목과 본문은 영어로 작성한다.
 
 ## 절차
 
@@ -38,12 +38,12 @@ gh pr list --state merged --base develop --search "merged:>=<직전 release merg
 
 각 PR에서 추출:
 - 제목의 conventional commit prefix (`feat`, `fix`, `refactor`, `perf`, `docs`, `chore`, `style`, `test`, `ci`, `build`)
-- 본문 첫 단락의 한국어 사용자 가치 설명 (`## Summary` 블록이 있으면 그 첫 줄)
+- 본문 첫 단락의 영어 사용자 가치 설명 (`## Summary` 블록이 있으면 그 첫 줄). 원문이 한국어이면 영어로 번역해 사용한다.
 
 카테고리 매핑:
-- `feat:` → **새로운 기능**
-- `fix:` → **버그 수정**
-- `refactor:`, `perf:` → 사용자 가시 변경이면 본인 판단으로 **새로운 기능** 또는 **버그 수정** 중 더 적합한 곳에, 아니면 제외
+- `feat:` → **New features**
+- `fix:` → **Bug fixes**
+- `refactor:`, `perf:` → 사용자 가시 변경이면 본인 판단으로 **New features** 또는 **Bug fixes** 중 더 적합한 곳에, 아니면 제외
 - `docs:`, `chore:`, `style:`, `test:`, `ci:`, `build:` → 제외
 
 ### 3단계: 버전 확정
@@ -55,19 +55,20 @@ gh pr list --state merged --base develop --search "merged:>=<직전 release merg
 PR #50 톤을 참고해 다음 템플릿으로 작성:
 
 ```markdown
-## <버전>
+## <version>
 
-### 새로운 기능
+### New features
 
-- <feat PR에서 뽑은 사용자 가치 중심 한국어 설명>
+- <English user-value summary extracted from feat PRs>
 
-### 버그 수정
+### Bug fixes
 
-- <fix PR에서 뽑은 사용자가 겪던 문제 관점의 한국어 설명>
+- <English problem-oriented summary extracted from fix PRs>
 ```
 
 작성 원칙:
-- "…를 추가했습니다 / …할 수 있습니다 / …문제를 수정했습니다" 어조
+- PR 제목과 본문은 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
+- Use user-facing release note phrasing such as "Added...", "You can now...", or "Fixed an issue where...".
 - 구현 디테일·내부 모듈명·파일 경로·이슈 번호·PR 번호는 본문에서 제외
 - 비어있는 카테고리는 섹션째 생략
 - 한 PR 본문에서 여러 사용자 가치 항목이 발견되면 bullet으로 분리
@@ -150,7 +151,7 @@ git push -u origin release/<버전>
 gh pr create \
   --base main \
   --head release/<버전> \
-  --title "Release <버전>" \
+  --title "Release <version>" \
   --body "<5단계에서 확정된 본문>"
 ```
 
@@ -160,6 +161,7 @@ gh pr create \
 
 - `--no-verify`, force push, 기타 destructive git 명령 금지.
 - develop에 uncommitted 변경이 있으면 절대 진행하지 않는다.
+- PR 제목과 본문은 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - 본문에 이슈 번호·내부 모듈명·PR 번호가 새지 않게 검수.
 - `gh` CLI 또는 git 명령 실패 시 root cause를 사용자에게 보고하고 멈춘다. 우회·재시도 금지.
 - main 브랜치에 직접 push 시도 금지 (PR 머지로만).

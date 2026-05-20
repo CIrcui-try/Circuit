@@ -92,14 +92,15 @@ Use this skill when the user asks to run the `review-and-fix` workflow.
 
 수정된 파일을 개별적으로 `git add`한 뒤 커밋하고 푸시한다.
 
-- 커밋 메시지 형식: `fix: 코드 리뷰 반영 (<significance> 이상)`
-  - 예: `fix: 코드 리뷰 반영 (major 이상)`
+- 커밋 메시지 형식: `fix: address code review findings (<significance> and above)`
+  - 예: `fix: address code review findings (major and above)`
 - 리모트 트래킹 브랜치가 있으면 `git push`, 없으면 `git push -u origin <브랜치이름>`.
 
 ## 주의사항
 
 - `.env`, `credentials.json` 등 민감한 파일은 절대 수정하지 않는다.
 - `develop`이나 `main` 브랜치에서 실행 시 즉시 중단한다.
+- 커밋 메시지는 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - 수정 항목이 0개인 경우(모두 스킵) 사용자에게 알리고 커밋 없이 종료한다.
 - 리뷰는 로컬 diff 범위 내 코드만 대상으로 한다. diff에 포함되지 않은 기존 코드의 문제는 지적하지 않는다.
 - 테스트 파일의 코드 품질(Minor)은 리뷰 대상에서 제외한다.

@@ -41,7 +41,7 @@ Use this skill when the user asks to run the `taxiing` workflow.
 5. **구현 진행**:
    - `구현 단계` 항목을 TodoWrite 로 펼쳐 진행 상황 추적.
    - 코드 작성 시 백엔드는 Router → Service → Repository, 프런트엔드는 Data/Domain/Presentation 레이어 컨벤션을 따른다.
-   - 의미 있는 단위마다 한국어 Conventional Commits 스타일로 커밋. 형식: `<type>: <설명> (<ISSUE>)` 예 `feat: 숫자 키패드 컴포넌트 추가 (CIR-21)`.
+   - 의미 있는 단위마다 영어 Conventional Commits 스타일로 커밋. 형식: `<type>: <English summary> (<ISSUE>)` 예 `feat: add numeric keypad component (CIR-21)`.
 6. **테스트 작성·실행**:
    - 백엔드 변경: `pytest` 통과 확인.
    - 프런트엔드 변경: Vitest(단위) 또는 Playwright(E2E), 그리고 `npm run build` 통과 확인.
@@ -55,6 +55,7 @@ Use this skill when the user asks to run the `taxiing` workflow.
 
 - **`git push`, `gh pr create`, `gh pr edit`, `git push --force*` 절대 금지.** 그건 takeoff 책임.
 - `develop` / `main` 에 직접 커밋 금지.
+- 커밋 메시지는 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - `.env`, `credentials.json` 등 민감한 파일은 스테이징에서 제외.
 - 구현 중 불명확한 점은 임의 판단하지 말고 사용자에게 질문.
 - Linear 티켓 상태는 자동화에 위임하지 않고 직접 `Todo` → `In Progress` → `Done` 으로만 처리한다.

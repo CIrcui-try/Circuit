@@ -46,18 +46,19 @@ argument-hint: <Linear 이슈 ID> [--force]
    - 리베이스로 히스토리가 바뀌었고 리모트에 이미 같은 브랜치가 있으면 사용자 승인 후 `git push --force-with-lease origin <branch>`.
    - `develop`/`main` 으로의 직접 푸시는 금지.
 8. **PR 생성**: `gh pr create --base develop --head <branch>`.
-   - 제목: `<ISSUE> <type>: <요약>` 예) `CIR-15 fix: 대기자 추가 시 화이트아웃 수정`.
-   - 본문: HEREDOC 으로 다음 형식.
+   - 제목: `<ISSUE> <type>: <English summary>` 예) `CIR-15 fix: prevent white screen when adding waitlist entries`.
+   - 제목과 본문은 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
+   - 본문: HEREDOC 으로 다음 형식. 모든 placeholder 내용도 영어로 쓴다.
 
      ```markdown
      ## Summary
-     - <plan.md 의 목표 / 커밋 요약 1~3줄>
+     - <goal from plan.md / commit summary in 1-3 lines>
 
      ## Changes
-     - <커밋 로그 / plan.md 의 변경 파일 기반 항목>
+     - <items based on commit log / changed files from plan.md>
 
      ## Test plan
-     - [ ] <plan.md 테스트 전략 항목>
+     - [ ] <test strategy item from plan.md>
 
      Closes <ISSUE>
      ```
@@ -74,5 +75,6 @@ argument-hint: <Linear 이슈 ID> [--force]
 - 리베이스 충돌은 사용자에게 위임. 자동 해결 시도 금지.
 - force push 는 반드시 사용자 확인 후 `--force-with-lease` 만 사용. `--force` 단독 금지.
 - `develop` / `main` 직접 push 금지.
+- PR 제목, PR 본문, 커밋 메시지는 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - Linear 티켓 상태는 자동화에 위임하지 않고 직접 `Todo` → `In Progress` → `Done` 으로만 처리한다. PR 생성 시 `In Review` 같은 중간 상태로 바꾸지 않는다.
 - PR 머지 후 워크트리 정리는 `/landing <ISSUE>` 로 별도 진행.

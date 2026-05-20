@@ -22,6 +22,7 @@ Plan mode 가 활성화된 상태에서 워크플로가 호출되어도 **거부
 ### 커밋 / GitHub 계정
 
 - 커밋 author 와 committer 는 반드시 `kai-leeee`. 두 값이 일치해야 한다.
+- PR 제목, PR 본문, 커밋 메시지는 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - 커밋 메시지에 `Co-Authored-By` 트레일러를 추가하지 않는다.
 - GitHub CLI(`gh`) 를 실제로 호출하는 워크플로에서는 active account 도 `kai-leeee` 여야 한다. 첫 `gh` 명령 직전에만 `gh-auth-check` 스킬 절차로 확인·전환하고, 전환에 실패하거나 `kai-leeee` 로 로그인되어 있지 않으면 작업을 중단하고 사용자에게 알린다.
 - 앱 시작, 저장소 읽기, 로컬 구현, 테스트, 커밋-only 작업처럼 `gh` 를 호출하지 않는 흐름에서는 `gh-auth-check` 를 선제 실행하지 않는다.
