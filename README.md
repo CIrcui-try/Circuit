@@ -6,21 +6,23 @@
 
 [한국어 README](README_kr.md)
 
-#### Circuit is a workflow visualization tool that makes agent behavior more predictable.
+#### For your SDD (Skill-Driven Development).
 
-Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but it becomes harder to understand and control what the agent is doing when you are not watching it directly. As projects grow, it becomes increasingly common to dig through large amounts of terminal output and prompts just to find which step finished and where human input is needed.
+Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
 
-This becomes especially noticeable when agents handle repeated tasks such as planning, implementation, review, commit, merge, and deploy. Automation itself is powerful, but once the flow starts running inside long prompts, command chains, or TUI sessions, it becomes difficult to recover where the agent is, what has finished, and where it failed.
+Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow often disappears into long prompts, command chains, and TUI sessions. As projects grow, it becomes increasingly common to dig through terminal output just to find which skill finished, which one is running, and where human input is needed.
+
+This becomes especially noticeable when agent work turns into a repeated Skill-Driven Development routine: planning, implementation, review, commit, merge, and deploy. Automation itself is powerful, but once that routine is hidden inside a prompt or script, it becomes difficult to understand and control what the agent is doing when you are not watching it directly.
 
 Circuit was built to make these problems visible.
 
 ## What Can Circuit Do?
 
-### Turn Repeated Skill Routines Into Workflows
+### Build Skill-Driven Development Workflows
 
 https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef
 
-Circuit is not about running a single skill. Its core idea is to combine multiple skills into one routine. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
+Circuit is not about running a single skill. Its core idea is to help you build SDD workflows from the skills you already use. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
 
 For example, you can create a flow like this:
 
@@ -28,7 +30,7 @@ For example, you can create a flow like this:
 planning → implementation → review → commit
 ```
 
-When the way you work changes, the routine can change with it:
+When the way your SDD routine changes, the workflow can change with it:
 
 ```text
 planning → implementation → commit → review
@@ -42,13 +44,13 @@ planning → check-token → implementation → review → wrap-up
 
 When the context gets long, you can add a `compact` skill. If cleanup is needed after the task, you can add a `wrap-up` skill. If you want to check token usage, you can create a skill such as `check-token` and place it between larger steps.
 
-These flows can be written as command lists, but Circuit treats them as visible graphs. When skill order or dependencies change, you do not need to reconstruct the whole process from memory. You can update the nodes and edges instead.
+These flows can be written as command lists, but Circuit treats them as visible graphs. When skill order or dependencies change, you do not need to reconstruct the whole SDD process from memory. You can update the nodes and edges instead.
 
 ### Use Claude And Codex Together
 
 https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd
 
-Many projects already contain more than one kind of agent automation. Some routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
+Many projects already contain more than one kind of agent automation. Some SDD routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
 
 Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from your local repository and lets you place both kinds of skills on the same canvas. It does not treat Claude and Codex as competing tools. It treats them as different execution capabilities and model choices that belong to the local project.
 
