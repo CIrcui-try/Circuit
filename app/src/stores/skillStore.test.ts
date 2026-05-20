@@ -201,7 +201,7 @@ describe("skillStore — scanRepository", () => {
 });
 
 describe("skillStore — createRepositorySkill", () => {
-  it("S7: creates a repository skill and appends it to the repo cache", async () => {
+  it("S7: creates a repository skill, re-scans, and returns the refreshed skill", async () => {
     useSkillStore.setState({
       byRepo: {
         "repo-1": [
@@ -225,6 +225,23 @@ describe("skillStore — createRepositorySkill", () => {
       content:
         "---\nname: New Skill\ndescription: Creates skills\ndefault-arguments: CIR-94\ndefault-prompt: Review it\ndefault-model: gpt-5.4\n---\n",
     });
+    bridgeMock.scanSkills.mockResolvedValueOnce([
+      {
+        provider: "claude",
+        dirName: "existing",
+        rootDir: ".claude/skills/existing",
+        skillFile: ".claude/skills/existing/SKILL.md",
+        content: "---\nname: Existing\ndescription:\n---\n",
+      },
+      {
+        provider: "codex",
+        dirName: "new-skill",
+        rootDir: ".codex/skills/new-skill",
+        skillFile: ".codex/skills/new-skill/SKILL.md",
+        content:
+          "---\nname: New Skill\ndescription: Creates skills from disk\ndefault-arguments: CIR-94\ndefault-prompt: Review it\ndefault-model: gpt-5.4\n---\n",
+      },
+    ]);
 
     const created = await useSkillStore.getState().createRepositorySkill(
       "repo-1",
@@ -249,13 +266,16 @@ describe("skillStore — createRepositorySkill", () => {
       defaultPrompt: "Review it",
       defaultModel: "gpt-5.4",
     });
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
     expect(created.name).toBe("New Skill");
+    expect(created.description).toBe("Creates skills from disk");
     expect(created.defaultInput).toEqual({
       arguments: "CIR-94",
       prompt: "Review it",
     });
     expect(created.defaultModel).toBe("gpt-5.4");
     expect(useSkillStore.getState().byRepo["repo-1"]).toHaveLength(2);
+    expect(useSkillStore.getState().byRepo["repo-1"][1]).toBe(created);
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
@@ -277,6 +297,82 @@ describe("skillStore — createRepositorySkill", () => {
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
     expect(useSkillStore.getState().errors["repo-1"]).toBe(
       "skill already exists",
+    );
+  });
+
+  it("S9: separates post-create re-scan failures from creation failures", async () => {
+    bridgeMock.createRepositorySkill.mockResolvedValueOnce({
+      provider: "codex",
+      dirName: "new-skill",
+      rootDir: ".codex/skills/new-skill",
+      skillFile: ".codex/skills/new-skill/SKILL.md",
+      content: "---\nname: New Skill\ndescription: Creates skills\n---\n",
+    });
+    bridgeMock.scanSkills.mockRejectedValueOnce(new Error("scan failed"));
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "Creates skills",
+      }),
+    ).rejects.toThrow(
+      "Skill was created, but repository re-scan failed: scan failed",
+    );
+
+    expect(bridgeMock.createRepositorySkill).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBe(
+      "Skill was created, but repository re-scan failed: scan failed",
+    );
+  });
+
+  it("S10: reports when the created skill is missing from the refreshed list", async () => {
+    bridgeMock.createRepositorySkill.mockResolvedValueOnce({
+      provider: "codex",
+      dirName: "new-skill",
+      rootDir: ".codex/skills/new-skill",
+      skillFile: ".codex/skills/new-skill/SKILL.md",
+      content: "---\nname: New Skill\ndescription: Creates skills\n---\n",
+    });
+    bridgeMock.scanSkills.mockResolvedValueOnce([
+      {
+        provider: "claude",
+        dirName: "existing",
+        rootDir: ".claude/skills/existing",
+        skillFile: ".claude/skills/existing/SKILL.md",
+        content: "---\nname: Existing\ndescription:\n---\n",
+      },
+    ]);
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "Creates skills",
+      }),
+    ).rejects.toThrow(
+      "Skill was created, but it was not found in the refreshed skill list.",
+    );
+
+    expect(useSkillStore.getState().byRepo["repo-1"]).toEqual([
+      {
+        id: "claude:.claude/skills/existing",
+        provider: "claude",
+        source: "repository",
+        name: "Existing",
+        description: "",
+        inputHints: [],
+        rootDir: ".claude/skills/existing",
+        skillFile: ".claude/skills/existing/SKILL.md",
+      },
+    ]);
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBe(
+      "Skill was created, but it was not found in the refreshed skill list.",
     );
   });
 });

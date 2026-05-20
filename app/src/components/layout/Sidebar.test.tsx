@@ -404,6 +404,14 @@ describe("Sidebar", () => {
       defaultPrompt: "Check the implementation",
       defaultModel: "gpt-5.4",
     });
+    const { nodes } = useWorkflowStore.getState();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.label).toBe("New Skill");
+    expect(nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/new-skill/SKILL.md",
+    });
     expect(panel).not.toBeInTheDocument();
 
     createRepositorySkill.mockRestore();

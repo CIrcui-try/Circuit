@@ -239,7 +239,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     if (Object.keys(validation).length > 0) return;
 
     try {
-      await createRepositorySkill(repoId, repoPath, {
+      const skill = await createRepositorySkill(repoId, repoPath, {
         provider: createForm.provider,
         name: createForm.name.trim(),
         description: createForm.description.trim(),
@@ -248,6 +248,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         defaultPrompt: createForm.defaultPrompt.trim(),
         defaultModel: createForm.defaultModel.trim(),
       });
+      handleAdd(skill);
       setCreateForm(EMPTY_CREATE_FORM);
       setDraftGoal("");
       setManualOpen(false);
