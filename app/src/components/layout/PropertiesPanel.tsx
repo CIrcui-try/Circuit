@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import type { SkillInputHint } from "../../host/bridge";
+import { useRunStore } from "../../runner/runStore";
+import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
+import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useSkillStore } from "../../stores/skillStore";
+import { useWorkflowStore } from "../../stores/workflowStore";
 
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
 const MODEL_OPTIONS_BY_PROVIDER: Record<string, string[]> = {
   claude: ["sonnet", "opus"],
   codex: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2"],
 };
-import { useRunStore } from "../../runner/runStore";
-import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
-import { useRepositoryStore } from "../../stores/repositoryStore";
-import { useSkillStore } from "../../stores/skillStore";
-import { useWorkflowStore } from "../../stores/workflowStore";
 
 type InputEditorMode = "friendly" | "json";
 
