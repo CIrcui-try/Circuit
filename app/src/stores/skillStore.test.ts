@@ -280,7 +280,7 @@ describe("skillStore — createRepositorySkill", () => {
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 
-  it("S8: stores and rethrows creation errors", async () => {
+  it("S8: rethrows creation errors without storing them as scan errors", async () => {
     bridgeMock.createRepositorySkill.mockRejectedValueOnce(
       new Error("skill already exists"),
     );
@@ -295,9 +295,7 @@ describe("skillStore — createRepositorySkill", () => {
     ).rejects.toThrow("skill already exists");
 
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
-    expect(useSkillStore.getState().errors["repo-1"]).toBe(
-      "skill already exists",
-    );
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 
   it("S9: separates post-create re-scan failures from creation failures", async () => {
@@ -324,9 +322,7 @@ describe("skillStore — createRepositorySkill", () => {
     expect(bridgeMock.createRepositorySkill).toHaveBeenCalledTimes(1);
     expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
-    expect(useSkillStore.getState().errors["repo-1"]).toBe(
-      "Skill was created, but repository re-scan failed: scan failed",
-    );
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 
   it("S10: reports when the created skill is missing from the refreshed list", async () => {
@@ -371,8 +367,6 @@ describe("skillStore — createRepositorySkill", () => {
       },
     ]);
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
-    expect(useSkillStore.getState().errors["repo-1"]).toBe(
-      "Skill was created, but it was not found in the refreshed skill list.",
-    );
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 });

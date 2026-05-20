@@ -108,7 +108,6 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     if (!bridge.createRepositorySkill) {
       const message = "repository skill creation is not available";
       set((s) => ({
-        errors: { ...s.errors, [repoId]: message },
         creating: { ...s.creating, [repoId]: false },
       }));
       throw new Error(message);
@@ -120,9 +119,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
         await bridge.createRepositorySkill(repoPath, input),
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       set((s) => ({
-        errors: { ...s.errors, [repoId]: message },
         creating: { ...s.creating, [repoId]: false },
       }));
       throw err;
@@ -135,7 +132,6 @@ export const useSkillStore = create<SkillState>((set, get) => ({
       const reason = err instanceof Error ? err.message : String(err);
       const message = `Skill was created, but repository re-scan failed: ${reason}`;
       set((s) => ({
-        errors: { ...s.errors, [repoId]: message },
         creating: { ...s.creating, [repoId]: false },
       }));
       throw new Error(message);
@@ -149,7 +145,6 @@ export const useSkillStore = create<SkillState>((set, get) => ({
         "Skill was created, but it was not found in the refreshed skill list.";
       set((s) => ({
         byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
-        errors: { ...s.errors, [repoId]: message },
         creating: { ...s.creating, [repoId]: false },
       }));
       throw new Error(message);

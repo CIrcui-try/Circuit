@@ -482,7 +482,7 @@ describe("Sidebar", () => {
     createRepositorySkill.mockRestore();
   });
 
-  it("SB14: keeps creation failures visible in the modal", async () => {
+  it("SB14: sends creation failures to the app alert without leaving a skill-list error", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -504,6 +504,7 @@ describe("Sidebar", () => {
     const createRepositorySkill = vi
       .spyOn(useSkillStore.getState(), "createRepositorySkill")
       .mockRejectedValueOnce(new Error("skill already exists"));
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
 
     render(<Sidebar repoId="r1" />);
     await userEvent.click(
@@ -514,8 +515,19 @@ describe("Sidebar", () => {
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("skill already exists");
+    const appAlertEvent = dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "circuit:error") as CustomEvent<{
+        title: string;
+        message: string;
+      }>;
+    expect(appAlertEvent.detail).toMatchObject({
+      title: "Create skill failed",
+      message: "skill already exists",
+    });
+    expect(screen.queryByText("skill already exists")).not.toBeInTheDocument();
 
+    dispatchEvent.mockRestore();
     createRepositorySkill.mockRestore();
   });
 

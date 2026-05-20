@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Plus } from "lucide-react";
+import { notifyAppError } from "../AppErrorAlert";
 import { generateSkillDraft } from "../../skills/generateSkillDraft";
 import type { RuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import { useRepositoryStore } from "../../stores/repositoryStore";
@@ -107,7 +108,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [fieldErrors, setFieldErrors] = useState<CreateFieldErrors>({});
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [pendingDraftExitConfirm, setPendingDraftExitConfirm] = useState(false);
   const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -145,7 +145,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     setCreateForm(EMPTY_CREATE_FORM);
     setFieldErrors({});
     setDraftError(null);
-    setCreateError(null);
     setCreateSuccess(null);
     setManualOpen(false);
     setDraftPromptOpen(true);
@@ -174,7 +173,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     setCreateOpen(false);
     setGeneratingDraft(false);
     setDraftError(null);
-    setCreateError(null);
     setCreateSuccess(null);
     if (!activeRun) {
       return;
@@ -192,7 +190,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     if (!repoPath) return;
     const runId = `skill-draft-${Date.now()}`;
     setDraftError(null);
-    setCreateError(null);
     setCreateSuccess(null);
     setFieldErrors({});
     setGeneratingDraft(true);
@@ -218,7 +215,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       if (cancelledDraftRunIdsRef.current.has(runId)) {
         setCreateOpen(false);
         setDraftError(null);
-        setCreateError(null);
         setCreateSuccess(null);
         return;
       }
@@ -239,7 +235,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
 
     const validation = validateCreateForm(createForm);
     setFieldErrors(validation);
-    setCreateError(null);
     setDraftError(null);
     setCreateSuccess(null);
     if (Object.keys(validation).length > 0) return;
@@ -263,7 +258,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       setCreateSuccess(null);
       setCreateOpen(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : String(err));
+      notifyAppError(err, "Create skill failed");
     }
   };
 
@@ -536,11 +531,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         </label>
       </details>
 
-      {createError ? (
-        <div className="skill-create-modal__error" role="alert">
-          {createError}
-        </div>
-      ) : null}
       {createSuccess ? (
         <div className="skill-create-modal__success" role="status">
           {createSuccess}
