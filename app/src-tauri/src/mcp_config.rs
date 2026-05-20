@@ -227,6 +227,7 @@ fn summary_from_json_server(
         .get("args")
         .and_then(JsonValue::as_array)
         .map(|values| string_array(values))
+        .map(redact_args)
         .unwrap_or_default();
     let url = config
         .get("url")
@@ -261,6 +262,7 @@ fn summary_from_toml_server(name: &str, config: &TomlValue) -> McpServerSummary 
         .get("args")
         .and_then(TomlValue::as_array)
         .map(|values| toml_string_array(values))
+        .map(redact_args)
         .unwrap_or_default();
     let url = config.get("url").and_then(TomlValue::as_str).map(redact_url);
     let transport = infer_transport(command.as_ref(), url.as_ref());
@@ -303,6 +305,47 @@ fn infer_transport(command: Option<&String>, url: Option<&String>) -> Option<Str
     } else {
         None
     }
+}
+
+fn redact_args(args: Vec<String>) -> Vec<String> {
+    let mut redact_next = false;
+    args.into_iter()
+        .map(|arg| {
+            if redact_next {
+                redact_next = false;
+                return "[redacted]".to_string();
+            }
+
+            if Url::parse(&arg).is_ok() {
+                return redact_url(&arg);
+            }
+
+            if let Some((key, _)) = arg.split_once('=') {
+                if is_sensitive_arg_name(key) {
+                    return format!("{key}=[redacted]");
+                }
+            }
+
+            if is_sensitive_arg_name(&arg) {
+                redact_next = true;
+                return arg;
+            }
+
+            redact_url(&arg)
+        })
+        .collect()
+}
+
+fn is_sensitive_arg_name(value: &str) -> bool {
+    let normalized = value
+        .trim_start_matches('-')
+        .replace(['_', '-'], "")
+        .to_ascii_lowercase();
+    normalized.contains("token")
+        || normalized.contains("secret")
+        || normalized.contains("password")
+        || normalized.contains("apikey")
+        || normalized.contains("credential")
 }
 
 fn redact_url(raw: &str) -> String {
@@ -432,6 +475,45 @@ mod tests {
         );
         assert_eq!(status.codex.servers[1].transport.as_deref(), Some("stdio"));
         assert!(status.codex.servers[1].has_env);
+    }
+
+    #[test]
+    fn redacts_sensitive_values_before_summarizing_servers() {
+        let home = tempfile::tempdir().unwrap();
+        write(
+            &home.path().join(".claude.json"),
+            r#"{
+              "mcpServers": {
+                "local": {
+                  "command": "node",
+                  "args": [
+                    "server.js",
+                    "--api-key",
+                    "plain-secret",
+                    "--token=inline-secret",
+                    "https://user:pass@example.com/mcp?secret=1#top"
+                  ]
+                }
+              }
+            }"#,
+        );
+
+        let status = read_mcp_config_status_from(home.path());
+        let args = &status.claude.servers[0].args;
+
+        assert_eq!(
+            args,
+            &[
+                "server.js",
+                "--api-key",
+                "[redacted]",
+                "--token=[redacted]",
+                "https://example.com/mcp"
+            ]
+        );
+        assert!(!args.join(" ").contains("plain-secret"));
+        assert!(!args.join(" ").contains("inline-secret"));
+        assert!(!args.join(" ").contains("user:pass"));
     }
 
     #[test]
