@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { getHostBridge, type CreateRepositorySkillInput } from "../host/bridge";
+import {
+  getHostBridge,
+  type CreateRepositorySkillInput,
+  type DeleteRepositorySkillInput,
+} from "../host/bridge";
 import type { SkillInputHint } from "../host/bridge";
 import { parseSkillMeta } from "../skills/parseSkillMeta";
 
@@ -27,6 +31,7 @@ type SkillState = {
   systemSkills: Skill[];
   loading: Record<string, boolean>;
   creating: Record<string, boolean>;
+  deleting: Record<string, boolean>;
   errors: Record<string, string | null>;
   scanRepository: (repoId: string, repoPath: string) => Promise<void>;
   createRepositorySkill: (
@@ -34,6 +39,11 @@ type SkillState = {
     repoPath: string,
     input: CreateRepositorySkillInput,
   ) => Promise<Skill>;
+  deleteRepositorySkill: (
+    repoId: string,
+    repoPath: string,
+    input: DeleteRepositorySkillInput,
+  ) => Promise<void>;
   scanDefaultCatalog: () => Promise<void>;
   scanSystemCatalog: () => Promise<void>;
 };
@@ -68,6 +78,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
   systemSkills: [],
   loading: {},
   creating: {},
+  deleting: {},
   errors: {},
 
   scanRepository: async (repoId, repoPath) => {
@@ -156,6 +167,51 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     }));
 
     return refreshedSkill;
+  },
+
+  deleteRepositorySkill: async (repoId, repoPath, input) => {
+    if (get().deleting[repoId]) {
+      throw new Error("skill deletion is already in progress");
+    }
+
+    set((s) => ({
+      deleting: { ...s.deleting, [repoId]: true },
+      errors: { ...s.errors, [repoId]: null },
+    }));
+
+    const bridge = getHostBridge();
+    if (!bridge.deleteRepositorySkill) {
+      const message = "repository skill deletion is not available";
+      set((s) => ({
+        deleting: { ...s.deleting, [repoId]: false },
+      }));
+      throw new Error(message);
+    }
+
+    try {
+      await bridge.deleteRepositorySkill(repoPath, input);
+    } catch (err) {
+      set((s) => ({
+        deleting: { ...s.deleting, [repoId]: false },
+      }));
+      throw err;
+    }
+
+    let refreshedSkills: Skill[];
+    try {
+      refreshedSkills = (await bridge.scanSkills(repoPath)).map(toRepositorySkill);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      set((s) => ({
+        deleting: { ...s.deleting, [repoId]: false },
+      }));
+      throw new Error(`Skill was removed, but repository re-scan failed: ${reason}`);
+    }
+
+    set((s) => ({
+      byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
+      deleting: { ...s.deleting, [repoId]: false },
+    }));
   },
 
   scanDefaultCatalog: async () => {

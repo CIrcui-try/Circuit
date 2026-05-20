@@ -4,6 +4,7 @@ const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(),
   createRepositorySkill: vi.fn(),
+  deleteRepositorySkill: vi.fn(),
   scanDefaultSkills: vi.fn(),
   scanSystemSkills: vi.fn(),
   loadRepositories: vi.fn(),
@@ -19,6 +20,7 @@ import { useSkillStore } from "./skillStore";
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.createRepositorySkill.mockReset();
+  bridgeMock.deleteRepositorySkill.mockReset();
   bridgeMock.scanDefaultSkills.mockReset();
   bridgeMock.scanSystemSkills.mockReset();
   useSkillStore.setState({
@@ -27,6 +29,7 @@ beforeEach(() => {
     systemSkills: [],
     loading: {},
     creating: {},
+    deleting: {},
     errors: {},
   });
 });
@@ -368,5 +371,128 @@ describe("skillStore — createRepositorySkill", () => {
     ]);
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+  });
+
+  it("S11: rejects concurrent creation for the same repository", async () => {
+    useSkillStore.setState({
+      creating: { "repo-1": true },
+    });
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "",
+      }),
+    ).rejects.toThrow("skill creation is already in progress");
+
+    expect(bridgeMock.createRepositorySkill).not.toHaveBeenCalled();
+    expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
+  });
+
+  it("S12: reports when the host bridge cannot create repository skills", async () => {
+    const originalCreate = bridgeMock.createRepositorySkill;
+    bridgeMock.createRepositorySkill = undefined as unknown as typeof originalCreate;
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "",
+      }),
+    ).rejects.toThrow("repository skill creation is not available");
+
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+
+    bridgeMock.createRepositorySkill = originalCreate;
+  });
+});
+
+describe("skillStore — deleteRepositorySkill", () => {
+  it("S13: deletes a repository skill, re-scans, and stores the refreshed list", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        "repo-1": [
+          {
+            id: "codex:.codex/skills/remove-me",
+            provider: "codex",
+            source: "repository",
+            name: "Remove Me",
+            description: "",
+            rootDir: ".codex/skills/remove-me",
+            skillFile: ".codex/skills/remove-me/SKILL.md",
+          },
+        ],
+      },
+    });
+    bridgeMock.deleteRepositorySkill.mockResolvedValueOnce(undefined);
+    bridgeMock.scanSkills.mockResolvedValueOnce([]);
+
+    await useSkillStore.getState().deleteRepositorySkill("repo-1", "/repo", {
+      provider: "codex",
+      slug: "remove-me",
+    });
+
+    expect(bridgeMock.deleteRepositorySkill).toHaveBeenCalledWith("/repo", {
+      provider: "codex",
+      slug: "remove-me",
+    });
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
+    expect(useSkillStore.getState().byRepo["repo-1"]).toEqual([]);
+    expect(useSkillStore.getState().deleting["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+  });
+
+  it("S14: rethrows deletion errors without running a re-scan", async () => {
+    bridgeMock.deleteRepositorySkill.mockRejectedValueOnce(
+      new Error("skill not found"),
+    );
+
+    await expect(
+      useSkillStore.getState().deleteRepositorySkill("repo-1", "/repo", {
+        provider: "claude",
+        slug: "missing",
+      }),
+    ).rejects.toThrow("skill not found");
+
+    expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
+    expect(useSkillStore.getState().deleting["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+  });
+
+  it("S15: separates post-delete re-scan failures from deletion failures", async () => {
+    bridgeMock.deleteRepositorySkill.mockResolvedValueOnce(undefined);
+    bridgeMock.scanSkills.mockRejectedValueOnce(new Error("scan failed"));
+
+    await expect(
+      useSkillStore.getState().deleteRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "remove-me",
+      }),
+    ).rejects.toThrow("Skill was removed, but repository re-scan failed: scan failed");
+
+    expect(bridgeMock.deleteRepositorySkill).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
+    expect(useSkillStore.getState().deleting["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+  });
+
+  it("S16: rejects concurrent deletion for the same repository", async () => {
+    useSkillStore.setState({
+      deleting: { "repo-1": true },
+    });
+
+    await expect(
+      useSkillStore.getState().deleteRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "remove-me",
+      }),
+    ).rejects.toThrow("skill deletion is already in progress");
+
+    expect(bridgeMock.deleteRepositorySkill).not.toHaveBeenCalled();
+    expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
   });
 });

@@ -22,6 +22,11 @@ export type CreateRepositorySkillInput = {
   defaultModel?: string;
 };
 
+export type DeleteRepositorySkillInput = {
+  provider: "claude" | "codex";
+  slug: string;
+};
+
 export type RawSystemSkill = {
   id: string;
   provider: "claude" | "codex";
@@ -113,6 +118,10 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
     repoPath: string,
     input: CreateRepositorySkillInput,
   ): Promise<RawSkill>;
+  deleteRepositorySkill?(
+    repoPath: string,
+    input: DeleteRepositorySkillInput,
+  ): Promise<void>;
   scanDefaultSkills?(): Promise<RawSkill[]>;
   scanSystemSkills?(): Promise<RawSystemSkill[]>;
   loadRepositories(): Promise<Repository[] | null>;

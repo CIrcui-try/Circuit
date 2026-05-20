@@ -57,6 +57,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             skill_scan::scan_skills,
             skill_scan::create_repository_skill,
+            skill_scan::delete_repository_skill,
             skill_scan::scan_default_skills,
             skill_scan::scan_system_skills,
             skill_scan::runtime_read_system_skill,

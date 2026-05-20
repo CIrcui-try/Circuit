@@ -8,6 +8,7 @@ vi.mock("../../host/bridge", () => ({
     openRepositoryDialog: vi.fn(),
     scanSkills: vi.fn(async () => []),
     createRepositorySkill: vi.fn(),
+    deleteRepositorySkill: vi.fn(),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
   }),
@@ -30,6 +31,7 @@ beforeEach(() => {
     systemSkills: [],
     loading: {},
     creating: {},
+    deleting: {},
     errors: {},
   });
   useWorkflowStore.getState().resetWorkflow();
@@ -334,6 +336,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-node-menu")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show in Finder" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Open SKILL.md" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
   });
 
   it("SB11: opens repository skill creation from the header and appends the created skill", async () => {
@@ -378,7 +381,7 @@ describe("Sidebar", () => {
     ).toBeInTheDocument();
     expect(panel).toHaveTextContent("New Skill");
     expect(screen.getByTestId("skill-draft-goal")).toBeInTheDocument();
-    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.click(screen.getByText("or... do it manually"));
     expect(screen.getByPlaceholderText("Skill name")).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("What this skill helps the agent do"),
@@ -472,7 +475,7 @@ describe("Sidebar", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /Create repository skill/i }),
     );
-    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.click(screen.getByText("or... do it manually"));
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
     expect(screen.getByText("Name is required.")).toBeInTheDocument();
@@ -480,6 +483,79 @@ describe("Sidebar", () => {
     expect(createRepositorySkill).not.toHaveBeenCalled();
 
     createRepositorySkill.mockRestore();
+  });
+
+  it("SB13b: validates skill slug characters before saving", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.click(screen.getByText("or... do it manually"));
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "../escape");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(
+      screen.getByText(
+        "Slug may only contain letters, numbers, hyphens, or underscores.",
+      ),
+    ).toBeInTheDocument();
+    expect(createRepositorySkill).not.toHaveBeenCalled();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB13c: resets model when switching skill provider", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.click(screen.getByText("or... do it manually"));
+    await userEvent.type(screen.getByLabelText("Model"), "gpt-5.4");
+    await userEvent.click(screen.getByRole("radio", { name: "claude" }));
+
+    expect(screen.getByLabelText("Model")).toHaveValue("");
+    expect(
+      screen.getByPlaceholderText("sonnet, opus, or full model name"),
+    ).toBeInTheDocument();
   });
 
   it("SB14: sends creation failures to the app alert without leaving a skill-list error", async () => {
@@ -510,7 +586,7 @@ describe("Sidebar", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /Create repository skill/i }),
     );
-    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.click(screen.getByText("or... do it manually"));
     await userEvent.type(screen.getByLabelText("Name"), "New Skill");
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
@@ -841,5 +917,109 @@ describe("Sidebar", () => {
     expect(screen.queryByTestId("skill-draft-spinner")).not.toBeInTheDocument();
 
     cancel.mockRestore();
+  });
+
+  it("SB21: removes a repository skill from the context menu after confirmation", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "codex:.codex/skills/remove-me",
+            provider: "codex",
+            source: "repository",
+            name: "Remove Me",
+            description: "",
+            rootDir: ".codex/skills/remove-me",
+            skillFile: ".codex/skills/remove-me/SKILL.md",
+          },
+        ],
+      },
+      loading: { r1: false },
+      errors: {},
+    });
+    const deleteRepositorySkill = vi
+      .spyOn(useSkillStore.getState(), "deleteRepositorySkill")
+      .mockResolvedValueOnce(undefined);
+
+    render(<Sidebar repoId="r1" />);
+    fireEvent.contextMenu(screen.getByTestId("skill-list__item"));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Remove skill" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("skill-remove-confirm")).toHaveTextContent(
+      "Remove Remove Me? This will delete .codex/skills/remove-me/SKILL.md from the repository.",
+    );
+    await userEvent.click(screen.getByTestId("skill-remove-confirm-remove"));
+
+    expect(deleteRepositorySkill).toHaveBeenCalledWith("r1", "/Users/me/alpha", {
+      provider: "codex",
+      slug: "remove-me",
+    });
+
+    deleteRepositorySkill.mockRestore();
+  });
+
+  it("SB22: keeps the skill when remove confirmation is cancelled", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: {
+        r1: [
+          {
+            id: "claude:.claude/skills/keep-me",
+            provider: "claude",
+            source: "repository",
+            name: "Keep Me",
+            description: "",
+            rootDir: ".claude/skills/keep-me",
+            skillFile: ".claude/skills/keep-me/SKILL.md",
+          },
+        ],
+      },
+      loading: { r1: false },
+      errors: {},
+    });
+    const deleteRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "deleteRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    fireEvent.contextMenu(screen.getByTestId("skill-list__item"));
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(screen.getByTestId("skill-remove-confirm")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("skill-remove-cancel"));
+
+    expect(screen.queryByTestId("skill-remove-confirm")).not.toBeInTheDocument();
+    expect(deleteRepositorySkill).not.toHaveBeenCalled();
+
+    deleteRepositorySkill.mockRestore();
   });
 });
