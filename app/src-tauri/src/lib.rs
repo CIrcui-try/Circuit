@@ -1,4 +1,5 @@
 mod run_log_store;
+mod mcp_config;
 mod repository_environment;
 mod runtime_bridge;
 mod skill_scan;
@@ -65,6 +66,7 @@ pub fn run() {
             workflow_store::list_workflows,
             workflow_store::load_workflow,
             workflow_store::save_workflow,
+            mcp_config::read_mcp_config_status,
             repository_environment::check_repository_environment,
             runtime_bridge::runtime_read_file,
             runtime_bridge::runtime_resolve_cli,

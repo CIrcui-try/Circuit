@@ -12,6 +12,7 @@ import type {
   HostBridge,
   CliSettingsDTO,
   LayoutPrefsDTO,
+  McpConfigStatus,
   RawSkill,
   RawSystemSkill,
   RepositoryEnvironmentCheck,
@@ -48,6 +49,10 @@ export const tauriHostBridge: HostBridge = {
     return await invoke<RepositoryEnvironmentCheck>("check_repository_environment", {
       repoPath,
     });
+  },
+
+  async readMcpConfigStatus() {
+    return await invoke<McpConfigStatus>("read_mcp_config_status");
   },
 
   async scanSkills(repoPath: string) {
