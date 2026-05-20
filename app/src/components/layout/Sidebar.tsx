@@ -418,6 +418,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
               <input
                 value={createForm.name}
                 disabled={creating}
+                placeholder="Review and Fix"
                 aria-invalid={Boolean(fieldErrors.name)}
                 aria-describedby={
                   fieldErrors.name ? "skill-create-name-error" : undefined
@@ -442,6 +443,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                 value={createForm.description}
                 disabled={creating}
                 rows={3}
+                placeholder="Review local changes and apply focused fixes."
                 onChange={(event) =>
                   setCreateForm((form) => ({
                     ...form,
