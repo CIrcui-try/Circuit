@@ -101,6 +101,8 @@ type SkillDragPayload = {
   name: string;
   description?: string;
   inputHints?: SkillInputHint[];
+  defaultInput?: Record<string, string>;
+  defaultModel?: string;
 };
 
 type MenuState = {
@@ -420,6 +422,8 @@ function CanvasInner() {
           name: payload.name,
           description: payload.description ?? "",
           inputHints: payload.inputHints ?? [],
+          defaultInput: payload.defaultInput,
+          defaultModel: payload.defaultModel,
           rootDir:
             payload.source === "system" && payload.systemSkillId
               ? `system://${payload.systemSkillId}`

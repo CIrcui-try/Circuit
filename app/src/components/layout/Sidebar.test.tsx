@@ -1,22 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMockRuntimeBridge } from "../../runtime/bridge/RuntimeBridge.mock";
 
 vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
     openRepositoryDialog: vi.fn(),
     scanSkills: vi.fn(async () => []),
+    createRepositorySkill: vi.fn(),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
   }),
 }));
 
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
-  useSkillStore.setState({ byRepo: {}, defaultSkills: [], loading: {}, errors: {} });
+  useRepositoryStore.setState({
+    repositories: [],
+    selectedId: null,
+    hydrated: false,
+  });
+  useSkillStore.setState({
+    byRepo: {},
+    defaultSkills: [],
+    systemSkills: [],
+    loading: {},
+    creating: {},
+    errors: {},
+  });
   useWorkflowStore.getState().resetWorkflow();
 });
 
@@ -319,5 +334,487 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-node-menu")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show in Finder" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Open SKILL.md" })).not.toBeDisabled();
+  });
+
+  it("SB11: opens repository skill creation from the header and appends the created skill", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi
+      .spyOn(useSkillStore.getState(), "createRepositorySkill")
+      .mockResolvedValueOnce({
+        id: "codex:.codex/skills/new-skill",
+        provider: "codex",
+        source: "repository",
+        name: "New Skill",
+        description: "Creates a skill",
+        rootDir: ".codex/skills/new-skill",
+        skillFile: ".codex/skills/new-skill/SKILL.md",
+      });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+
+    const panel = screen.getByTestId("skill-create-panel");
+    expect(
+      screen.getByRole("dialog", { name: /New skill/i }),
+    ).toBeInTheDocument();
+    expect(panel).toHaveTextContent("New Skill");
+    expect(screen.getByTestId("skill-draft-goal")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("or... do it yourself"));
+    expect(screen.getByPlaceholderText("Skill name")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("What this skill helps the agent do"),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("skill-slug")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("<ISSUE_ID> [--force]")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Default free-form prompt")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Codex model name")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Description"), "Creates a skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
+    await userEvent.type(screen.getByLabelText("Argument format"), "<ISSUE_ID>");
+    await userEvent.type(screen.getByLabelText("Prompt"), "Check the implementation");
+    await userEvent.type(screen.getByLabelText("Model"), "gpt-5.4");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(createRepositorySkill).toHaveBeenCalledWith("r1", "/Users/me/alpha", {
+      provider: "codex",
+      name: "New Skill",
+      description: "Creates a skill",
+      slug: "new-skill",
+      argumentHint: "<ISSUE_ID>",
+      defaultPrompt: "Check the implementation",
+      defaultModel: "gpt-5.4",
+    });
+    expect(panel).not.toBeInTheDocument();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB12: exposes the create CTA in the empty repository skill state", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+
+    expect(screen.getByTestId("skill-create-panel")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("skill-draft-goal")).toHaveFocus());
+  });
+
+  it("SB13: validates required creation fields before saving", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(screen.getByText("Name is required.")).toBeInTheDocument();
+    expect(screen.getByText("Slug is required.")).toBeInTheDocument();
+    expect(createRepositorySkill).not.toHaveBeenCalled();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB14: keeps creation failures visible in the modal", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi
+      .spyOn(useSkillStore.getState(), "createRepositorySkill")
+      .mockRejectedValueOnce(new Error("skill already exists"));
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("skill already exists");
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB15: generates a skill draft into the manual fields", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        {
+          delayMs: 20,
+          event: {
+            type: "stdout",
+            text: JSON.stringify({
+              provider: "codex",
+              name: "Release Config Review",
+              description: "Reviews iOS release configs before submission.",
+              slug: "release-config-review",
+              argumentHint: "<SDK> <VERSION>",
+              defaultPrompt: "Check release config consistency.",
+              defaultModel: "gpt-5.4",
+            }),
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(
+      screen.getByTestId("skill-draft-goal"),
+      "리릴즈 config를 검토하는 스킬",
+    );
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+    expect(screen.getByTestId("skill-draft-generate")).toBeDisabled();
+    expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Release Config Review")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("skill-draft-goal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skill-draft-edit-prompt")).toBeInTheDocument();
+    expect(screen.getByText("Review generated skill")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("release-config-review")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("<SDK> <VERSION>")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("Check release config consistency."),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Draft ready");
+  });
+
+  it("SB16: keeps draft generation failures visible without creating a skill", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "stdout", text: "not json" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(screen.getByTestId("skill-draft-goal"), "make anything");
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Codex returned a draft without a JSON object.",
+      ),
+    );
+    expect(createRepositorySkill).not.toHaveBeenCalled();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB17: closes the new skill modal from the backdrop when idle", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    fireEvent.mouseDown(screen.getByTestId("skill-create-backdrop"));
+
+    expect(screen.queryByTestId("skill-create-panel")).not.toBeInTheDocument();
+  });
+
+  it("SB18: asks before closing the new skill modal while draft generation is running", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        {
+          delayMs: 200,
+          event: {
+            type: "stdout",
+            text: JSON.stringify({
+              provider: "codex",
+              name: "Late Draft",
+              description: "Generated later.",
+              slug: "late-draft",
+              argumentHint: "",
+              defaultPrompt: "",
+              defaultModel: "",
+            }),
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(screen.getByTestId("skill-draft-goal"), "make a draft");
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+    expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("skill-create-backdrop"));
+
+    expect(screen.getByTestId("skill-create-panel")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Skill generation in progress" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Do you want to stop generating?")).toBeInTheDocument();
+  });
+
+  it("SB19: continues draft generation when the exit confirmation is dismissed", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    window.__CIRCUIT_RUNTIME__ = createMockRuntimeBridge({
+      scenario: () => [
+        {
+          delayMs: 200,
+          event: {
+            type: "stdout",
+            text: JSON.stringify({
+              provider: "codex",
+              name: "Continued Draft",
+              description: "Generated after continuing.",
+              slug: "continued-draft",
+              argumentHint: "",
+              defaultPrompt: "",
+              defaultModel: "",
+            }),
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(screen.getByTestId("skill-draft-goal"), "make a draft");
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+    fireEvent.mouseDown(screen.getByTestId("skill-create-backdrop"));
+
+    await userEvent.click(screen.getByTestId("skill-draft-exit-continue"));
+
+    expect(screen.queryByTestId("skill-draft-exit-confirm")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skill-create-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
+  });
+
+  it("SB20: cancels the active draft run and closes the modal after confirming exit", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const runtimeBridge = createMockRuntimeBridge({
+      scenario: () => [
+        {
+          delayMs: 200,
+          event: {
+            type: "stdout",
+            text: JSON.stringify({
+              provider: "codex",
+              name: "Cancelled Draft",
+              description: "Should not render.",
+              slug: "cancelled-draft",
+              argumentHint: "",
+              defaultPrompt: "",
+              defaultModel: "",
+            }),
+          },
+        },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+    const cancel = vi.spyOn(runtimeBridge, "cancel");
+    window.__CIRCUIT_RUNTIME__ = runtimeBridge;
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.type(screen.getByTestId("skill-draft-goal"), "make a draft");
+    await userEvent.click(screen.getByTestId("skill-draft-generate"));
+    fireEvent.mouseDown(screen.getByTestId("skill-create-backdrop"));
+
+    await userEvent.click(screen.getByTestId("skill-draft-exit-confirm-exit"));
+
+    await waitFor(() => {
+      expect(cancel).toHaveBeenCalledWith(expect.stringMatching(/^skill-draft-/));
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("skill-create-panel")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Cancelled Draft")).not.toBeInTheDocument();
+
+    cancel.mockRestore();
   });
 });

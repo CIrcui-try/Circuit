@@ -118,4 +118,27 @@ describe("parseSkillMeta", () => {
 
     expect(parseSkillMeta(content, "command").inputHints).toEqual([]);
   });
+
+  it("P12: reads default node input and model from frontmatter", () => {
+    const content = [
+      "---",
+      "name: Custom Skill",
+      "description: Runs with defaults",
+      "default-arguments: CIR-94 --force",
+      "default-prompt: Check the implementation",
+      "default-model: gpt-5.4",
+      "---",
+    ].join("\n");
+
+    expect(parseSkillMeta(content, "custom")).toEqual({
+      name: "Custom Skill",
+      description: "Runs with defaults",
+      inputHints: [],
+      defaultInput: {
+        arguments: "CIR-94 --force",
+        prompt: "Check the implementation",
+      },
+      defaultModel: "gpt-5.4",
+    });
+  });
 });
