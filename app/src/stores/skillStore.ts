@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { getHostBridge } from "../host/bridge";
+import { getHostBridge, type CreateRepositorySkillInput } from "../host/bridge";
 import type { SkillInputHint } from "../host/bridge";
 import { parseSkillMeta } from "../skills/parseSkillMeta";
 
@@ -24,17 +24,46 @@ type SkillState = {
   defaultSkills: Skill[];
   systemSkills: Skill[];
   loading: Record<string, boolean>;
+  creating: Record<string, boolean>;
   errors: Record<string, string | null>;
   scanRepository: (repoId: string, repoPath: string) => Promise<void>;
+  createRepositorySkill: (
+    repoId: string,
+    repoPath: string,
+    input: CreateRepositorySkillInput,
+  ) => Promise<Skill>;
   scanDefaultCatalog: () => Promise<void>;
   scanSystemCatalog: () => Promise<void>;
 };
+
+function toRepositorySkill(raw: {
+  provider: SkillProvider;
+  dirName: string;
+  rootDir: string;
+  skillFile: string;
+  skillFileAbsPath?: string;
+  content: string;
+}): Skill {
+  const meta = parseSkillMeta(raw.content, raw.dirName);
+  return {
+    id: `${raw.provider}:${raw.rootDir}`,
+    provider: raw.provider,
+    source: "repository",
+    name: meta.name,
+    description: meta.description,
+    inputHints: meta.inputHints,
+    rootDir: raw.rootDir,
+    skillFile: raw.skillFile,
+    ...(raw.skillFileAbsPath ? { skillFileAbsPath: raw.skillFileAbsPath } : {}),
+  };
+}
 
 export const useSkillStore = create<SkillState>((set, get) => ({
   byRepo: {},
   defaultSkills: [],
   systemSkills: [],
   loading: {},
+  creating: {},
   errors: {},
 
   scanRepository: async (repoId, repoPath) => {
@@ -47,20 +76,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
 
     try {
       const raw = await getHostBridge().scanSkills(repoPath);
-      const skills: Skill[] = raw.map((r) => {
-        const meta = parseSkillMeta(r.content, r.dirName);
-        return {
-          id: `${r.provider}:${r.rootDir}`,
-          provider: r.provider,
-          source: "repository",
-          name: meta.name,
-          description: meta.description,
-          inputHints: meta.inputHints,
-          rootDir: r.rootDir,
-          skillFile: r.skillFile,
-          ...(r.skillFileAbsPath ? { skillFileAbsPath: r.skillFileAbsPath } : {}),
-        };
-      });
+      const skills: Skill[] = raw.map(toRepositorySkill);
       set((s) => ({
         byRepo: { ...s.byRepo, [repoId]: skills },
         loading: { ...s.loading, [repoId]: false },
@@ -71,6 +87,44 @@ export const useSkillStore = create<SkillState>((set, get) => ({
         errors: { ...s.errors, [repoId]: message },
         loading: { ...s.loading, [repoId]: false },
       }));
+    }
+  },
+
+  createRepositorySkill: async (repoId, repoPath, input) => {
+    if (get().creating[repoId]) {
+      throw new Error("skill creation is already in progress");
+    }
+
+    set((s) => ({
+      creating: { ...s.creating, [repoId]: true },
+      errors: { ...s.errors, [repoId]: null },
+    }));
+
+    try {
+      const bridge = getHostBridge();
+      if (!bridge.createRepositorySkill) {
+        throw new Error("repository skill creation is not available");
+      }
+      const raw = await bridge.createRepositorySkill(repoPath, input);
+      const skill = toRepositorySkill(raw);
+
+      set((s) => {
+        const current = s.byRepo[repoId] ?? [];
+        const withoutDuplicate = current.filter((item) => item.id !== skill.id);
+        return {
+          byRepo: { ...s.byRepo, [repoId]: [...withoutDuplicate, skill] },
+          creating: { ...s.creating, [repoId]: false },
+        };
+      });
+
+      return skill;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set((s) => ({
+        errors: { ...s.errors, [repoId]: message },
+        creating: { ...s.creating, [repoId]: false },
+      }));
+      throw err;
     }
   },
 

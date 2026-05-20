@@ -6,17 +6,31 @@ vi.mock("../../host/bridge", () => ({
   getHostBridge: () => ({
     openRepositoryDialog: vi.fn(),
     scanSkills: vi.fn(async () => []),
+    createRepositorySkill: vi.fn(),
     loadRepositories: vi.fn(async () => null),
     saveRepositories: vi.fn(async () => {}),
   }),
 }));
 
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
 
 beforeEach(() => {
-  useSkillStore.setState({ byRepo: {}, defaultSkills: [], loading: {}, errors: {} });
+  useRepositoryStore.setState({
+    repositories: [],
+    selectedId: null,
+    hydrated: false,
+  });
+  useSkillStore.setState({
+    byRepo: {},
+    defaultSkills: [],
+    systemSkills: [],
+    loading: {},
+    creating: {},
+    errors: {},
+  });
   useWorkflowStore.getState().resetWorkflow();
 });
 
@@ -319,5 +333,161 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-node-menu")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show in Finder" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Open SKILL.md" })).not.toBeDisabled();
+  });
+
+  it("SB11: opens repository skill creation from the header and appends the created skill", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi
+      .spyOn(useSkillStore.getState(), "createRepositorySkill")
+      .mockResolvedValueOnce({
+        id: "codex:.codex/skills/new-skill",
+        provider: "codex",
+        source: "repository",
+        name: "New Skill",
+        description: "Creates a skill",
+        rootDir: ".codex/skills/new-skill",
+        skillFile: ".codex/skills/new-skill/SKILL.md",
+      });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: /Create repository skill/i,
+    });
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Description"), "Creates a skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(createRepositorySkill).toHaveBeenCalledWith("r1", "/Users/me/alpha", {
+      provider: "codex",
+      name: "New Skill",
+      description: "Creates a skill",
+      slug: "new-skill",
+    });
+    expect(dialog).toHaveTextContent("Created New Skill.");
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB12: exposes the create CTA in the empty repository skill state", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+
+    expect(
+      screen.getByRole("dialog", { name: /Create repository skill/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("SB13: validates required creation fields before saving", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(screen.getByText("Name is required.")).toBeInTheDocument();
+    expect(screen.getByText("Slug is required.")).toBeInTheDocument();
+    expect(createRepositorySkill).not.toHaveBeenCalled();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB14: keeps creation failures visible in the modal", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi
+      .spyOn(useSkillStore.getState(), "createRepositorySkill")
+      .mockRejectedValueOnce(new Error("skill already exists"));
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Create repository skill/i }),
+    );
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("skill already exists");
+
+    createRepositorySkill.mockRestore();
   });
 });

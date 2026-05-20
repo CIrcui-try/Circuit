@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const bridgeMock = vi.hoisted(() => ({
   openRepositoryDialog: vi.fn(),
   scanSkills: vi.fn(),
+  createRepositorySkill: vi.fn(),
   scanDefaultSkills: vi.fn(),
   scanSystemSkills: vi.fn(),
   loadRepositories: vi.fn(),
@@ -17,9 +18,17 @@ import { useSkillStore } from "./skillStore";
 
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
+  bridgeMock.createRepositorySkill.mockReset();
   bridgeMock.scanDefaultSkills.mockReset();
   bridgeMock.scanSystemSkills.mockReset();
-  useSkillStore.setState({ byRepo: {}, defaultSkills: [], systemSkills: [], loading: {}, errors: {} });
+  useSkillStore.setState({
+    byRepo: {},
+    defaultSkills: [],
+    systemSkills: [],
+    loading: {},
+    creating: {},
+    errors: {},
+  });
 });
 
 describe("skillStore — scanRepository", () => {
@@ -183,5 +192,74 @@ describe("skillStore — scanRepository", () => {
         systemSkillId: "codex:imagegen",
       },
     ]);
+  });
+});
+
+describe("skillStore — createRepositorySkill", () => {
+  it("S7: creates a repository skill and appends it to the repo cache", async () => {
+    useSkillStore.setState({
+      byRepo: {
+        "repo-1": [
+          {
+            id: "claude:.claude/skills/existing",
+            provider: "claude",
+            source: "repository",
+            name: "Existing",
+            description: "",
+            rootDir: ".claude/skills/existing",
+            skillFile: ".claude/skills/existing/SKILL.md",
+          },
+        ],
+      },
+    });
+    bridgeMock.createRepositorySkill.mockResolvedValueOnce({
+      provider: "codex",
+      dirName: "new-skill",
+      rootDir: ".codex/skills/new-skill",
+      skillFile: ".codex/skills/new-skill/SKILL.md",
+      content: "---\nname: New Skill\ndescription: Creates skills\n---\n",
+    });
+
+    const created = await useSkillStore.getState().createRepositorySkill(
+      "repo-1",
+      "/repo",
+      {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "Creates skills",
+      },
+    );
+
+    expect(bridgeMock.createRepositorySkill).toHaveBeenCalledWith("/repo", {
+      provider: "codex",
+      slug: "new-skill",
+      name: "New Skill",
+      description: "Creates skills",
+    });
+    expect(created.name).toBe("New Skill");
+    expect(useSkillStore.getState().byRepo["repo-1"]).toHaveLength(2);
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+  });
+
+  it("S8: stores and rethrows creation errors", async () => {
+    bridgeMock.createRepositorySkill.mockRejectedValueOnce(
+      new Error("skill already exists"),
+    );
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "claude",
+        slug: "existing",
+        name: "Existing",
+        description: "",
+      }),
+    ).rejects.toThrow("skill already exists");
+
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBe(
+      "skill already exists",
+    );
   });
 });
