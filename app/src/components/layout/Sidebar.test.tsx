@@ -482,6 +482,79 @@ describe("Sidebar", () => {
     createRepositorySkill.mockRestore();
   });
 
+  it("SB13b: validates skill slug characters before saving", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+    const createRepositorySkill = vi.spyOn(
+      useSkillStore.getState(),
+      "createRepositorySkill",
+    );
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.type(screen.getByLabelText("Name"), "New Skill");
+    await userEvent.type(screen.getByLabelText("Slug"), "../escape");
+    await userEvent.click(screen.getByTestId("skill-create-submit"));
+
+    expect(
+      screen.getByText(
+        "Slug may only contain letters, numbers, hyphens, or underscores.",
+      ),
+    ).toBeInTheDocument();
+    expect(createRepositorySkill).not.toHaveBeenCalled();
+
+    createRepositorySkill.mockRestore();
+  });
+
+  it("SB13c: resets model when switching skill provider", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "r1",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "r1",
+      hydrated: true,
+    });
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      loading: { r1: false },
+      errors: {},
+    });
+
+    render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    await userEvent.click(screen.getByText("or... do it yourself"));
+    await userEvent.type(screen.getByLabelText("Model"), "gpt-5.4");
+    await userEvent.click(screen.getByRole("radio", { name: "claude" }));
+
+    expect(screen.getByLabelText("Model")).toHaveValue("");
+    expect(
+      screen.getByPlaceholderText("sonnet, opus, or full model name"),
+    ).toBeInTheDocument();
+  });
+
   it("SB14: sends creation failures to the app alert without leaving a skill-list error", async () => {
     useRepositoryStore.setState({
       repositories: [

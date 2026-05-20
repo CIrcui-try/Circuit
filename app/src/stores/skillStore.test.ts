@@ -369,4 +369,41 @@ describe("skillStore — createRepositorySkill", () => {
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
+
+  it("S11: rejects concurrent creation for the same repository", async () => {
+    useSkillStore.setState({
+      creating: { "repo-1": true },
+    });
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "",
+      }),
+    ).rejects.toThrow("skill creation is already in progress");
+
+    expect(bridgeMock.createRepositorySkill).not.toHaveBeenCalled();
+    expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
+  });
+
+  it("S12: reports when the host bridge cannot create repository skills", async () => {
+    const originalCreate = bridgeMock.createRepositorySkill;
+    bridgeMock.createRepositorySkill = undefined as unknown as typeof originalCreate;
+
+    await expect(
+      useSkillStore.getState().createRepositorySkill("repo-1", "/repo", {
+        provider: "codex",
+        slug: "new-skill",
+        name: "New Skill",
+        description: "",
+      }),
+    ).rejects.toThrow("repository skill creation is not available");
+
+    expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
+
+    bridgeMock.createRepositorySkill = originalCreate;
+  });
 });

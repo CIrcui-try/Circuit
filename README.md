@@ -54,6 +54,17 @@ Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from yo
 
 The actual skill files remain in the repository. Circuit does not move them elsewhere or force them into a separate format. Instead, it reads the skills from the repository, shows them on the canvas, and provides a visual layer for defining their order and dependencies.
 
+### Create A Local Skill In Circuit
+
+When the selected repository has no custom skills yet, the Skills sidebar shows a New Skill action. The same action is also available from the sidebar header. Creating a skill writes a normal `SKILL.md` file back into the selected repository, then Circuit re-scans the repository and adds the new skill to the canvas.
+
+Choose the provider based on the agent that should run the skill:
+
+- Claude skills are created under `.claude/skills/<slug>/SKILL.md`.
+- Codex skills are created under `.codex/skills/<slug>/SKILL.md`.
+
+The slug becomes the directory name and may contain only letters, numbers, hyphens, or underscores. The provider does not change the file format; it controls which runtime adapter is used when the workflow executes the skill.
+
 ### Track Execution State
 
 https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f

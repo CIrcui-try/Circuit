@@ -577,6 +577,37 @@ mod tests {
     }
 
     #[test]
+    fn create_repository_skill_supports_claude_provider_and_escapes_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        let created = create_repository_skill(
+            repo,
+            "claude".into(),
+            "quoted_skill".into(),
+            "Quote \"Skill\"".into(),
+            "Handles \"quoted\" values across\nmultiple lines.".into(),
+            Some("  <TASK>  ".into()),
+            None,
+            Some("Use path C:\\work\\repo".into()),
+            None,
+        )
+        .expect("create skill failed");
+
+        assert_eq!(created.provider, "claude");
+        assert_eq!(created.root_dir, ".claude/skills/quoted_skill");
+        assert_eq!(created.skill_file, ".claude/skills/quoted_skill/SKILL.md");
+        assert!(created.content.contains("name: \"Quote \\\"Skill\\\"\""));
+        assert!(created
+            .content
+            .contains("description: \"Handles \\\"quoted\\\" values across multiple lines.\""));
+        assert!(created.content.contains("argument-hint: \"<TASK>\""));
+        assert!(created
+            .content
+            .contains("default-prompt: \"Use path C:\\\\work\\\\repo\""));
+    }
+
+    #[test]
     fn create_repository_skill_rejects_invalid_input() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().to_string_lossy().into_owned();
@@ -683,6 +714,24 @@ mod tests {
         assert!(duplicate.unwrap_err().contains("skill already exists"));
     }
 
+    #[test]
+    fn create_repository_skill_errors_for_missing_repository_path() {
+        let result = create_repository_skill(
+            "/definitely/does/not/exist".into(),
+            "codex".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "".into(),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(result
+            .unwrap_err()
+            .contains("repository path does not exist"));
+    }
 
     #[test]
     fn scan_default_skills_returns_installable_skill_files() {
