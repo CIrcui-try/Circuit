@@ -427,7 +427,7 @@ function toHandlePosition(
 
 function toHandleStyle(
   hint: DependencyEndpointHint | undefined,
-  kind: "source" | "target",
+  _kind: "source" | "target",
 ): CSSProperties | undefined {
   if (!hint) return undefined;
   const offset = toHandleOffset(hint.offset);
@@ -437,7 +437,7 @@ function toHandleStyle(
       right: "auto",
       bottom: "auto",
       left: offset,
-      transform: toHandleTransform(kind, "translate(-50%, -50%)"),
+      transform: "translate(-50%, -50%)",
     };
   }
   if (hint.side === "bottom") {
@@ -446,7 +446,7 @@ function toHandleStyle(
       right: "auto",
       bottom: 0,
       left: offset,
-      transform: toHandleTransform(kind, "translate(-50%, 50%)"),
+      transform: "translate(-50%, 50%)",
     };
   }
   if (hint.side === "right") {
@@ -455,7 +455,7 @@ function toHandleStyle(
       right: 0,
       bottom: "auto",
       left: "auto",
-      transform: toHandleTransform(kind, "translate(50%, -50%)"),
+      transform: "translate(50%, -50%)",
     };
   }
   return {
@@ -463,15 +463,8 @@ function toHandleStyle(
     right: "auto",
     bottom: "auto",
     left: 0,
-    transform: toHandleTransform(kind, "translate(-50%, -50%)"),
+    transform: "translate(-50%, -50%)",
   };
-}
-
-function toHandleTransform(
-  kind: "source" | "target",
-  translate: string,
-): string {
-  return `${translate}${kind === "source" ? " rotate(45deg)" : ""}`;
 }
 
 function toHandleOffset(offset: number): string {

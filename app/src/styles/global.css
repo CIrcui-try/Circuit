@@ -508,27 +508,25 @@ a:hover {
 .dependency-edge__endpoint {
   pointer-events: none;
   stroke: rgba(255, 255, 255, 0.78);
-  stroke-width: 1.6;
+  stroke-width: 1;
   opacity: 0.92;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.86));
 }
 
 .dependency-edge__endpoint--source {
   fill: #55d66b;
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: rotate(45deg);
 }
 
 .dependency-edge__endpoint--target {
-  fill: #5fa8ff;
+  fill: #1b1b1f;
+  stroke: #5fa8ff;
 }
 
 .workspace__canvas .react-flow__edge:hover .dependency-edge__endpoint,
 .workspace__canvas .react-flow__edge.selected .dependency-edge__endpoint {
   opacity: 1;
   stroke: #ffffff;
-  stroke-width: 2;
+  stroke-width: 1.3;
 }
 
 .starter-flow-empty {
@@ -1787,21 +1785,29 @@ a:hover {
 }
 
 .skill-node__handle {
-  width: 7px;
-  height: 7px;
+  width: 8.5px;
+  height: 8.5px;
   border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
   opacity: 0.88;
   z-index: 2;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
 .skill-node__handle--target {
-  background: #5fa8ff;
+  background: #1f1f24;
+  border-color: #5fa8ff;
+  box-shadow:
+    inset 0 0 0 1px rgba(95, 168, 255, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
 .skill-node__handle--source {
   background: #55d66b;
-  border-radius: 2px;
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 31, 36, 0.22),
+    0 0 0 1px rgba(0, 0, 0, 0.65);
 }
 
 .skill-node__handle--side {
