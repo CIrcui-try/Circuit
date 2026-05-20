@@ -85,6 +85,38 @@ export type RepositoryEnvironmentCheck = {
   codexStateDir: RepositoryEnvironmentCheckItem;
 };
 
+export type McpConfigFileStatus = {
+  path: string;
+  ok: boolean;
+  missing: boolean;
+  message?: string | null;
+};
+
+export type McpServerSummary = {
+  provider: "claude" | "codex";
+  scope: "global" | "project" | "user";
+  projectPath?: string | null;
+  name: string;
+  transport?: string | null;
+  command?: string | null;
+  args: string[];
+  url?: string | null;
+  hasEnv: boolean;
+  authRequired?: boolean | null;
+};
+
+export type McpConfigStatus = {
+  claude: {
+    config: McpConfigFileStatus;
+    authCache: McpConfigFileStatus;
+    servers: McpServerSummary[];
+  };
+  codex: {
+    config: McpConfigFileStatus;
+    servers: McpServerSummary[];
+  };
+};
+
 export type WorkspaceDTO = {
   id: string;
   path: string;
@@ -114,6 +146,7 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   checkRepositoryEnvironment?(
     repoPath: string,
   ): Promise<RepositoryEnvironmentCheck>;
+  readMcpConfigStatus?(): Promise<McpConfigStatus>;
   scanSkills(repoPath: string): Promise<RawSkill[]>;
   createRepositorySkill?(
     repoPath: string,
