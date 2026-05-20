@@ -151,6 +151,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     setDraftPromptOpen(true);
     setDraftGenerated(false);
     setDraftGoal("");
+    setGeneratingDraft(false);
     setPendingDraftExitConfirm(false);
     activeDraftRunRef.current = null;
     cancelledDraftRunIdsRef.current.clear();
@@ -170,11 +171,16 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const confirmDraftExit = async () => {
     const activeRun = activeDraftRunRef.current;
     setPendingDraftExitConfirm(false);
+    setCreateOpen(false);
+    setGeneratingDraft(false);
+    setDraftError(null);
+    setCreateError(null);
+    setCreateSuccess(null);
     if (!activeRun) {
-      setCreateOpen(false);
       return;
     }
     cancelledDraftRunIdsRef.current.add(activeRun.runId);
+    activeDraftRunRef.current = null;
     try {
       await activeRun.bridge.cancel(activeRun.runId);
     } catch (err) {

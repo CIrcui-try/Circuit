@@ -764,7 +764,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
   });
 
-  it("SB20: cancels the active draft run and closes the modal after confirming exit", async () => {
+  it("SB20: cancels the active draft run and clears generating state after confirming exit", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -804,6 +804,7 @@ describe("Sidebar", () => {
       ],
     });
     const cancel = vi.spyOn(runtimeBridge, "cancel");
+    cancel.mockResolvedValueOnce(undefined);
     window.__CIRCUIT_RUNTIME__ = runtimeBridge;
 
     render(<Sidebar repoId="r1" />);
@@ -822,6 +823,10 @@ describe("Sidebar", () => {
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("Cancelled Draft")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    expect(screen.getByTestId("skill-draft-generate")).not.toBeDisabled();
+    expect(screen.queryByTestId("skill-draft-spinner")).not.toBeInTheDocument();
 
     cancel.mockRestore();
   });
