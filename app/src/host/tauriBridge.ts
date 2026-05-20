@@ -59,6 +59,13 @@ export const tauriHostBridge: HostBridge = {
     });
   },
 
+  async deleteRepositorySkill(repoPath, input) {
+    await invoke<void>("delete_repository_skill", {
+      repoPath,
+      ...input,
+    });
+  },
+
   async scanDefaultSkills() {
     return await invoke<RawSkill[]>("scan_default_skills");
   },

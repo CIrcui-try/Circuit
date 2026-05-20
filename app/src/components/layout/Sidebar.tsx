@@ -30,6 +30,7 @@ const MODEL_OPTIONS_BY_PROVIDER: Record<SkillProvider, string[]> = {
 };
 
 type MenuState = { x: number; y: number; skill: Skill };
+type RemoveState = { skill: Skill; slug: string };
 type CreateForm = {
   provider: SkillProvider;
   name: string;
@@ -89,10 +90,12 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const defaultSkills = useSkillStore((s) => s.defaultSkills);
   const loading = useSkillStore((s) => (repoId ? s.loading[repoId] : false));
   const creating = useSkillStore((s) => (repoId ? s.creating[repoId] : false));
+  const deleting = useSkillStore((s) => (repoId ? s.deleting[repoId] : false));
   const defaultLoading = useSkillStore((s) => s.loading.default ?? false);
   const error = useSkillStore((s) => (repoId ? s.errors[repoId] : null));
   const defaultError = useSkillStore((s) => s.errors.default ?? null);
   const createRepositorySkill = useSkillStore((s) => s.createRepositorySkill);
+  const deleteRepositorySkill = useSkillStore((s) => s.deleteRepositorySkill);
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const repoPath = useRepositoryStore((s) =>
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
@@ -110,6 +113,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [pendingDraftExitConfirm, setPendingDraftExitConfirm] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<RemoveState | null>(null);
   const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
   const activeDraftRunRef = useRef<{
     runId: string;
@@ -262,6 +266,35 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     }
   };
 
+  const requestRemove = (skill: Skill) => {
+    if (!repoId || !repoPath || skill.source === "default" || skill.source === "system") {
+      return;
+    }
+    const slug = skillSlugFromRootDir(skill.rootDir);
+    if (!slug) {
+      notifyAppError(
+        new Error(`Could not resolve skill slug from ${skill.rootDir}`),
+        "Remove skill failed",
+      );
+      return;
+    }
+    setPendingRemove({ skill, slug });
+  };
+
+  const confirmRemove = async () => {
+    if (!repoId || !repoPath || !pendingRemove) return;
+    const { skill, slug } = pendingRemove;
+    try {
+      await deleteRepositorySkill(repoId, repoPath, {
+        provider: skill.provider,
+        slug,
+      });
+      setPendingRemove(null);
+    } catch (err) {
+      notifyAppError(err, "Remove skill failed");
+    }
+  };
+
   const buildMenuItems = (skill: Skill): SkillNodeMenuItem[] => {
     const absSkillFile = resolveSkillFilePath(skill, repoPath, defaultSkills);
     return [
@@ -295,6 +328,11 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
             });
           });
         },
+      },
+      {
+        label: "Remove",
+        disabled: deleting || skill.source === "default" || skill.source === "system",
+        onSelect: () => requestRemove(skill),
       },
     ];
   };
@@ -388,7 +426,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         open={manualOpen}
         onToggle={(event) => setManualOpen(event.currentTarget.open)}
       >
-        <summary>{draftGenerated ? "Review generated skill" : "or... do it yourself"}</summary>
+        <summary>{draftGenerated ? "Review generated skill" : "or... do it manually"}</summary>
 
         <fieldset className="skill-create-modal__provider" disabled={createBusy}>
           <legend>Provider</legend>
@@ -790,6 +828,45 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
           </div>
         </div>
       ) : null}
+      {pendingRemove ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skill-remove-title"
+            data-testid="skill-remove-confirm"
+          >
+            <h2 id="skill-remove-title" className="modal__title">
+              Remove skill
+            </h2>
+            <p className="modal__message">
+              Remove {pendingRemove.skill.name}? This will delete{" "}
+              <code>{pendingRemove.skill.rootDir}/SKILL.md</code> from the
+              repository.
+            </p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingRemove(null)}
+                disabled={deleting}
+                data-testid="skill-remove-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => void confirmRemove()}
+                disabled={deleting}
+                data-testid="skill-remove-confirm-remove"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -811,4 +888,10 @@ function validateCreateForm(form: CreateForm): CreateFieldErrors {
     errors.slug = "Slug may only contain letters, numbers, hyphens, or underscores.";
   }
   return errors;
+}
+
+function skillSlugFromRootDir(rootDir: string): string | null {
+  const parts = rootDir.split("/").filter(Boolean);
+  const slug = parts[parts.length - 1];
+  return slug || null;
 }

@@ -137,6 +137,29 @@ pub fn create_repository_skill(
 }
 
 #[tauri::command]
+pub fn delete_repository_skill(
+    repo_path: String,
+    provider: String,
+    slug: String,
+) -> Result<(), String> {
+    let repo = resolve_repo_path(&repo_path)?;
+    let provider = validate_provider(&provider)?;
+    let slug = validate_slug(&slug)?;
+
+    let skill_dir = repo
+        .join(format!(".{provider}"))
+        .join("skills")
+        .join(&slug);
+    ensure_existing_path_inside_repo(&repo, &skill_dir)?;
+    if !skill_dir.is_dir() || resolve_skill_file(&skill_dir).is_none() {
+        return Err(format!("skill not found: .{provider}/skills/{slug}"));
+    }
+
+    fs::remove_dir_all(&skill_dir)
+        .map_err(|e| format!("failed to remove {}: {e}", skill_dir.display()))
+}
+
+#[tauri::command]
 pub fn scan_default_skills(app: AppHandle) -> Result<Vec<RawSkill>, String> {
     let root = default_skills_root(&app)?;
     scan_default_skills_from_root(&root)
@@ -712,6 +735,58 @@ mod tests {
             None,
         );
         assert!(duplicate.unwrap_err().contains("skill already exists"));
+    }
+
+    #[test]
+    fn delete_repository_skill_removes_skill_dir_and_scan_no_longer_finds_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        create_repository_skill(
+            repo.clone(),
+            "codex".into(),
+            "new-skill".into(),
+            "New Skill".into(),
+            "".into(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("create skill failed");
+
+        delete_repository_skill(repo.clone(), "codex".into(), "new-skill".into())
+            .expect("delete skill failed");
+
+        assert!(!tmp
+            .path()
+            .join(".codex")
+            .join("skills")
+            .join("new-skill")
+            .exists());
+        assert!(scan_skills(repo).expect("scan failed").is_empty());
+    }
+
+    #[test]
+    fn delete_repository_skill_rejects_missing_or_invalid_targets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        let missing = delete_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "missing-skill".into(),
+        );
+        assert!(missing.unwrap_err().contains("skill not found"));
+
+        let invalid_provider =
+            delete_repository_skill(repo.clone(), "openai".into(), "skill".into());
+        assert!(invalid_provider
+            .unwrap_err()
+            .contains("provider must be claude or codex"));
+
+        let traversal_slug = delete_repository_skill(repo, "codex".into(), "../escape".into());
+        assert!(traversal_slug.unwrap_err().contains("skill slug may only"));
     }
 
     #[test]
