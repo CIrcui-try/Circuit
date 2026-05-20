@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Plus } from "lucide-react";
 import { generateSkillDraft } from "../../skills/generateSkillDraft";
+import type { RuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import {
   useSkillStore,
@@ -108,7 +109,13 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [pendingDraftExitConfirm, setPendingDraftExitConfirm] = useState(false);
   const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const activeDraftRunRef = useRef<{
+    runId: string;
+    bridge: RuntimeBridge;
+  } | null>(null);
+  const cancelledDraftRunIdsRef = useRef(new Set<string>());
 
   const handleDragStart = (event: DragEvent<HTMLLIElement>, skill: Skill) => {
     event.dataTransfer.setData(
@@ -144,17 +151,40 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     setDraftPromptOpen(true);
     setDraftGenerated(false);
     setDraftGoal("");
+    setPendingDraftExitConfirm(false);
+    activeDraftRunRef.current = null;
+    cancelledDraftRunIdsRef.current.clear();
     setCreateOpen(true);
     window.setTimeout(() => draftInputRef.current?.focus(), 0);
   };
 
-  const closeCreatePanel = () => {
-    if (creating || generatingDraft) return;
+  const requestCloseCreatePanel = () => {
+    if (creating) return;
+    if (generatingDraft) {
+      setPendingDraftExitConfirm(true);
+      return;
+    }
     setCreateOpen(false);
+  };
+
+  const confirmDraftExit = async () => {
+    const activeRun = activeDraftRunRef.current;
+    setPendingDraftExitConfirm(false);
+    if (!activeRun) {
+      setCreateOpen(false);
+      return;
+    }
+    cancelledDraftRunIdsRef.current.add(activeRun.runId);
+    try {
+      await activeRun.bridge.cancel(activeRun.runId);
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleGenerateDraft = async () => {
     if (!repoPath) return;
+    const runId = `skill-draft-${Date.now()}`;
     setDraftError(null);
     setCreateError(null);
     setCreateSuccess(null);
@@ -165,16 +195,35 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         goal: draftGoal,
         preferredProvider: createForm.provider,
         repoPath,
+        runId,
+        onRunStart: (nextRunId, bridge) => {
+          activeDraftRunRef.current = { runId: nextRunId, bridge };
+        },
+        isRunCancelled: (nextRunId) =>
+          cancelledDraftRunIdsRef.current.has(nextRunId),
       });
+      if (activeDraftRunRef.current?.runId !== runId) return;
       setCreateForm(draft);
       setManualOpen(true);
       setDraftPromptOpen(false);
       setDraftGenerated(true);
       setCreateSuccess("Draft ready. Review it, then create the skill.");
     } catch (err) {
+      if (cancelledDraftRunIdsRef.current.has(runId)) {
+        setCreateOpen(false);
+        setDraftError(null);
+        setCreateError(null);
+        setCreateSuccess(null);
+        return;
+      }
+      if (activeDraftRunRef.current?.runId !== runId) return;
       setDraftError(err instanceof Error ? err.message : String(err));
     } finally {
-      setGeneratingDraft(false);
+      if (activeDraftRunRef.current?.runId === runId) {
+        activeDraftRunRef.current = null;
+        cancelledDraftRunIdsRef.current.delete(runId);
+        setGeneratingDraft(false);
+      }
     }
   };
 
@@ -190,7 +239,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     if (Object.keys(validation).length > 0) return;
 
     try {
-      const skill = await createRepositorySkill(repoId, repoPath, {
+      await createRepositorySkill(repoId, repoPath, {
         provider: createForm.provider,
         name: createForm.name.trim(),
         description: createForm.description.trim(),
@@ -204,7 +253,8 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       setManualOpen(false);
       setDraftPromptOpen(true);
       setDraftGenerated(false);
-      setCreateSuccess(`Created ${skill.name}.`);
+      setCreateSuccess(null);
+      setCreateOpen(false);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     }
@@ -267,8 +317,8 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         <button
           type="button"
           className="skill-create-panel__hide"
-          onClick={closeCreatePanel}
-          disabled={createBusy}
+          onClick={requestCloseCreatePanel}
+          disabled={creating}
         >
           Close
         </button>
@@ -697,7 +747,52 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         />
       )}
 
-      {createOpen ? <div className="modal__backdrop">{createPanel}</div> : null}
+      {createOpen ? (
+        <div
+          className="modal__backdrop"
+          data-testid="skill-create-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              requestCloseCreatePanel();
+            }
+          }}
+        >
+          {createPanel}
+        </div>
+      ) : null}
+      {pendingDraftExitConfirm ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skill-draft-exit-title"
+            data-testid="skill-draft-exit-confirm"
+          >
+            <h2 id="skill-draft-exit-title" className="modal__title">
+              Skill generation in progress
+            </h2>
+            <p className="modal__message">Do you want to stop generating?</p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingDraftExitConfirm(false)}
+                data-testid="skill-draft-exit-continue"
+              >
+                Keep generating
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => void confirmDraftExit()}
+                data-testid="skill-draft-exit-confirm-exit"
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

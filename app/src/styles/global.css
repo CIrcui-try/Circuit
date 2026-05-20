@@ -1842,12 +1842,12 @@ a:hover {
 .skill-create-panel__manual {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 12px;
   padding-top: 2px;
 }
 
 .skill-create-panel__manual[open] {
-  gap: 10px;
+  gap: 14px;
 }
 
 .skill-create-panel__manual summary {
@@ -1855,6 +1855,19 @@ a:hover {
   color: #c8c8d0;
   font-size: 11px;
   font-weight: 600;
+}
+
+.skill-create-panel__manual[open] summary {
+  margin-bottom: 2px;
+}
+
+.skill-create-panel__manual[open] > .skill-create-modal__provider,
+.skill-create-panel__manual[open] > .skill-create-modal__field {
+  margin-top: 10px;
+}
+
+.skill-create-panel__manual[open] > .skill-create-modal__field + .skill-create-modal__field {
+  margin-top: 14px;
 }
 
 .skill-create-panel__footer {
@@ -1903,7 +1916,7 @@ a:hover {
 .skill-create-modal__field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
   color: #c8c8cf;
 }
 

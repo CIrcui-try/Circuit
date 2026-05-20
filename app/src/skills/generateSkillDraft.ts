@@ -22,6 +22,8 @@ export type GenerateSkillDraftOptions = {
   bridge?: RuntimeBridge;
   runId?: string;
   timeoutMs?: number;
+  onRunStart?: (runId: string, bridge: RuntimeBridge) => void;
+  isRunCancelled?: (runId: string) => boolean;
 };
 
 export async function generateSkillDraft(
@@ -34,10 +36,14 @@ export async function generateSkillDraft(
 
   const bridge = opts.bridge ?? getRuntimeBridge();
   const runId = opts.runId ?? `skill-draft-${Date.now()}`;
+  opts.onRunStart?.(runId, bridge);
   const prompt = buildDraftPrompt(goal, opts.preferredProvider);
   const resolved = await resolveCliCommand(bridge, "codex");
   if (resolved.resolve && !resolved.resolve.ok) {
     throw new Error(`Codex CLI unavailable: ${cliResolveError(resolved.resolve)}`);
+  }
+  if (opts.isRunCancelled?.(runId)) {
+    throw new Error("Codex draft generation was cancelled.");
   }
 
   const stdout = await runCodexJsonDraft({
@@ -47,6 +53,7 @@ export async function generateSkillDraft(
     prompt,
     repoPath: opts.repoPath,
     timeoutMs: opts.timeoutMs ?? 60_000,
+    isRunCancelled: opts.isRunCancelled,
   });
   return parseGeneratedSkillDraft(stdout);
 }
@@ -78,8 +85,10 @@ function runCodexJsonDraft(args: {
   prompt: string;
   repoPath: string;
   timeoutMs: number;
+  isRunCancelled?: (runId: string) => boolean;
 }): Promise<string> {
-  const { bridge, runId, command, prompt, repoPath, timeoutMs } = args;
+  const { bridge, runId, command, prompt, repoPath, timeoutMs, isRunCancelled } =
+    args;
   let stdout = "";
   let stderr = "";
 
@@ -128,8 +137,11 @@ function runCodexJsonDraft(args: {
     });
 
     unsubscribe.ready
-      .then(() =>
-        bridge.spawn({
+      .then(() => {
+        if (isRunCancelled?.(runId)) {
+          throw new Error("Codex draft generation was cancelled.");
+        }
+        return bridge.spawn({
           runId,
           command,
           args: [
@@ -147,8 +159,8 @@ function runCodexJsonDraft(args: {
           cwd: repoPath,
           timeoutMs,
           stdinMode: "null",
-        }),
-      )
+        });
+      })
       .catch((err: unknown) => {
         finish(() => reject(err instanceof Error ? err : new Error(String(err))));
       });
