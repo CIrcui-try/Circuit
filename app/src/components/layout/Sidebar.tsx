@@ -418,7 +418,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
               <input
                 value={createForm.name}
                 disabled={creating}
-                placeholder="Review and Fix"
+                placeholder="Skill name"
                 aria-invalid={Boolean(fieldErrors.name)}
                 aria-describedby={
                   fieldErrors.name ? "skill-create-name-error" : undefined
@@ -443,7 +443,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                 value={createForm.description}
                 disabled={creating}
                 rows={3}
-                placeholder="Review local changes and apply focused fixes."
+                placeholder="What this skill helps the agent do"
                 onChange={(event) =>
                   setCreateForm((form) => ({
                     ...form,
@@ -462,7 +462,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                 aria-describedby={
                   fieldErrors.slug ? "skill-create-slug-error" : undefined
                 }
-                placeholder="review-and-fix"
+                placeholder="skill-slug"
                 onChange={(event) =>
                   setCreateForm((form) => ({ ...form, slug: event.target.value }))
                 }

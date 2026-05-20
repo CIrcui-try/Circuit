@@ -374,11 +374,11 @@ describe("Sidebar", () => {
     const dialog = screen.getByRole("dialog", {
       name: /Create repository skill/i,
     });
-    expect(screen.getByPlaceholderText("Review and Fix")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Skill name")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Review local changes and apply focused fixes."),
+      screen.getByPlaceholderText("What this skill helps the agent do"),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("review-and-fix")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("skill-slug")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Name"), "New Skill");
     await userEvent.type(screen.getByLabelText("Description"), "Creates a skill");
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");

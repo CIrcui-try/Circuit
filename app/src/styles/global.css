@@ -1831,6 +1831,11 @@ a:hover {
   font: inherit;
 }
 
+.skill-create-modal__field input::placeholder,
+.skill-create-modal__field textarea::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
 .skill-create-modal__field textarea {
   resize: vertical;
 }
