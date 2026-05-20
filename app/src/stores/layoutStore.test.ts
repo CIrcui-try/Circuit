@@ -23,6 +23,7 @@ beforeEach(() => {
     propsWidth: LAYOUT_DEFAULTS.propsWidth,
     logHeight: LAYOUT_DEFAULTS.logHeight,
     sidebarCollapsed: false,
+    commonSkillsCollapsed: false,
     propsCollapsed: false,
     logCollapsed: false,
     hydrated: false,
@@ -41,6 +42,7 @@ describe("layoutStore — hydrate", () => {
       propsWidth: 360,
       logHeight: 220,
       sidebarCollapsed: true,
+      commonSkillsCollapsed: true,
       propsCollapsed: true,
       logCollapsed: true,
     } satisfies LayoutPrefsDTO);
@@ -52,6 +54,7 @@ describe("layoutStore — hydrate", () => {
       propsWidth: 360,
       logHeight: 220,
       sidebarCollapsed: true,
+      commonSkillsCollapsed: true,
       propsCollapsed: true,
       logCollapsed: true,
       hydrated: true,
@@ -69,6 +72,7 @@ describe("layoutStore — hydrate", () => {
 
     expect(useLayoutStore.getState()).toMatchObject({
       sidebarCollapsed: false,
+      commonSkillsCollapsed: false,
       propsCollapsed: false,
       logCollapsed: false,
       hydrated: true,
@@ -94,6 +98,7 @@ describe("layoutStore — persist", () => {
       propsWidth: 340,
       logHeight: 200,
       sidebarCollapsed: true,
+      commonSkillsCollapsed: false,
       propsCollapsed: false,
       logCollapsed: false,
     });
@@ -113,8 +118,27 @@ describe("layoutStore — persist", () => {
       propsWidth: LAYOUT_DEFAULTS.propsWidth,
       logHeight: LAYOUT_DEFAULTS.logHeight,
       sidebarCollapsed: false,
+      commonSkillsCollapsed: false,
       propsCollapsed: true,
       logCollapsed: true,
+    });
+  });
+
+  it("persists toggled common skills visibility", async () => {
+    useLayoutStore.setState({ hydrated: true });
+
+    useLayoutStore.getState().toggleCommonSkillsCollapsed();
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(bridgeMock.saveLayout).toHaveBeenCalledWith({
+      sidebarWidth: LAYOUT_DEFAULTS.sidebarWidth,
+      propsWidth: LAYOUT_DEFAULTS.propsWidth,
+      logHeight: LAYOUT_DEFAULTS.logHeight,
+      sidebarCollapsed: false,
+      commonSkillsCollapsed: true,
+      propsCollapsed: false,
+      logCollapsed: false,
     });
   });
 });

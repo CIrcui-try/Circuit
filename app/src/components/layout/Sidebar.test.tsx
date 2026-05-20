@@ -15,6 +15,7 @@ vi.mock("../../host/bridge", () => ({
 }));
 
 import { useRepositoryStore } from "../../stores/repositoryStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { Sidebar } from "./Sidebar";
@@ -35,6 +36,7 @@ beforeEach(() => {
     errors: {},
   });
   useWorkflowStore.getState().resetWorkflow();
+  useLayoutStore.setState({ commonSkillsCollapsed: false });
 });
 
 describe("Sidebar", () => {
@@ -267,6 +269,34 @@ describe("Sidebar", () => {
       provider: "codex",
       skillFile: ".codex/skills/planning/SKILL.md",
     });
+  });
+
+  it("SB8a: keeps the common section fold state in layout preferences", async () => {
+    useSkillStore.setState({
+      byRepo: { r1: [] },
+      defaultSkills: [
+        {
+          id: "codex:starter/boarding",
+          provider: "codex",
+          source: "default",
+          name: "planning",
+          description: "Plan the feature",
+          rootDir: "",
+          skillFile: ".codex/skills/planning/SKILL.md",
+        },
+      ],
+      loading: { r1: false },
+      errors: {},
+    });
+
+    const firstRender = render(<Sidebar repoId="r1" />);
+    await userEvent.click(screen.getByTestId("default-skill-section-toggle"));
+    firstRender.unmount();
+
+    render(<Sidebar repoId="r1" />);
+
+    expect(screen.queryByText("planning")).not.toBeInTheDocument();
+    expect(useLayoutStore.getState().commonSkillsCollapsed).toBe(true);
   });
 
   it("SB9: places the common section below repository skills", () => {

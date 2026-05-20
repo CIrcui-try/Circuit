@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { notifyAppError } from "../AppErrorAlert";
 import { generateSkillDraft } from "../../skills/generateSkillDraft";
 import type { RuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import {
   useSkillStore,
@@ -96,12 +97,15 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const defaultError = useSkillStore((s) => s.errors.default ?? null);
   const createRepositorySkill = useSkillStore((s) => s.createRepositorySkill);
   const deleteRepositorySkill = useSkillStore((s) => s.deleteRepositorySkill);
+  const defaultCollapsed = useLayoutStore((s) => s.commonSkillsCollapsed);
+  const toggleDefaultCollapsed = useLayoutStore(
+    (s) => s.toggleCommonSkillsCollapsed,
+  );
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const repoPath = useRepositoryStore((s) =>
     repoId ? s.repositories.find((r) => r.id === repoId)?.path ?? null : null,
   );
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [defaultCollapsed, setDefaultCollapsed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [draftPromptOpen, setDraftPromptOpen] = useState(true);
@@ -594,7 +598,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         className="skill-list__section-toggle"
         data-testid="default-skill-section-toggle"
         aria-expanded={!defaultCollapsed}
-        onClick={() => setDefaultCollapsed((collapsed) => !collapsed)}
+        onClick={toggleDefaultCollapsed}
       >
         <span className="skill-list__section-icon" aria-hidden="true">
           {defaultCollapsed ? ">" : "v"}

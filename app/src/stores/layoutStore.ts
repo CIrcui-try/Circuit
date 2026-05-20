@@ -19,6 +19,7 @@ type LayoutState = {
   propsWidth: number;
   logHeight: number;
   sidebarCollapsed: boolean;
+  commonSkillsCollapsed: boolean;
   propsCollapsed: boolean;
   logCollapsed: boolean;
   hydrated: boolean;
@@ -27,6 +28,8 @@ type LayoutState = {
   setLogHeight: (px: number) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarCollapsed: () => void;
+  setCommonSkillsCollapsed: (collapsed: boolean) => void;
+  toggleCommonSkillsCollapsed: () => void;
   setPropsCollapsed: (collapsed: boolean) => void;
   togglePropsCollapsed: () => void;
   setLogCollapsed: (collapsed: boolean) => void;
@@ -60,6 +63,7 @@ type PersistedLayoutState = Pick<
   | "propsWidth"
   | "logHeight"
   | "sidebarCollapsed"
+  | "commonSkillsCollapsed"
   | "propsCollapsed"
   | "logCollapsed"
 >;
@@ -70,6 +74,7 @@ function toPrefs(state: PersistedLayoutState): LayoutPrefsDTO {
     propsWidth: state.propsWidth,
     logHeight: state.logHeight,
     sidebarCollapsed: state.sidebarCollapsed,
+    commonSkillsCollapsed: state.commonSkillsCollapsed,
     propsCollapsed: state.propsCollapsed,
     logCollapsed: state.logCollapsed,
   };
@@ -94,6 +99,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   propsWidth: LAYOUT_DEFAULTS.propsWidth,
   logHeight: LAYOUT_DEFAULTS.logHeight,
   sidebarCollapsed: false,
+  commonSkillsCollapsed: false,
   propsCollapsed: false,
   logCollapsed: false,
   hydrated: false,
@@ -133,6 +139,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   toggleSidebarCollapsed: () => {
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+    schedulePersist(get());
+  },
+
+  setCommonSkillsCollapsed: (collapsed) => {
+    if (collapsed === get().commonSkillsCollapsed) return;
+    set({ commonSkillsCollapsed: collapsed });
+    schedulePersist(get());
+  },
+
+  toggleCommonSkillsCollapsed: () => {
+    set((state) => ({ commonSkillsCollapsed: !state.commonSkillsCollapsed }));
     schedulePersist(get());
   },
 
@@ -178,6 +195,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             ),
             logHeight: clamp(stored.logHeight, LAYOUT_LIMITS.log.min, logMax()),
             sidebarCollapsed: optionalBoolean(stored.sidebarCollapsed) ?? false,
+            commonSkillsCollapsed:
+              optionalBoolean(stored.commonSkillsCollapsed) ?? false,
             propsCollapsed: optionalBoolean(stored.propsCollapsed) ?? false,
             logCollapsed: optionalBoolean(stored.logCollapsed) ?? false,
           });

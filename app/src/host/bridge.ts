@@ -58,6 +58,7 @@ export type LayoutPrefsDTO = {
   propsWidth: number;
   logHeight: number;
   sidebarCollapsed?: boolean;
+  commonSkillsCollapsed?: boolean;
   propsCollapsed?: boolean;
   logCollapsed?: boolean;
 };

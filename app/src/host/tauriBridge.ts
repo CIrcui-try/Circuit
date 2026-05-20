@@ -22,11 +22,13 @@ import type {
 import type { Repository } from "../stores/repositoryStore";
 
 const STORE_FILE = "repositories.json";
+const PREFERENCES_FILE = "preferences.json";
 const STORE_KEY = "repositories";
 const LAYOUT_KEY = "layout";
 const CLI_SETTINGS_KEY = "cliSettings";
 
 const store = new LazyStore(STORE_FILE);
+const preferencesStore = new LazyStore(PREFERENCES_FILE);
 
 export const tauriHostBridge: HostBridge = {
   async openRepositoryDialog() {
@@ -126,23 +128,27 @@ export const tauriHostBridge: HostBridge = {
   },
 
   async loadLayout() {
-    const stored = await store.get<LayoutPrefsDTO>(LAYOUT_KEY);
+    const stored =
+      (await preferencesStore.get<LayoutPrefsDTO>(LAYOUT_KEY)) ??
+      (await store.get<LayoutPrefsDTO>(LAYOUT_KEY));
     return stored ?? null;
   },
 
   async saveLayout(prefs: LayoutPrefsDTO) {
-    await store.set(LAYOUT_KEY, prefs);
-    await store.save();
+    await preferencesStore.set(LAYOUT_KEY, prefs);
+    await preferencesStore.save();
   },
 
   async loadCliSettings() {
-    const stored = await store.get<CliSettingsDTO>(CLI_SETTINGS_KEY);
+    const stored =
+      (await preferencesStore.get<CliSettingsDTO>(CLI_SETTINGS_KEY)) ??
+      (await store.get<CliSettingsDTO>(CLI_SETTINGS_KEY));
     return stored ?? null;
   },
 
   async saveCliSettings(settings: CliSettingsDTO) {
-    await store.set(CLI_SETTINGS_KEY, settings);
-    await store.save();
+    await preferencesStore.set(CLI_SETTINGS_KEY, settings);
+    await preferencesStore.save();
   },
 
   async acquireWorkspace(userId: string, repoUrl: string) {
