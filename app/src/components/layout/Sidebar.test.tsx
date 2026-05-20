@@ -404,6 +404,14 @@ describe("Sidebar", () => {
       defaultPrompt: "Check the implementation",
       defaultModel: "gpt-5.4",
     });
+    const { nodes } = useWorkflowStore.getState();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.label).toBe("New Skill");
+    expect(nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/new-skill/SKILL.md",
+    });
     expect(panel).not.toBeInTheDocument();
 
     createRepositorySkill.mockRestore();
@@ -474,7 +482,7 @@ describe("Sidebar", () => {
     createRepositorySkill.mockRestore();
   });
 
-  it("SB14: keeps creation failures visible in the modal", async () => {
+  it("SB14: sends creation failures to the app alert without leaving a skill-list error", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -496,6 +504,7 @@ describe("Sidebar", () => {
     const createRepositorySkill = vi
       .spyOn(useSkillStore.getState(), "createRepositorySkill")
       .mockRejectedValueOnce(new Error("skill already exists"));
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
 
     render(<Sidebar repoId="r1" />);
     await userEvent.click(
@@ -506,8 +515,19 @@ describe("Sidebar", () => {
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("skill already exists");
+    const appAlertEvent = dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "circuit:error") as CustomEvent<{
+        title: string;
+        message: string;
+      }>;
+    expect(appAlertEvent.detail).toMatchObject({
+      title: "Create skill failed",
+      message: "skill already exists",
+    });
+    expect(screen.queryByText("skill already exists")).not.toBeInTheDocument();
 
+    dispatchEvent.mockRestore();
     createRepositorySkill.mockRestore();
   });
 
@@ -756,7 +776,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("skill-draft-spinner")).toBeInTheDocument();
   });
 
-  it("SB20: cancels the active draft run and closes the modal after confirming exit", async () => {
+  it("SB20: cancels the active draft run and clears generating state after confirming exit", async () => {
     useRepositoryStore.setState({
       repositories: [
         {
@@ -796,6 +816,7 @@ describe("Sidebar", () => {
       ],
     });
     const cancel = vi.spyOn(runtimeBridge, "cancel");
+    cancel.mockResolvedValueOnce(undefined);
     window.__CIRCUIT_RUNTIME__ = runtimeBridge;
 
     render(<Sidebar repoId="r1" />);
@@ -814,6 +835,10 @@ describe("Sidebar", () => {
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("Cancelled Draft")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("skill-create-empty"));
+    expect(screen.getByTestId("skill-draft-generate")).not.toBeDisabled();
+    expect(screen.queryByTestId("skill-draft-spinner")).not.toBeInTheDocument();
 
     cancel.mockRestore();
   });

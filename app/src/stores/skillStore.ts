@@ -104,32 +104,58 @@ export const useSkillStore = create<SkillState>((set, get) => ({
       errors: { ...s.errors, [repoId]: null },
     }));
 
-    try {
-      const bridge = getHostBridge();
-      if (!bridge.createRepositorySkill) {
-        throw new Error("repository skill creation is not available");
-      }
-      const raw = await bridge.createRepositorySkill(repoPath, input);
-      const skill = toRepositorySkill(raw);
-
-      set((s) => {
-        const current = s.byRepo[repoId] ?? [];
-        const withoutDuplicate = current.filter((item) => item.id !== skill.id);
-        return {
-          byRepo: { ...s.byRepo, [repoId]: [...withoutDuplicate, skill] },
-          creating: { ...s.creating, [repoId]: false },
-        };
-      });
-
-      return skill;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    const bridge = getHostBridge();
+    if (!bridge.createRepositorySkill) {
+      const message = "repository skill creation is not available";
       set((s) => ({
-        errors: { ...s.errors, [repoId]: message },
+        creating: { ...s.creating, [repoId]: false },
+      }));
+      throw new Error(message);
+    }
+
+    let createdSkill: Skill;
+    try {
+      createdSkill = toRepositorySkill(
+        await bridge.createRepositorySkill(repoPath, input),
+      );
+    } catch (err) {
+      set((s) => ({
         creating: { ...s.creating, [repoId]: false },
       }));
       throw err;
     }
+
+    let refreshedSkills: Skill[];
+    try {
+      refreshedSkills = (await bridge.scanSkills(repoPath)).map(toRepositorySkill);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const message = `Skill was created, but repository re-scan failed: ${reason}`;
+      set((s) => ({
+        creating: { ...s.creating, [repoId]: false },
+      }));
+      throw new Error(message);
+    }
+
+    const refreshedSkill = refreshedSkills.find(
+      (skill) => skill.id === createdSkill.id,
+    );
+    if (!refreshedSkill) {
+      const message =
+        "Skill was created, but it was not found in the refreshed skill list.";
+      set((s) => ({
+        byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
+        creating: { ...s.creating, [repoId]: false },
+      }));
+      throw new Error(message);
+    }
+
+    set((s) => ({
+      byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
+      creating: { ...s.creating, [repoId]: false },
+    }));
+
+    return refreshedSkill;
   },
 
   scanDefaultCatalog: async () => {

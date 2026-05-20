@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Plus } from "lucide-react";
+import { notifyAppError } from "../AppErrorAlert";
 import { generateSkillDraft } from "../../skills/generateSkillDraft";
 import type { RuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
 import { useRepositoryStore } from "../../stores/repositoryStore";
@@ -107,7 +108,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [fieldErrors, setFieldErrors] = useState<CreateFieldErrors>({});
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [pendingDraftExitConfirm, setPendingDraftExitConfirm] = useState(false);
   const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -145,12 +145,12 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     setCreateForm(EMPTY_CREATE_FORM);
     setFieldErrors({});
     setDraftError(null);
-    setCreateError(null);
     setCreateSuccess(null);
     setManualOpen(false);
     setDraftPromptOpen(true);
     setDraftGenerated(false);
     setDraftGoal("");
+    setGeneratingDraft(false);
     setPendingDraftExitConfirm(false);
     activeDraftRunRef.current = null;
     cancelledDraftRunIdsRef.current.clear();
@@ -170,11 +170,15 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
   const confirmDraftExit = async () => {
     const activeRun = activeDraftRunRef.current;
     setPendingDraftExitConfirm(false);
+    setCreateOpen(false);
+    setGeneratingDraft(false);
+    setDraftError(null);
+    setCreateSuccess(null);
     if (!activeRun) {
-      setCreateOpen(false);
       return;
     }
     cancelledDraftRunIdsRef.current.add(activeRun.runId);
+    activeDraftRunRef.current = null;
     try {
       await activeRun.bridge.cancel(activeRun.runId);
     } catch (err) {
@@ -186,7 +190,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
     if (!repoPath) return;
     const runId = `skill-draft-${Date.now()}`;
     setDraftError(null);
-    setCreateError(null);
     setCreateSuccess(null);
     setFieldErrors({});
     setGeneratingDraft(true);
@@ -212,7 +215,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       if (cancelledDraftRunIdsRef.current.has(runId)) {
         setCreateOpen(false);
         setDraftError(null);
-        setCreateError(null);
         setCreateSuccess(null);
         return;
       }
@@ -233,13 +235,12 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
 
     const validation = validateCreateForm(createForm);
     setFieldErrors(validation);
-    setCreateError(null);
     setDraftError(null);
     setCreateSuccess(null);
     if (Object.keys(validation).length > 0) return;
 
     try {
-      await createRepositorySkill(repoId, repoPath, {
+      const skill = await createRepositorySkill(repoId, repoPath, {
         provider: createForm.provider,
         name: createForm.name.trim(),
         description: createForm.description.trim(),
@@ -248,6 +249,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         defaultPrompt: createForm.defaultPrompt.trim(),
         defaultModel: createForm.defaultModel.trim(),
       });
+      handleAdd(skill);
       setCreateForm(EMPTY_CREATE_FORM);
       setDraftGoal("");
       setManualOpen(false);
@@ -256,7 +258,7 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       setCreateSuccess(null);
       setCreateOpen(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : String(err));
+      notifyAppError(err, "Create skill failed");
     }
   };
 
@@ -529,11 +531,6 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         </label>
       </details>
 
-      {createError ? (
-        <div className="skill-create-modal__error" role="alert">
-          {createError}
-        </div>
-      ) : null}
       {createSuccess ? (
         <div className="skill-create-modal__success" role="status">
           {createSuccess}
