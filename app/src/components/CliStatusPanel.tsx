@@ -258,18 +258,6 @@ export function CliStatusPanel() {
             data-testid="mcp-servers-toggle"
             data-status={mcpAggregateStatus}
           >
-            {isCheckingMcp ? (
-              <span
-                className="cli-status-spinner"
-                aria-hidden="true"
-                role="presentation"
-              />
-            ) : (
-              <span
-                className={`cli-status-dot cli-status-dot--${mcpAggregateStatus}`}
-                aria-hidden="true"
-              />
-            )}
             <span className="mcp-servers-toggle__chevron" aria-hidden="true">
               {mcpExpanded ? "v" : ">"}
             </span>
