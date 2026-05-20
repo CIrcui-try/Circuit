@@ -4,17 +4,17 @@
 
 # Circuit
 
-[한국어 README](README_kr.md)
+[한국어 README](README_kr.md) | [中文 README](README_zh.md)
 
 #### For your SDD (Skill-Driven Development).
 
 Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
 
-Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow often disappears into long prompts, command chains, and TUI sessions. As projects grow, it becomes increasingly common to dig through terminal output just to find which skill finished, which one is running, and where human input is needed.
+Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow often disappears into long prompts, command chains, and TUI sessions. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
 
 This is where Skills become useful. As agent work repeats across planning, implementation, review, commit, merge, and deploy, skills move beyond one-off prompts or helper scripts and become repeatable units of development.
 
-But when this flow stays buried inside long prompts, command chains, and TUI sessions, the stronger the automation gets, the harder the project becomes to understand and steer. Circuit was built to turn this Skill-Driven Development into a visible, repeatable _workflow_ that humans can step into when needed.
+Circuit was built to turn this Skill-Driven Development into a visible, repeatable, and above all human-understandable _workflow_.
 
 ## What Can Circuit Do?
 
