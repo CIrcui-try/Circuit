@@ -1001,7 +1001,7 @@ describe("Workspace", () => {
     expect(useRunStore.getState().status).toBe("idle");
   });
 
-  it("W9a: opens hello_world.html after a successful tutorial run", async () => {
+  it("W9a: does not open a hard-coded tutorial result after a successful run", async () => {
     const tutorialRepo: Repository = {
       id: "id-tutorial",
       name: "Circuit Tutorial",
@@ -1010,10 +1010,6 @@ describe("Workspace", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
     useRepositoryStore.setState({ repositories: [tutorialRepo], hydrated: true });
-    bridgeMock.pathExists.mockImplementation(async (...args: unknown[]) => {
-      const path = args[0] as string;
-      return path === "/Users/me/Circuit Tutorial/hello_world.html";
-    });
     (window as unknown as { __CIRCUIT_RUNTIME__?: unknown }).__CIRCUIT_RUNTIME__ =
       createMockRuntimeBridge({
         files: {
@@ -1046,10 +1042,8 @@ describe("Workspace", () => {
 
     await vi.waitFor(() => {
       expect(useRunStore.getState().status).toBe("success");
-      expect(openerMock.openPath).toHaveBeenCalledWith(
-        "/Users/me/Circuit Tutorial/hello_world.html",
-      );
     });
+    expect(openerMock.openPath).not.toHaveBeenCalled();
   });
 
   it("W9b: clicking Start on a loop asks before running", async () => {

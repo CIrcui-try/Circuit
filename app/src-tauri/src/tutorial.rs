@@ -5,7 +5,7 @@ use std::process::Command;
 use tauri::{AppHandle, Manager};
 
 const TUTORIAL_DIR_NAME: &str = "Circuit Tutorial";
-const README: &str = "# Circuit Tutorial\n\nThis folder is a safe place to try Circuit. The starter flow will create `hello_world.html` here.\n";
+const README: &str = "# Circuit Tutorial\n\nThis folder is a safe place to try Circuit. Open it in Circuit and run a starter flow for the task you want to build.\n";
 
 #[tauri::command]
 pub fn create_tutorial_repository(app: AppHandle) -> Result<String, String> {
