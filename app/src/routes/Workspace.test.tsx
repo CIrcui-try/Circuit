@@ -16,6 +16,7 @@ const bridgeMock = vi.hoisted(() => ({
   listWorkflows: vi.fn(async () => []),
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
+  saveLayout: vi.fn(async () => {}),
 }));
 
 const openerMock = vi.hoisted(() => ({
@@ -140,6 +141,8 @@ beforeEach(() => {
   bridgeMock.listWorkflows.mockResolvedValue([]);
   bridgeMock.saveWorkflow.mockReset();
   bridgeMock.saveWorkflow.mockResolvedValue(undefined);
+  bridgeMock.saveLayout.mockReset();
+  bridgeMock.saveLayout.mockResolvedValue(undefined);
   bridgeMock.loadWorkflow.mockReset();
   bridgeMock.loadWorkflow.mockResolvedValue("{}");
   openerMock.openPath.mockReset();
@@ -1457,7 +1460,7 @@ describe("Workspace", () => {
     expect(screen.queryByText("running beta node")).not.toBeInTheDocument();
   });
 
-  it("W15: collapses and restores the skills sidebar without a sidebar resize handle", () => {
+  it("W15: collapses and restores the skills sidebar without a sidebar resize handle", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -1469,6 +1472,11 @@ describe("Workspace", () => {
     expect(screen.getByTestId("skills-sidebar-restore")).toBeInTheDocument();
     expect(screen.queryByTestId("skills-sidebar-collapse")).not.toBeInTheDocument();
     expect(screen.queryByTestId("resize-handle-sidebar")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sidebarCollapsed: true }),
+      );
+    });
 
     fireEvent.click(screen.getByTestId("skills-sidebar-restore"));
 
@@ -1478,6 +1486,11 @@ describe("Workspace", () => {
     expect(screen.getByTestId("skills-sidebar-collapse")).toBeInTheDocument();
     expect(screen.getByTestId("resize-handle-sidebar")).toBeInTheDocument();
     expect(screen.queryByTestId("skills-sidebar-restore")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sidebarCollapsed: false }),
+      );
+    });
   });
 
   it("W16: keeps the collapsed sidebar state across workspace remounts in the same session", () => {
@@ -1495,7 +1508,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("skills-sidebar-restore")).toBeInTheDocument();
   });
 
-  it("W17: collapses and restores the run log without a log resize handle", () => {
+  it("W17: collapses and restores the run log without a log resize handle", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -1507,6 +1520,11 @@ describe("Workspace", () => {
     expect(screen.getByTestId("run-log-restore")).toBeInTheDocument();
     expect(screen.queryByTestId("run-log-collapse")).not.toBeInTheDocument();
     expect(screen.queryByTestId("resize-handle-log")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ logCollapsed: true }),
+      );
+    });
 
     fireEvent.click(screen.getByTestId("run-log-restore"));
 
@@ -1516,9 +1534,14 @@ describe("Workspace", () => {
     expect(screen.getByTestId("run-log-collapse")).toBeInTheDocument();
     expect(screen.getByTestId("resize-handle-log")).toBeInTheDocument();
     expect(screen.queryByTestId("run-log-restore")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ logCollapsed: false }),
+      );
+    });
   });
 
-  it("W18: collapses and restores the properties panel without a props resize handle", () => {
+  it("W18: collapses and restores the properties panel without a props resize handle", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
     renderAt("/workspace/id-alpha");
@@ -1530,6 +1553,11 @@ describe("Workspace", () => {
     expect(screen.getByTestId("properties-panel-restore")).toBeInTheDocument();
     expect(screen.queryByTestId("properties-panel-collapse")).not.toBeInTheDocument();
     expect(screen.queryByTestId("resize-handle-props")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ propsCollapsed: true }),
+      );
+    });
 
     fireEvent.click(screen.getByTestId("properties-panel-restore"));
 
@@ -1539,6 +1567,11 @@ describe("Workspace", () => {
     expect(screen.getByTestId("properties-panel-collapse")).toBeInTheDocument();
     expect(screen.getByTestId("resize-handle-props")).toBeInTheDocument();
     expect(screen.queryByTestId("properties-panel-restore")).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({ propsCollapsed: false }),
+      );
+    });
   });
 
   it("W19: keeps the collapsed properties panel state across workspace remounts in the same session", () => {
