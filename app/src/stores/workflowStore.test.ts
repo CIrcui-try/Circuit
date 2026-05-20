@@ -73,6 +73,28 @@ describe("workflowStore", () => {
     });
   });
 
+  it("WS1b: addSkillNode copies default input and model from skill metadata", () => {
+    useWorkflowStore.getState().addSkillNode(
+      {
+        ...codexSkill,
+        defaultInput: {
+          arguments: "CIR-94",
+          prompt: "Check the UI",
+        },
+        defaultModel: "gpt-5.4",
+      },
+      { x: 10, y: 20 },
+    );
+
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      arguments: "CIR-94",
+      prompt: "Check the UI",
+    });
+    expect(useWorkflowStore.getState().nodes[0].data.execution).toEqual({
+      model: "gpt-5.4",
+    });
+  });
+
   it("WS1c: addSkillNode stores system skill refs by id", () => {
     useWorkflowStore.getState().addSkillNode(
       {

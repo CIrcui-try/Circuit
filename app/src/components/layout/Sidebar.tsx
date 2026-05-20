@@ -21,12 +21,20 @@ type SidebarProps = {
   onCollapse?: () => void;
 };
 
+const MODEL_OPTIONS_BY_PROVIDER: Record<SkillProvider, string[]> = {
+  claude: ["sonnet", "opus"],
+  codex: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2"],
+};
+
 type MenuState = { x: number; y: number; skill: Skill };
 type CreateForm = {
   provider: SkillProvider;
   name: string;
   description: string;
   slug: string;
+  defaultArguments: string;
+  defaultPrompt: string;
+  defaultModel: string;
 };
 type CreateFieldErrors = Partial<Record<"name" | "slug", string>>;
 
@@ -35,6 +43,9 @@ const EMPTY_CREATE_FORM: CreateForm = {
   name: "",
   description: "",
   slug: "",
+  defaultArguments: "",
+  defaultPrompt: "",
+  defaultModel: "",
 };
 
 function dropPosition(index: number) {
@@ -103,6 +114,8 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         name: skill.name,
         description: skill.description,
         inputHints: skill.inputHints ?? [],
+        defaultInput: skill.defaultInput,
+        defaultModel: skill.defaultModel,
       }),
     );
     event.dataTransfer.effectAllowed = "copy";
@@ -142,6 +155,9 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
         name: createForm.name.trim(),
         description: createForm.description.trim(),
         slug: createForm.slug.trim(),
+        defaultArguments: createForm.defaultArguments.trim(),
+        defaultPrompt: createForm.defaultPrompt.trim(),
+        defaultModel: createForm.defaultModel.trim(),
       });
       setCreateForm(EMPTY_CREATE_FORM);
       setCreateSuccess(`Created ${skill.name}.`);
@@ -405,7 +421,11 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
                     value={provider}
                     checked={createForm.provider === provider}
                     onChange={() =>
-                      setCreateForm((form) => ({ ...form, provider }))
+                      setCreateForm((form) => ({
+                        ...form,
+                        provider,
+                        defaultModel: "",
+                      }))
                     }
                   />
                   {provider}
@@ -477,6 +497,59 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
               </div>
             ) : null}
 
+            <label className="skill-create-modal__field">
+              <span>Arguments</span>
+              <textarea
+                value={createForm.defaultArguments}
+                disabled={creating}
+                rows={2}
+                placeholder="Default slash-command arguments"
+                onChange={(event) =>
+                  setCreateForm((form) => ({
+                    ...form,
+                    defaultArguments: event.target.value,
+                  }))
+                }
+              />
+            </label>
+
+            <label className="skill-create-modal__field">
+              <span>Prompt</span>
+              <textarea
+                value={createForm.defaultPrompt}
+                disabled={creating}
+                rows={3}
+                placeholder="Default free-form prompt"
+                onChange={(event) =>
+                  setCreateForm((form) => ({
+                    ...form,
+                    defaultPrompt: event.target.value,
+                  }))
+                }
+              />
+            </label>
+
+            <label className="skill-create-modal__field">
+              <span>Model</span>
+              <input
+                value={createForm.defaultModel}
+                disabled={creating}
+                list={`skill-create-model-options-${createForm.provider}`}
+                placeholder={modelPlaceholder(createForm.provider)}
+                onChange={(event) =>
+                  setCreateForm((form) => ({
+                    ...form,
+                    defaultModel: event.target.value,
+                  }))
+                }
+              />
+              <datalist id={`skill-create-model-options-${createForm.provider}`}>
+                {MODEL_OPTIONS_BY_PROVIDER[createForm.provider].map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            </label>
+
             {modalError ? (
               <div className="skill-create-modal__error" role="alert">
                 {modalError}
@@ -505,6 +578,11 @@ export function Sidebar({ repoId, onCollapse }: SidebarProps) {
       ) : null}
     </aside>
   );
+}
+
+function modelPlaceholder(provider: SkillProvider): string {
+  if (provider === "claude") return "sonnet, opus, or full model name";
+  return "Codex model name";
 }
 
 function validateCreateForm(form: CreateForm): CreateFieldErrors {

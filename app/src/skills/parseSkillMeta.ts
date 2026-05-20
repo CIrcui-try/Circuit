@@ -2,6 +2,8 @@ export type SkillMeta = {
   name: string;
   description: string;
   inputHints: SkillInputHint[];
+  defaultInput?: Record<string, string>;
+  defaultModel?: string;
 };
 
 export type SkillInputHint = {
@@ -17,13 +19,23 @@ export function parseSkillMeta(content: string, dirName: string): SkillMeta {
     fm.name ?? extractFirstHeading(stripFrontmatter(content, fm.matched)) ?? dirName;
   const description = fm.description ?? "";
   const inputHints = extractInputHints(content);
-  return { name, description, inputHints };
+  const defaultInput = buildDefaultInput(fm);
+  return {
+    name,
+    description,
+    inputHints,
+    ...(defaultInput ? { defaultInput } : {}),
+    ...(fm.defaultModel ? { defaultModel: fm.defaultModel } : {}),
+  };
 }
 
 type Frontmatter = {
   name?: string;
   description?: string;
   argumentHint?: string;
+  defaultArguments?: string;
+  defaultPrompt?: string;
+  defaultModel?: string;
   matched: boolean;
 };
 
@@ -48,8 +60,18 @@ function extractFrontmatter(content: string): Frontmatter {
     if (key === "name") result.name = value;
     else if (key === "description") result.description = value;
     else if (key === "argument-hint") result.argumentHint = value;
+    else if (key === "default-arguments") result.defaultArguments = value;
+    else if (key === "default-prompt") result.defaultPrompt = value;
+    else if (key === "default-model") result.defaultModel = value;
   }
   return result;
+}
+
+function buildDefaultInput(fm: Frontmatter): Record<string, string> | undefined {
+  const input: Record<string, string> = {};
+  if (fm.defaultArguments) input.arguments = fm.defaultArguments;
+  if (fm.defaultPrompt) input.prompt = fm.defaultPrompt;
+  return Object.keys(input).length > 0 ? input : undefined;
 }
 
 function stripFrontmatter(content: string, matched: boolean): string {

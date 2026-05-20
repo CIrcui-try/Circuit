@@ -379,9 +379,17 @@ describe("Sidebar", () => {
       screen.getByPlaceholderText("What this skill helps the agent do"),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText("skill-slug")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Default slash-command arguments"),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Default free-form prompt")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Codex model name")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Name"), "New Skill");
     await userEvent.type(screen.getByLabelText("Description"), "Creates a skill");
     await userEvent.type(screen.getByLabelText("Slug"), "new-skill");
+    await userEvent.type(screen.getByLabelText("Arguments"), "CIR-94");
+    await userEvent.type(screen.getByLabelText("Prompt"), "Check the implementation");
+    await userEvent.type(screen.getByLabelText("Model"), "gpt-5.4");
     await userEvent.click(screen.getByTestId("skill-create-submit"));
 
     expect(createRepositorySkill).toHaveBeenCalledWith("r1", "/Users/me/alpha", {
@@ -389,6 +397,9 @@ describe("Sidebar", () => {
       name: "New Skill",
       description: "Creates a skill",
       slug: "new-skill",
+      defaultArguments: "CIR-94",
+      defaultPrompt: "Check the implementation",
+      defaultModel: "gpt-5.4",
     });
     expect(dialog).toHaveTextContent("Created New Skill.");
 

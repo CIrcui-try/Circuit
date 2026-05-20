@@ -40,7 +40,7 @@ describe("skillStore — scanRepository", () => {
         rootDir: ".claude/skills/implement-feature",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
         content:
-          "---\nname: Implement Feature\ndescription: Adds features\n---\n\n`$ARGUMENTS` format: `<TASK> [--force]`.",
+          "---\nname: Implement Feature\ndescription: Adds features\ndefault-arguments: CIR-94\ndefault-prompt: Ship it\ndefault-model: sonnet\n---\n\n`$ARGUMENTS` format: `<TASK> [--force]`.",
       },
       {
         provider: "codex",
@@ -71,6 +71,11 @@ describe("skillStore — scanRepository", () => {
             placeholder: "<TASK> [--force]",
           },
         ],
+        defaultInput: {
+          arguments: "CIR-94",
+          prompt: "Ship it",
+        },
+        defaultModel: "sonnet",
         rootDir: ".claude/skills/implement-feature",
         skillFile: ".claude/skills/implement-feature/SKILL.md",
       },
@@ -217,7 +222,8 @@ describe("skillStore — createRepositorySkill", () => {
       dirName: "new-skill",
       rootDir: ".codex/skills/new-skill",
       skillFile: ".codex/skills/new-skill/SKILL.md",
-      content: "---\nname: New Skill\ndescription: Creates skills\n---\n",
+      content:
+        "---\nname: New Skill\ndescription: Creates skills\ndefault-arguments: CIR-94\ndefault-prompt: Review it\ndefault-model: gpt-5.4\n---\n",
     });
 
     const created = await useSkillStore.getState().createRepositorySkill(
@@ -228,6 +234,9 @@ describe("skillStore — createRepositorySkill", () => {
         slug: "new-skill",
         name: "New Skill",
         description: "Creates skills",
+        defaultArguments: "CIR-94",
+        defaultPrompt: "Review it",
+        defaultModel: "gpt-5.4",
       },
     );
 
@@ -236,8 +245,16 @@ describe("skillStore — createRepositorySkill", () => {
       slug: "new-skill",
       name: "New Skill",
       description: "Creates skills",
+      defaultArguments: "CIR-94",
+      defaultPrompt: "Review it",
+      defaultModel: "gpt-5.4",
     });
     expect(created.name).toBe("New Skill");
+    expect(created.defaultInput).toEqual({
+      arguments: "CIR-94",
+      prompt: "Review it",
+    });
+    expect(created.defaultModel).toBe("gpt-5.4");
     expect(useSkillStore.getState().byRepo["repo-1"]).toHaveLength(2);
     expect(useSkillStore.getState().creating["repo-1"]).toBe(false);
     expect(useSkillStore.getState().errors["repo-1"]).toBeNull();

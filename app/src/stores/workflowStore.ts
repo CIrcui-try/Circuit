@@ -350,6 +350,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         label: skill.name,
         ...(skill.description ? { description: skill.description } : {}),
         ...(skill.inputHints?.length ? { inputHints: skill.inputHints } : {}),
+        ...(skill.defaultInput ? { input: skill.defaultInput } : {}),
+        ...(skill.defaultModel ? { execution: { model: skill.defaultModel } } : {}),
         skillRef: {
           source,
           provider: skill.provider,

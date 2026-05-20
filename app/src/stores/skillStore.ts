@@ -13,6 +13,8 @@ export type Skill = {
   name: string;
   description: string;
   inputHints?: SkillInputHint[];
+  defaultInput?: Record<string, string>;
+  defaultModel?: string;
   rootDir: string;
   skillFile: string;
   skillFileAbsPath?: string;
@@ -52,6 +54,8 @@ function toRepositorySkill(raw: {
     name: meta.name,
     description: meta.description,
     inputHints: meta.inputHints,
+    ...(meta.defaultInput ? { defaultInput: meta.defaultInput } : {}),
+    ...(meta.defaultModel ? { defaultModel: meta.defaultModel } : {}),
     rootDir: raw.rootDir,
     skillFile: raw.skillFile,
     ...(raw.skillFileAbsPath ? { skillFileAbsPath: raw.skillFileAbsPath } : {}),

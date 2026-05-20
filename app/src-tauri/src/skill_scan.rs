@@ -88,12 +88,18 @@ pub fn create_repository_skill(
     slug: String,
     name: String,
     description: String,
+    default_arguments: Option<String>,
+    default_prompt: Option<String>,
+    default_model: Option<String>,
 ) -> Result<RawSkill, String> {
     let repo = resolve_repo_path(&repo_path)?;
     let provider = validate_provider(&provider)?;
     let slug = validate_slug(&slug)?;
     let name = validate_required_text(&name, "skill name")?;
     let description = normalize_description(&description);
+    let default_arguments = normalize_optional_frontmatter_text(default_arguments);
+    let default_prompt = normalize_optional_frontmatter_text(default_prompt);
+    let default_model = normalize_optional_frontmatter_text(default_model);
 
     let provider_root = repo.join(format!(".{provider}"));
     ensure_existing_path_inside_repo(&repo, &provider_root)?;
@@ -113,7 +119,13 @@ pub fn create_repository_skill(
         .map_err(|e| format!("failed to create {}: {e}", skill_dir.display()))?;
 
     let skill_file_path = skill_dir.join("SKILL.md");
-    let content = render_skill_template(&name, &description);
+    let content = render_skill_template(
+        &name,
+        &description,
+        default_arguments.as_deref(),
+        default_prompt.as_deref(),
+        default_model.as_deref(),
+    );
     fs::write(&skill_file_path, content)
         .map_err(|e| format!("failed to write {}: {e}", skill_file_path.display()))?;
 
@@ -213,6 +225,12 @@ fn normalize_description(description: &str) -> String {
         .join(" ")
 }
 
+fn normalize_optional_frontmatter_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|v| normalize_description(&v))
+        .filter(|v| !v.is_empty())
+}
+
 fn ensure_existing_path_inside_repo(repo: &Path, path: &Path) -> Result<(), String> {
     if !path.exists() {
         return Ok(());
@@ -226,14 +244,37 @@ fn ensure_existing_path_inside_repo(repo: &Path, path: &Path) -> Result<(), Stri
     Ok(())
 }
 
-fn render_skill_template(name: &str, description: &str) -> String {
-    format!(
-        "---\nname: \"{}\"\ndescription: \"{}\"\n---\n\n# {}\n\n{}\n",
+fn render_skill_template(
+    name: &str,
+    description: &str,
+    default_arguments: Option<&str>,
+    default_prompt: Option<&str>,
+    default_model: Option<&str>,
+) -> String {
+    let mut frontmatter = format!(
+        "---\nname: \"{}\"\ndescription: \"{}\"\n",
         escape_frontmatter_value(name),
         escape_frontmatter_value(description),
-        name,
-        description
-    )
+    );
+    if let Some(value) = default_arguments {
+        frontmatter.push_str(&format!(
+            "default-arguments: \"{}\"\n",
+            escape_frontmatter_value(value),
+        ));
+    }
+    if let Some(value) = default_prompt {
+        frontmatter.push_str(&format!(
+            "default-prompt: \"{}\"\n",
+            escape_frontmatter_value(value),
+        ));
+    }
+    if let Some(value) = default_model {
+        frontmatter.push_str(&format!(
+            "default-model: \"{}\"\n",
+            escape_frontmatter_value(value),
+        ));
+    }
+    format!("{frontmatter}---\n\n# {name}\n\n{description}\n")
 }
 
 fn escape_frontmatter_value(value: &str) -> String {
@@ -485,6 +526,9 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "Creates a local skill file.".into(),
+            Some("CIR-94 --force".into()),
+            Some("Review the implementation.".into()),
+            Some("gpt-5.4".into()),
         )
         .expect("create skill failed");
 
@@ -497,6 +541,13 @@ mod tests {
         assert!(created
             .content
             .contains("description: \"Creates a local skill file.\""));
+        assert!(created
+            .content
+            .contains("default-arguments: \"CIR-94 --force\""));
+        assert!(created
+            .content
+            .contains("default-prompt: \"Review the implementation.\""));
+        assert!(created.content.contains("default-model: \"gpt-5.4\""));
 
         let skill_file = tmp
             .path()
@@ -522,6 +573,9 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(invalid_provider
             .unwrap_err()
@@ -533,6 +587,9 @@ mod tests {
             " ".into(),
             "New Skill".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(empty_slug.unwrap_err().contains("skill slug is required"));
 
@@ -542,6 +599,9 @@ mod tests {
             "../escape".into(),
             "New Skill".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(traversal_slug.unwrap_err().contains("skill slug may only"));
 
@@ -551,6 +611,9 @@ mod tests {
             "new-skill".into(),
             " ".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(empty_name.unwrap_err().contains("skill name is required"));
 
@@ -560,6 +623,9 @@ mod tests {
             "new-skill".into(),
             "New\nSkill".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(multiline_name
             .unwrap_err()
@@ -577,6 +643,9 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "".into(),
+            None,
+            None,
+            None,
         )
         .expect("initial create failed");
 
@@ -586,6 +655,9 @@ mod tests {
             "new-skill".into(),
             "New Skill".into(),
             "".into(),
+            None,
+            None,
+            None,
         );
         assert!(duplicate.unwrap_err().contains("skill already exists"));
     }

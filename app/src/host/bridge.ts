@@ -16,6 +16,9 @@ export type CreateRepositorySkillInput = {
   slug: string;
   name: string;
   description: string;
+  defaultArguments?: string;
+  defaultPrompt?: string;
+  defaultModel?: string;
 };
 
 export type RawSystemSkill = {
