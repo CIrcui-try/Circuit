@@ -48,6 +48,9 @@ export type LayoutPrefsDTO = {
   sidebarWidth: number;
   propsWidth: number;
   logHeight: number;
+  sidebarCollapsed?: boolean;
+  propsCollapsed?: boolean;
+  logCollapsed?: boolean;
 };
 
 export type CliSettingsDTO = {

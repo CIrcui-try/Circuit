@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getHostBridge } from "../host/bridge";
+import type { LayoutPrefsDTO } from "../host/bridge";
 
 export const LAYOUT_DEFAULTS = {
   sidebarWidth: 240,
@@ -53,18 +54,39 @@ function applyVars(state: Pick<LayoutState, "sidebarWidth" | "propsWidth" | "log
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-function schedulePersist(state: Pick<LayoutState, "sidebarWidth" | "propsWidth" | "logHeight">) {
+type PersistedLayoutState = Pick<
+  LayoutState,
+  | "sidebarWidth"
+  | "propsWidth"
+  | "logHeight"
+  | "sidebarCollapsed"
+  | "propsCollapsed"
+  | "logCollapsed"
+>;
+
+function toPrefs(state: PersistedLayoutState): LayoutPrefsDTO {
+  return {
+    sidebarWidth: state.sidebarWidth,
+    propsWidth: state.propsWidth,
+    logHeight: state.logHeight,
+    sidebarCollapsed: state.sidebarCollapsed,
+    propsCollapsed: state.propsCollapsed,
+    logCollapsed: state.logCollapsed,
+  };
+}
+
+function schedulePersist(state: PersistedLayoutState) {
   const bridge = getHostBridge();
   if (!bridge.saveLayout) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    void bridge.saveLayout?.({
-      sidebarWidth: state.sidebarWidth,
-      propsWidth: state.propsWidth,
-      logHeight: state.logHeight,
-    });
+    void bridge.saveLayout?.(toPrefs(state));
   }, 250);
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
@@ -106,28 +128,34 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSidebarCollapsed: (collapsed) => {
     if (collapsed === get().sidebarCollapsed) return;
     set({ sidebarCollapsed: collapsed });
+    schedulePersist(get());
   },
 
   toggleSidebarCollapsed: () => {
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+    schedulePersist(get());
   },
 
   setPropsCollapsed: (collapsed) => {
     if (collapsed === get().propsCollapsed) return;
     set({ propsCollapsed: collapsed });
+    schedulePersist(get());
   },
 
   togglePropsCollapsed: () => {
     set((state) => ({ propsCollapsed: !state.propsCollapsed }));
+    schedulePersist(get());
   },
 
   setLogCollapsed: (collapsed) => {
     if (collapsed === get().logCollapsed) return;
     set({ logCollapsed: collapsed });
+    schedulePersist(get());
   },
 
   toggleLogCollapsed: () => {
     set((state) => ({ logCollapsed: !state.logCollapsed }));
+    schedulePersist(get());
   },
 
   hydrate: async () => {
@@ -149,6 +177,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
               LAYOUT_LIMITS.props.max,
             ),
             logHeight: clamp(stored.logHeight, LAYOUT_LIMITS.log.min, logMax()),
+            sidebarCollapsed: optionalBoolean(stored.sidebarCollapsed) ?? false,
+            propsCollapsed: optionalBoolean(stored.propsCollapsed) ?? false,
+            logCollapsed: optionalBoolean(stored.logCollapsed) ?? false,
           });
         }
       } catch {
