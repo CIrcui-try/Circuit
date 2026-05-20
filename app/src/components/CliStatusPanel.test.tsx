@@ -10,12 +10,50 @@ import {
 import { useCliStatusStore } from "../stores/cliStatusStore";
 import { resetCliSettingsCacheForTest } from "../stores/cliSettingsStore";
 import { CliStatusPanel } from "./CliStatusPanel";
+import type { McpConfigStatus } from "../host/bridge";
 
 function resetStore() {
   useCliStatusStore.setState({
     entries: { claude: { status: "idle" }, codex: { status: "idle" } },
+    mcpEntries: { claude: { status: "idle" }, codex: { status: "idle" } },
     isChecking: false,
+    isCheckingMcp: false,
   });
+}
+
+function mcpStatus(serverCount = 1): McpConfigStatus {
+  return {
+    claude: {
+      config: {
+        path: "/Users/me/.claude.json",
+        ok: true,
+        missing: false,
+        message: null,
+      },
+      authCache: {
+        path: "/Users/me/.claude/mcp-needs-auth-cache.json",
+        ok: false,
+        missing: true,
+        message: "file not found",
+      },
+      servers: Array.from({ length: serverCount }, (_, index) => ({
+        provider: "claude",
+        scope: "global",
+        name: `claude-${index}`,
+        args: [],
+        hasEnv: false,
+      })),
+    },
+    codex: {
+      config: {
+        path: "/Users/me/.codex/config.toml",
+        ok: true,
+        missing: false,
+        message: null,
+      },
+      servers: [],
+    },
+  };
 }
 
 function installBridge(
@@ -31,6 +69,9 @@ describe("CliStatusPanel", () => {
   beforeEach(() => {
     resetStore();
     resetCliSettingsCacheForTest();
+    window.__CIRCUIT_BRIDGE__ = {
+      readMcpConfigStatus: async () => mcpStatus(),
+    } as unknown as typeof window.__CIRCUIT_BRIDGE__;
   });
   afterEach(() => {
     delete window.__CIRCUIT_RUNTIME__;
@@ -61,6 +102,12 @@ describe("CliStatusPanel", () => {
     const codexRow = screen.getByTestId("cli-status-row-codex");
     expect(codexRow.getAttribute("data-status")).toBe("ok");
     expect(screen.queryByTestId("cli-status-detail-codex")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().mcpEntries.claude.status).toBe("ok");
+    });
+    expect(screen.getByTestId("mcp-status-row-claude")).toHaveTextContent(
+      "1 server",
+    );
     expect(claudeCalls).toBe(1);
   });
 
@@ -176,6 +223,7 @@ describe("CliStatusPanel", () => {
       saveCliSettings: async (settings) => {
         savedSettings = settings;
       },
+      readMcpConfigStatus: async () => mcpStatus(),
     } as typeof window.__CIRCUIT_BRIDGE__;
 
     installBridge(
@@ -244,6 +292,13 @@ describe("CliStatusPanel", () => {
 
   it("re-runs checks when 'refresh' is clicked", async () => {
     let probeCount = 0;
+    let mcpCount = 0;
+    window.__CIRCUIT_BRIDGE__ = {
+      readMcpConfigStatus: async () => {
+        mcpCount += 1;
+        return mcpStatus(mcpCount);
+      },
+    } as typeof window.__CIRCUIT_BRIDGE__;
     installBridge((opts) => {
       if (opts.command === "claude") probeCount += 1;
       return [
@@ -268,6 +323,70 @@ describe("CliStatusPanel", () => {
       expect(probeCount).toBe(2);
     });
     expect(useCliStatusStore.getState().entries.claude.status).toBe("ok");
+    expect(useCliStatusStore.getState().mcpEntries.claude.serverCount).toBe(2);
+    expect(screen.getByTestId("mcp-status-row-claude")).toHaveTextContent(
+      "2 servers",
+    );
+  });
+
+  it("renders provider-specific MCP config failures from the fake bridge", async () => {
+    window.__CIRCUIT_BRIDGE__ = {
+      readMcpConfigStatus: async () => ({
+        claude: {
+          config: {
+            path: "/Users/me/.claude.json",
+            ok: false,
+            missing: true,
+            message: "file not found",
+          },
+          authCache: {
+            path: "/Users/me/.claude/mcp-needs-auth-cache.json",
+            ok: false,
+            missing: true,
+            message: "file not found",
+          },
+          servers: [],
+        },
+        codex: {
+          config: {
+            path: "/Users/me/.codex/config.toml",
+            ok: false,
+            missing: false,
+            message: "failed to parse TOML",
+          },
+          servers: [],
+        },
+      }),
+    } as unknown as typeof window.__CIRCUIT_BRIDGE__;
+    installBridge((opts) => [
+      { event: { type: "stdout", text: `${opts.command} 1.0.0\n` } },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+
+    render(<CliStatusPanel />);
+
+    await waitFor(() => {
+      expect(useCliStatusStore.getState().mcpEntries.codex.status).toBe(
+        "error",
+      );
+    });
+
+    expect(screen.getByTestId("mcp-status-row-claude")).toHaveAttribute(
+      "data-status",
+      "missing",
+    );
+    expect(screen.getByTestId("mcp-status-row-codex")).toHaveTextContent(
+      "failed to parse TOML",
+    );
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByTestId("mcp-status-detail-codex"));
+    });
+
+    expect(screen.getByTestId("mcp-status-detail-log")).toHaveTextContent(
+      "failed to parse TOML",
+    );
   });
 
   it("disables the refresh button while checking", async () => {

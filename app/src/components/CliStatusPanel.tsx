@@ -4,6 +4,8 @@ import {
   type CliEntry,
   type CliId,
   type CliStatus,
+  type McpEntry,
+  type McpProviderId,
 } from "../stores/cliStatusStore";
 import {
   loadCliSettings,
@@ -21,6 +23,11 @@ const CLI_LABELS: Record<CliId, string> = {
 const CLI_COMMANDS: Record<CliId, string> = {
   claude: "claude",
   codex: "codex",
+};
+
+const MCP_LABELS: Record<McpProviderId, string> = {
+  claude: "Claude MCP",
+  codex: "Codex MCP",
 };
 
 const STATUS_LABEL: Record<CliStatus, string> = {
@@ -47,11 +54,37 @@ function describe(entry: CliEntry): string {
   }
 }
 
+function describeMcp(entry: McpEntry): string {
+  switch (entry.status) {
+    case "ok": {
+      const count = entry.serverCount ?? 0;
+      const label = `${count} server${count === 1 ? "" : "s"}`;
+      const names = entry.servers?.map((server) => server.name).filter(Boolean);
+      if (!names?.length) return label;
+      return `${label}: ${names.slice(0, 3).join(", ")}${
+        names.length > 3 ? ", ..." : ""
+      }`;
+    }
+    case "missing":
+      return entry.errorMessage ?? "Config file not found";
+    case "error":
+      return entry.errorMessage ?? "Error";
+    case "checking":
+      return entry.errorMessage ?? "Checking...";
+    case "idle":
+    default:
+      return "Not checked";
+  }
+}
+
 export function CliStatusPanel() {
   const entries = useCliStatusStore((s) => s.entries);
+  const mcpEntries = useCliStatusStore((s) => s.mcpEntries);
   const isChecking = useCliStatusStore((s) => s.isChecking);
-  const runChecks = useCliStatusStore((s) => s.runChecks);
+  const isCheckingMcp = useCliStatusStore((s) => s.isCheckingMcp);
+  const refreshAll = useCliStatusStore((s) => s.refreshAll);
   const [detailId, setDetailId] = useState<CliId | null>(null);
+  const [mcpDetailId, setMcpDetailId] = useState<McpProviderId | null>(null);
   const [settings, setSettings] = useState<CliSettingsDTO>({});
   const [editorId, setEditorId] = useState<CliId | null>(null);
   const [draftPath, setDraftPath] = useState("");
@@ -62,15 +95,19 @@ export function CliStatusPanel() {
     void loadCliSettings().then((loaded) => {
       if (active) setSettings(loaded);
     });
-    void runChecks();
+    void refreshAll();
     return () => {
       active = false;
     };
-  }, [runChecks]);
+  }, [refreshAll]);
 
   const ids: CliId[] = ["claude", "codex"];
+  const mcpIds: McpProviderId[] = ["claude", "codex"];
   const detailEntry = detailId ? entries[detailId] : null;
   const detailLog = detailEntry?.detailLog;
+  const mcpDetailEntry = mcpDetailId ? mcpEntries[mcpDetailId] : null;
+  const mcpDetailLog = mcpDetailEntry?.detailLog;
+  const isRefreshing = isChecking || isCheckingMcp;
 
   const openPathEditor = (id: CliId) => {
     const command = CLI_COMMANDS[id];
@@ -88,7 +125,7 @@ export function CliStatusPanel() {
       setSettings(next);
       setEditorId(null);
       setDetailId(null);
-      void runChecks();
+      void refreshAll();
     } finally {
       setSavingPath(false);
     }
@@ -101,11 +138,11 @@ export function CliStatusPanel() {
         <button
           type="button"
           className="cli-status-panel__refresh"
-          onClick={() => void runChecks()}
-          disabled={isChecking}
+          onClick={() => void refreshAll()}
+          disabled={isRefreshing}
           data-testid="cli-status-refresh"
         >
-          {isChecking ? (
+          {isRefreshing ? (
             <>
               <span
                 className="cli-status-spinner cli-status-spinner--inline"
@@ -175,6 +212,51 @@ export function CliStatusPanel() {
             </div>
           );
         })}
+        {mcpIds.map((id) => {
+          const entry = mcpEntries[id];
+          return (
+            <div
+              key={`mcp-${id}`}
+              className="cli-status-row"
+              data-testid={`mcp-status-row-${id}`}
+              data-status={entry.status}
+            >
+              {entry.status === "checking" ? (
+                <span
+                  className="cli-status-spinner"
+                  aria-hidden="true"
+                  role="presentation"
+                />
+              ) : (
+                <span
+                  className={`cli-status-dot cli-status-dot--${entry.status}`}
+                  aria-hidden="true"
+                />
+              )}
+              <span className="cli-status-row__name">{MCP_LABELS[id]}</span>
+              <span
+                className="cli-status-row__detail"
+                title={describeMcp(entry)}
+              >
+                {describeMcp(entry)}
+              </span>
+              {entry.detailLog &&
+              (entry.status === "missing" || entry.status === "error") ? (
+                <button
+                  type="button"
+                  className="cli-status-row__detail-button"
+                  onClick={() => setMcpDetailId(id)}
+                  data-testid={`mcp-status-detail-${id}`}
+                >
+                  Detail
+                </button>
+              ) : null}
+              <span className="cli-status-row__sr">
+                {STATUS_LABEL[entry.status]}
+              </span>
+            </div>
+          );
+        })}
       </div>
       {detailId && detailLog ? (
         <div className="modal__backdrop">
@@ -199,6 +281,36 @@ export function CliStatusPanel() {
                 type="button"
                 onClick={() => setDetailId(null)}
                 data-testid="cli-status-detail-close"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {mcpDetailId && mcpDetailLog ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel cli-status-detail-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mcp-status-detail-title"
+            data-testid="mcp-status-detail-modal"
+          >
+            <h2 id="mcp-status-detail-title" className="modal__title">
+              {MCP_LABELS[mcpDetailId]} details
+            </h2>
+            <pre
+              className="cli-status-detail-modal__log"
+              data-testid="mcp-status-detail-log"
+            >
+              {mcpDetailLog}
+            </pre>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setMcpDetailId(null)}
+                data-testid="mcp-status-detail-close"
               >
                 Close
               </button>
