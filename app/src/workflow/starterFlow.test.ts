@@ -66,13 +66,13 @@ describe("workflow/starterFlow", () => {
     expect(validateWorkflow(wf)).toEqual({ ok: true });
   });
 
-  it("SF1c: allows tutorial-specific node prompts without changing default skills", () => {
+  it("SF1c: allows node-level prompts without changing default skills", () => {
     const wf = createCodexStarterWorkflow({
       repositoryId: "repo-1",
-      initialRequest: "Create hello_world.html",
+      initialRequest: "Add a theme toggle",
       nodePrompts: {
         starter_taxiing: "Do not open the page in this step.",
-        starter_wrap_up: "Open hello_world.html in the default browser.",
+        starter_wrap_up: "Summarize the verified result.",
       },
       now: () => "2026-05-11T00:00:00.000Z",
     });
@@ -81,7 +81,7 @@ describe("workflow/starterFlow", () => {
       prompt: "Do not open the page in this step.",
     });
     expect(wf.nodes[3].input).toEqual({
-      prompt: "Open hello_world.html in the default browser.",
+      prompt: "Summarize the verified result.",
     });
     expect(wf.nodes[1].skillRef).toEqual({
       source: "default",

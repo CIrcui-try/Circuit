@@ -6,7 +6,7 @@
 
 [English README](README.md) | [한국어 README](README_kr.md)
 
-#### 为你的 SDD（Skill-Driven Development）而生。
+## 为你的 SDD（Skill-Driven Development）而生。
 
 Circuit 是一个工作空间，用来把可复用的智能体 Skill 转化为可见、可重复、可控制的开发工作流。
 

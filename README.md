@@ -6,7 +6,7 @@
 
 [한국어 README](README_kr.md) | [中文 README](README_zh.md)
 
-#### For your SDD (Skill-Driven Development).
+## For your SDD (Skill-Driven Development).
 
 Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
 

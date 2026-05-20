@@ -6,28 +6,15 @@ import { getHostBridge } from "../host/bridge";
 import { useRunStore } from "../runner/runStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
-import {
-  TUTORIAL_STARTER_PROMPT,
-  TUTORIAL_REPOSITORY_NAME,
-} from "../tutorial";
+import { TUTORIAL_REPOSITORY_NAME } from "../tutorial";
 import { fromWorkflow } from "../workflow/serialize";
 import {
   CODEX_STARTER_FLOW_ID,
   CODEX_STARTER_FLOW_NAME,
   createCodexStarterWorkflow,
-  type StarterNodePrompts,
 } from "../workflow/starterFlow";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { markStarterFlowPromptPending } from "../workflow/starterFlowPrompt";
-
-const TUTORIAL_STARTER_NODE_PROMPTS: StarterNodePrompts = {
-  starter_taxiing:
-    "Create or update hello_world.html from the plan. Verify the file contents from disk, but do not open the page or launch a browser in this step.",
-  starter_review_and_fix:
-    "Review hello_world.html, fix only obvious issues, and verify the file contents from disk. Do not open the page or launch a browser in this step.",
-  starter_wrap_up:
-    "Confirm hello_world.html exists, open the completed page in the default browser, and summarize the tutorial result briefly.",
-};
 
 type ActiveCheck = () => boolean;
 
@@ -336,8 +323,6 @@ async function prepareTutorialRepository(): Promise<string> {
 function saveTutorialStarterDraft(repositoryId: string): void {
   const workflow = createCodexStarterWorkflow({
     repositoryId,
-    initialRequest: TUTORIAL_STARTER_PROMPT,
-    nodePrompts: TUTORIAL_STARTER_NODE_PROMPTS,
   });
   const restored = fromWorkflow(workflow);
   saveWorkflowDraft(repositoryId, {
@@ -367,6 +352,15 @@ function isOutdatedTutorialStarterDraft(
 
   return draft.nodes.some((node) => {
     const skillRef = node.data.skillRef;
+    const input = node.data.input as Record<string, unknown> | undefined;
+    if (
+      input?.arguments ===
+        "Create hello_world.html with a friendly Hello from Circuit page." ||
+      (typeof input?.prompt === "string" && input.prompt.includes("hello_world.html"))
+    ) {
+      return true;
+    }
+
     if (
       node.id === "starter_review_and_fix" &&
       skillRef?.provider === "codex" &&
@@ -382,12 +376,7 @@ function isOutdatedTutorialStarterDraft(
     ) {
       return true;
     }
-
-    const input = node.data.input as Record<string, unknown> | undefined;
-    return (
-      TUTORIAL_STARTER_NODE_PROMPTS[node.id] != null &&
-      input?.prompt !== TUTORIAL_STARTER_NODE_PROMPTS[node.id]
-    );
+    return false;
   });
 }
 

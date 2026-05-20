@@ -6,7 +6,7 @@
 
 [English README](README.md) | [中文 README](README_zh.md)
 
-#### 당신의 SDD(Skill-Driven Development)를 위해.
+## 당신의 SDD(Skill-Driven Development)를 위해.
 
 Circuit은 재사용 가능한 에이전트 스킬을 눈에 보이고, 반복 가능하고, 통제 가능한 개발 워크플로로 다루기 위한 워크스페이스입니다.
 
