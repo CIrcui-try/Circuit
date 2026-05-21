@@ -45,6 +45,11 @@ export type WorkflowConnectionWarning = {
   message: string;
 };
 
+type WorkflowHistorySnapshot = {
+  nodes: SkillNode[];
+  edges: Edge[];
+};
+
 type WorkflowState = {
   nodes: SkillNode[];
   edges: Edge[];
@@ -54,6 +59,9 @@ type WorkflowState = {
   currentWorkflowId: string | null;
   continueOnFailure: boolean;
   connectionWarning: WorkflowConnectionWarning | null;
+  historyPast: WorkflowHistorySnapshot[];
+  historyFuture: WorkflowHistorySnapshot[];
+  historyBatchSnapshot: WorkflowHistorySnapshot | null;
 
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -72,6 +80,10 @@ type WorkflowState = {
   autoLayoutWorkflow: () => void;
   replaceCanvas: (args: ReplaceCanvasArgs) => void;
   clearConnectionWarning: (id?: string) => void;
+  undo: () => void;
+  redo: () => void;
+  beginHistoryBatch: () => void;
+  endHistoryBatch: () => void;
 };
 
 export const DEFAULT_WORKFLOW_NAME = "Untitled workflow";
@@ -81,6 +93,7 @@ export const AUTO_LAYOUT_NODE_X_GAP = 340;
 export const AUTO_LAYOUT_NODE_Y_GAP = 190;
 export const AUTO_LAYOUT_ORIGIN_X = 240;
 export const AUTO_LAYOUT_ORIGIN_Y = 100;
+const MAX_HISTORY_ENTRIES = 100;
 
 function nextNodeId(): string {
   return crypto.randomUUID();
@@ -90,6 +103,79 @@ function deriveSelection<T extends { id: string; selected?: boolean }>(
   items: T[],
 ): string | null {
   return items.find((item) => item.selected)?.id ?? null;
+}
+
+function cloneHistoryNode(node: SkillNode): SkillNode {
+  return {
+    ...node,
+    position: { ...node.position },
+    data: structuredClone(node.data),
+    selected: false,
+  };
+}
+
+function cloneHistoryEdge(edge: Edge): Edge {
+  return {
+    ...structuredClone(edge),
+    selected: false,
+  };
+}
+
+function toHistorySnapshot(state: Pick<WorkflowState, "nodes" | "edges">): WorkflowHistorySnapshot {
+  return {
+    nodes: state.nodes.map(cloneHistoryNode),
+    edges: state.edges.map(cloneHistoryEdge),
+  };
+}
+
+function restoreHistorySnapshot(snapshot: WorkflowHistorySnapshot) {
+  return {
+    nodes: snapshot.nodes.map(cloneHistoryNode),
+    edges: snapshot.edges.map(cloneHistoryEdge),
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    connectionWarning: null,
+  };
+}
+
+function pushHistory(
+  history: WorkflowHistorySnapshot[],
+  snapshot: WorkflowHistorySnapshot,
+): WorkflowHistorySnapshot[] {
+  return [...history, snapshot].slice(-MAX_HISTORY_ENTRIES);
+}
+
+function historyPrefix(state: WorkflowState) {
+  if (state.historyBatchSnapshot) return {};
+  return {
+    historyPast: pushHistory(state.historyPast, toHistorySnapshot(state)),
+    historyFuture: [],
+  };
+}
+
+function historyPrefixIfChanged(
+  state: WorkflowState,
+  nextSnapshot: WorkflowHistorySnapshot,
+) {
+  if (sameHistorySnapshot(toHistorySnapshot(state), nextSnapshot)) return {};
+  return historyPrefix(state);
+}
+
+function nodeChangesAffectHistory(changes: NodeChange[]): boolean {
+  return changes.some(
+    (change) => change.type !== "select" && change.type !== "dimensions",
+  );
+}
+
+function edgeChangesAffectHistory(changes: EdgeChange[]): boolean {
+  return changes.some((change) => change.type !== "select");
+}
+
+function sameHistorySnapshot(
+  left: WorkflowHistorySnapshot,
+  right: WorkflowHistorySnapshot,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function removeTransitiveEdges(edges: Edge[]): Edge[] {
@@ -269,30 +355,63 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   currentWorkflowId: null,
   continueOnFailure: false,
   connectionWarning: null,
+  historyPast: [],
+  historyFuture: [],
+  historyBatchSnapshot: null,
 
   onNodesChange: (changes) => {
-    const nextNodes = applyNodeChanges(changes, get().nodes).map((n) =>
-      n.position
-        ? {
-            ...n,
-            position: {
-              x: Math.round(n.position.x),
-              y: Math.round(n.position.y),
-            },
-          }
-        : n,
-    ) as SkillNode[];
-    set({
-      nodes: nextNodes,
-      selectedNodeId: deriveSelection(nextNodes),
+    set((s) => {
+      const removedNodeIds = new Set(
+        changes
+          .filter((change) => change.type === "remove")
+          .map((change) => change.id),
+      );
+      const nextNodes = applyNodeChanges(changes, s.nodes).map((n) =>
+        n.position
+          ? {
+              ...n,
+              position: {
+                x: Math.round(n.position.x),
+                y: Math.round(n.position.y),
+              },
+            }
+          : n,
+      ) as SkillNode[];
+      const nextEdges =
+        removedNodeIds.size > 0
+          ? s.edges.filter(
+              (edge) =>
+                !removedNodeIds.has(edge.source) &&
+                !removedNodeIds.has(edge.target),
+            )
+          : s.edges;
+      const nextSnapshot = { nodes: nextNodes, edges: nextEdges };
+      return {
+        ...(nodeChangesAffectHistory(changes)
+          ? historyPrefixIfChanged(s, nextSnapshot)
+          : {}),
+        nodes: nextNodes,
+        edges: nextEdges,
+        selectedNodeId: deriveSelection(nextNodes),
+        selectedEdgeId:
+          s.selectedEdgeId && nextEdges.some((edge) => edge.id === s.selectedEdgeId)
+            ? s.selectedEdgeId
+            : null,
+      };
     });
   },
 
   onEdgesChange: (changes) => {
-    const nextEdges = applyEdgeChanges(changes, get().edges);
-    set({
-      edges: nextEdges,
-      selectedEdgeId: deriveSelection(nextEdges),
+    set((s) => {
+      const nextEdges = applyEdgeChanges(changes, s.edges);
+      const nextSnapshot = { nodes: s.nodes, edges: nextEdges };
+      return {
+        ...(edgeChangesAffectHistory(changes)
+          ? historyPrefixIfChanged(s, nextSnapshot)
+          : {}),
+        edges: nextEdges,
+        selectedEdgeId: deriveSelection(nextEdges),
+      };
     });
   },
 
@@ -321,7 +440,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       nextEdges,
     );
     const prunedEdges = sorted.cycle ? nextEdges : removeTransitiveEdges(nextEdges);
-    set({
+    set((s) => ({
+      ...historyPrefixIfChanged(s, { nodes: s.nodes, edges: prunedEdges }),
       edges: prunedEdges,
       selectedEdgeId:
         get().selectedEdgeId &&
@@ -334,7 +454,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             message: WORKFLOW_CYCLE_WARNING_MESSAGE,
           }
         : get().connectionWarning,
-    });
+    }));
   },
 
   addSkillNode: (skill, position) => {
@@ -365,13 +485,19 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         },
       },
     };
-    set({ nodes: [...get().nodes, node] });
+    set((s) => {
+      const nextNodes = [...s.nodes, node];
+      return {
+        ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
+        nodes: nextNodes,
+      };
+    });
     return id;
   },
 
   setNodeInput: (nodeId, input) => {
-    set((s) => ({
-      nodes: s.nodes.map((n) => {
+    set((s) => {
+      const nextNodes = s.nodes.map((n) => {
         if (n.id !== nodeId) return n;
         const data = { ...n.data };
         if (input && Object.keys(input).length > 0) {
@@ -380,14 +506,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           delete data.input;
         }
         return { ...n, data };
-      }) as SkillNode[],
-    }));
+      }) as SkillNode[];
+      return {
+        ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
+        nodes: nextNodes,
+      };
+    });
   },
 
   setNodeModel: (nodeId, model) => {
     const trimmed = model?.trim() ?? "";
-    set((s) => ({
-      nodes: s.nodes.map((n) => {
+    set((s) => {
+      const nextNodes = s.nodes.map((n) => {
         if (n.id !== nodeId) return n;
         const data = { ...n.data };
         if (trimmed.length > 0) {
@@ -402,8 +532,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           }
         }
         return { ...n, data };
-      }) as SkillNode[],
-    }));
+      }) as SkillNode[];
+      return {
+        ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
+        nodes: nextNodes,
+      };
+    });
   },
 
   selectNode: (id) => {
@@ -431,15 +565,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         .filter((e) => e.source === nodeId || e.target === nodeId)
         .map((e) => e.id),
     );
-    set({
-      nodes: nodes.filter((n) => n.id !== nodeId),
-      edges: edges.filter((e) => !incidentEdgeIds.has(e.id)),
+    const nextNodes = nodes.filter((n) => n.id !== nodeId);
+    const nextEdges = edges.filter((e) => !incidentEdgeIds.has(e.id));
+    set((s) => ({
+      ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: nextEdges }),
+      nodes: nextNodes,
+      edges: nextEdges,
       selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId,
       selectedEdgeId:
         selectedEdgeId && incidentEdgeIds.has(selectedEdgeId)
           ? null
           : selectedEdgeId,
-    });
+    }));
   },
 
   deleteSelected: () => {
@@ -449,10 +586,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       return;
     }
     if (selectedEdgeId) {
-      set({
-        edges: edges.filter((e) => e.id !== selectedEdgeId),
+      const nextEdges = edges.filter((e) => e.id !== selectedEdgeId);
+      set((s) => ({
+        ...historyPrefixIfChanged(s, { nodes: s.nodes, edges: nextEdges }),
+        edges: nextEdges,
         selectedEdgeId: null,
-      });
+      }));
     }
   },
 
@@ -466,6 +605,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       currentWorkflowId: null,
       continueOnFailure: false,
       connectionWarning: null,
+      historyPast: [],
+      historyFuture: [],
+      historyBatchSnapshot: null,
     });
   },
 
@@ -478,9 +620,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   autoLayoutWorkflow: () => {
-    set((s) => ({
-      nodes: layoutWorkflowNodes(s.nodes, s.edges),
-    }));
+    set((s) => {
+      const nextNodes = layoutWorkflowNodes(s.nodes, s.edges);
+      return {
+        ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
+        nodes: nextNodes,
+      };
+    });
   },
 
   replaceCanvas: ({
@@ -499,6 +645,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       currentWorkflowId: workflowId,
       continueOnFailure: continueOnFailure === true,
       connectionWarning: null,
+      historyPast: [],
+      historyFuture: [],
+      historyBatchSnapshot: null,
     });
   },
 
@@ -507,6 +656,50 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     if (!connectionWarning) return;
     if (id && connectionWarning.id !== id) return;
     set({ connectionWarning: null });
+  },
+
+  undo: () => {
+    const { historyPast } = get();
+    const previous = historyPast[historyPast.length - 1];
+    if (!previous) return;
+    set((s) => ({
+      ...restoreHistorySnapshot(previous),
+      historyPast: s.historyPast.slice(0, -1),
+      historyFuture: [toHistorySnapshot(s), ...s.historyFuture],
+      historyBatchSnapshot: null,
+    }));
+  },
+
+  redo: () => {
+    const { historyFuture } = get();
+    const next = historyFuture[0];
+    if (!next) return;
+    set((s) => ({
+      ...restoreHistorySnapshot(next),
+      historyPast: pushHistory(s.historyPast, toHistorySnapshot(s)),
+      historyFuture: s.historyFuture.slice(1),
+      historyBatchSnapshot: null,
+    }));
+  },
+
+  beginHistoryBatch: () => {
+    if (get().historyBatchSnapshot) return;
+    set((s) => ({ historyBatchSnapshot: toHistorySnapshot(s) }));
+  },
+
+  endHistoryBatch: () => {
+    const base = get().historyBatchSnapshot;
+    if (!base) return;
+    const current = toHistorySnapshot(get());
+    if (sameHistorySnapshot(base, current)) {
+      set({ historyBatchSnapshot: null });
+      return;
+    }
+    set((s) => ({
+      historyPast: pushHistory(s.historyPast, base),
+      historyFuture: [],
+      historyBatchSnapshot: null,
+    }));
   },
 }));
 

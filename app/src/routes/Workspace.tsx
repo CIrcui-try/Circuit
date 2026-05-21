@@ -9,10 +9,13 @@ import {
   FolderOpen,
   GitBranch,
   Play,
+  Plus,
+  Redo2,
   RotateCcw,
   Save,
   Square,
   Trash2,
+  Undo2,
   Upload,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -79,6 +82,8 @@ export function Workspace() {
   const autoLayoutWorkflow = useWorkflowStore((s) => s.autoLayoutWorkflow);
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
+  const canUndoWorkflowEdit = useWorkflowStore((s) => s.historyPast.length > 0);
+  const canRedoWorkflowEdit = useWorkflowStore((s) => s.historyFuture.length > 0);
   const nodeCount = nodes.length;
   const runRecord = useRunStore((s) =>
     repo?.id ? s.getRunForRepository(repo.id) : s,
@@ -522,9 +527,39 @@ export function Workspace() {
     resetWorkflow,
   ]);
 
+  const handleUndo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyPast.length === 0) return;
+    store.undo();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyFuture.length === 0) return;
+    store.redo();
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
+        if (isEditableShortcutTarget(event.target)) return;
+        if (key === "z" && event.shiftKey) {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+        if (key === "z") {
+          event.preventDefault();
+          handleUndo();
+          return;
+        }
+        if (key === "y") {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+      }
       if ((event.metaKey || event.ctrlKey) && key === "s") {
         if (!repo) return;
         event.preventDefault();
@@ -548,7 +583,9 @@ export function Workspace() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [
     handleCancel,
+    handleRedo,
     handleStart,
+    handleUndo,
     isRunningHere,
     nodeCount,
     persistCurrentWorkflow,
@@ -738,38 +775,43 @@ export function Workspace() {
           ) : null}
         </div>
         <span className="workspace__toolbar-spacer" />
-        {editingWorkflowName ? (
-          <input
-            ref={workflowNameInputRef}
-            type="text"
-            aria-label="Workflow name"
-            data-testid="workflow-name-input"
-            className="workspace__toolbar-input"
-            value={workflowName}
-            onBlur={() => setEditingWorkflowName(false)}
-            onChange={(e) => setWorkflowName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                setEditingWorkflowName(false);
-              }
-            }}
-            disabled={!repo}
-          />
-        ) : (
-          <button
-            type="button"
-            aria-label="Edit workflow name"
-            data-testid="workflow-name-button"
-            className="workspace__workflow-name-button"
-            onClick={() => setEditingWorkflowName(true)}
-            disabled={!repo}
-          >
-            <span>{workflowName || "(untitled)"}</span>
-          </button>
-        )}
-        <div className="workspace__workflow-menu" ref={workflowMenuRef}>
+        <div
+          className="workspace__workflow-control"
+          role="group"
+          aria-label="Workflow"
+          ref={workflowMenuRef}
+        >
+          {editingWorkflowName ? (
+            <input
+              ref={workflowNameInputRef}
+              type="text"
+              aria-label="Workflow name"
+              data-testid="workflow-name-input"
+              className="workspace__toolbar-input workspace__workflow-name-input"
+              value={workflowName}
+              onBlur={() => setEditingWorkflowName(false)}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEditingWorkflowName(false);
+                }
+              }}
+              disabled={!repo}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label="Edit workflow name"
+              data-testid="workflow-name-button"
+              className="workspace__workflow-name-button"
+              onClick={() => setEditingWorkflowName(true)}
+              disabled={!repo}
+            >
+              <span>{workflowName || "(untitled)"}</span>
+            </button>
+          )}
           <button
             type="button"
             aria-label="Switch workflow"
@@ -790,12 +832,31 @@ export function Workspace() {
             >
               <button
                 type="button"
-                className="workspace__workflow-menu-item"
+                className="workspace__workflow-menu-item workspace__workflow-menu-item--new"
                 role="menuitem"
+                data-testid="workflow-new"
                 onClick={() => void handleSelectWorkflow(NEW_WORKFLOW_VALUE)}
               >
-                New workflow
+                <Plus
+                  className="workspace__workflow-menu-item-icon"
+                  size={15}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+                <span>New workflow</span>
               </button>
+              <div
+                className="workspace__workflow-menu-separator"
+                role="separator"
+                data-testid="workflow-menu-separator"
+                aria-hidden="true"
+              />
+              <div
+                className="workspace__workflow-menu-section-label"
+                data-testid="workflow-menu-section-label"
+              >
+                Workflows
+              </div>
               {workflows.map((w) => (
                 <button
                   key={w.id}
@@ -804,7 +865,7 @@ export function Workspace() {
                   role="menuitem"
                   onClick={() => void handleSelectWorkflow(w.id)}
                 >
-                  {w.name || "(untitled)"}
+                  <span>{w.name || "(untitled)"}</span>
                 </button>
               ))}
             </div>
@@ -848,6 +909,48 @@ export function Workspace() {
             </button>
           </HoverTooltip>
         )}
+        <div
+          className="workspace__toolbar-button-group"
+          role="group"
+          aria-label="Edit history"
+        >
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Undo (⌘Z)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-undo-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-undo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Undo"
+              aria-keyshortcuts="Meta+Z Control+Z"
+              onClick={handleUndo}
+              disabled={!repo || isRunningHere || !canUndoWorkflowEdit}
+            >
+              <Undo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Redo (⇧⌘Z / ⌘Y)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-redo-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-redo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Redo"
+              aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Meta+Y Control+Y"
+              onClick={handleRedo}
+              disabled={!repo || isRunningHere || !canRedoWorkflowEdit}
+            >
+              <Redo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        </div>
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Auto layout"
@@ -1246,6 +1349,13 @@ function toAutosaveSignature(state: {
     nodes: state.nodes,
     edges: state.edges,
   });
+}
+
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 function buildRerunCandidate({

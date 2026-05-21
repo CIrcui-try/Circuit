@@ -391,6 +391,17 @@ a:hover {
   opacity: 0.5;
 }
 
+.workspace__workflow-control {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  overflow: visible;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #2d2d33;
+}
+
 .workspace__workflow-name-button {
   display: inline-flex;
   align-items: center;
@@ -400,8 +411,9 @@ a:hover {
   padding: 4px 8px;
   color: inherit;
   text-align: left;
-  background: #2d2d33;
-  border-color: #3a3a42;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .workspace__workflow-name-button span {
@@ -422,9 +434,18 @@ a:hover {
   opacity: 0.5;
 }
 
-.workspace__workflow-menu {
-  position: relative;
-  flex: 0 0 auto;
+.workspace__workflow-name-input {
+  width: 200px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace__workflow-control > .workspace__toolbar-icon-button {
+  border: 0;
+  border-left: 1px solid #3a3a42;
+  border-radius: 0;
+  background: transparent;
 }
 
 .workspace__workflow-menu-list {
@@ -442,8 +463,10 @@ a:hover {
 }
 
 .workspace__workflow-menu-item {
-  display: block;
+  display: flex;
   width: 100%;
+  align-items: center;
+  gap: 8px;
   min-height: 30px;
   padding: 5px 6px;
   color: inherit;
@@ -456,9 +479,43 @@ a:hover {
   border-radius: 4px;
 }
 
+.workspace__workflow-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workspace__workflow-menu-item:hover,
 .workspace__workflow-menu-item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.workspace__workflow-menu-item--new {
+  color: #e7f0ff;
+  background: rgba(116, 152, 255, 0.1);
+}
+
+.workspace__workflow-menu-item--new:hover,
+.workspace__workflow-menu-item--new:focus-visible {
+  background: rgba(116, 152, 255, 0.18);
+}
+
+.workspace__workflow-menu-item-icon {
+  flex: 0 0 auto;
+  color: #9fc7ff;
+}
+
+.workspace__workflow-menu-separator {
+  height: 1px;
+  margin: 6px 0 4px;
+  background: #3a3a42;
+}
+
+.workspace__workflow-menu-section-label {
+  padding: 2px 6px 4px;
+  color: #8a8a92;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .workspace__toolbar-status {
@@ -496,6 +553,33 @@ a:hover {
 .workspace__toolbar-icon-button:disabled:hover {
   color: #d7d7dd;
   background: #2d2d33;
+}
+
+.workspace__toolbar-button-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #2d2d33;
+}
+
+.workspace__toolbar-button-group .workspace__toolbar-tooltip-anchor {
+  display: inline-flex;
+}
+
+.workspace__toolbar-group-button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace__toolbar-button-group .workspace__toolbar-tooltip-anchor + .workspace__toolbar-tooltip-anchor {
+  border-left: 1px solid #3a3a42;
+}
+
+.workspace__toolbar-group-button:disabled:hover {
+  background: transparent;
 }
 
 .workspace__toolbar-action-button {
@@ -1758,7 +1842,7 @@ a:hover {
   padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .skill-list__repo-region {
@@ -1850,7 +1934,11 @@ a:hover {
 }
 
 .skill-list__item {
-  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 60px;
+  padding: 11px 10px 12px;
   border: 1px solid #2f2f36;
   border-radius: 6px;
   background: #1f1f24;
@@ -1904,8 +1992,9 @@ a:hover {
 
 .skill-list__desc {
   font-size: 11px;
+  line-height: 1.35;
   color: #8a8a92;
-  margin-top: 2px;
+  margin-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

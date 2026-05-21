@@ -335,6 +335,8 @@ function CanvasInner() {
     );
   const addSkillNode = useWorkflowStore((s) => s.addSkillNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
+  const beginHistoryBatch = useWorkflowStore((s) => s.beginHistoryBatch);
+  const endHistoryBatch = useWorkflowStore((s) => s.endHistoryBatch);
   const connectionWarning = useWorkflowStore((s) => s.connectionWarning);
   const clearConnectionWarning = useWorkflowStore(
     (s) => s.clearConnectionWarning,
@@ -442,9 +444,10 @@ function CanvasInner() {
 
   const onNodeDragStart = useCallback(() => {
     setMenu(null);
+    beginHistoryBatch();
     setIsNodeDragging(true);
     setIsTrashTarget(false);
-  }, []);
+  }, [beginHistoryBatch]);
 
   const onNodeDrag = useCallback((event: ReactMouseEvent) => {
     setIsTrashTarget(isPointInsideElement(event, trashRef.current));
@@ -459,8 +462,9 @@ function CanvasInner() {
         setMenu(null);
         deleteNode(node.id);
       }
+      endHistoryBatch();
     },
-    [deleteNode],
+    [deleteNode, endHistoryBatch],
   );
 
   const onNodeContextMenu = useCallback(

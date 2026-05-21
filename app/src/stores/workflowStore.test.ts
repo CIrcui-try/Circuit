@@ -11,7 +11,7 @@ import {
   useWorkflowStore,
   type SkillNode,
 } from "./workflowStore";
-import type { Edge } from "@xyflow/react";
+import type { Edge, NodeChange } from "@xyflow/react";
 
 const claudeSkill: Skill = {
   id: "claude:.claude/skills/foo",
@@ -580,5 +580,148 @@ describe("workflowStore", () => {
     useWorkflowStore.getState().setNodeInput(id, null);
 
     expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
+  });
+
+  it("WS17: undo and redo restore added workflow nodes", () => {
+    const id = useWorkflowStore
+      .getState()
+      .addSkillNode(claudeSkill, { x: 10, y: 20 });
+
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+
+    useWorkflowStore.getState().redo();
+    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([id]);
+  });
+
+  it("WS18: undo and redo restore workflow edges", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a,
+      target: b,
+      sourceHandle: null,
+      targetHandle: null,
+    });
+
+    expect(useWorkflowStore.getState().edges).toHaveLength(1);
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().edges).toHaveLength(0);
+
+    useWorkflowStore.getState().redo();
+    expect(useWorkflowStore.getState().edges[0]).toMatchObject({
+      source: a,
+      target: b,
+    });
+  });
+
+  it("WS19: undo restores a deleted node and its incident edges", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
+    useWorkflowStore.getState().onConnect({
+      source: a,
+      target: b,
+      sourceHandle: null,
+      targetHandle: null,
+    });
+
+    useWorkflowStore.getState().onNodesChange([{ id: a, type: "remove" }]);
+    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([b]);
+    expect(useWorkflowStore.getState().edges).toHaveLength(0);
+
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([
+      a,
+      b,
+    ]);
+    expect(useWorkflowStore.getState().edges).toHaveLength(1);
+  });
+
+  it("WS20: auto layout and node input/model changes are undoable", () => {
+    const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 500, y: 500 });
+    const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: -100, y: -100 });
+    useWorkflowStore.getState().onConnect({
+      source: a,
+      target: b,
+      sourceHandle: null,
+      targetHandle: null,
+    });
+
+    useWorkflowStore.getState().autoLayoutWorkflow();
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.position).toEqual({
+      x: AUTO_LAYOUT_ORIGIN_X,
+      y: AUTO_LAYOUT_ORIGIN_Y,
+    });
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.position).toEqual({
+      x: 500,
+      y: 500,
+    });
+
+    useWorkflowStore.getState().setNodeInput(a, { arguments: "CIR-122" });
+    useWorkflowStore.getState().setNodeModel(a, "gpt-5.4");
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.data.input).toEqual({
+      arguments: "CIR-122",
+    });
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.data.execution).toEqual({
+      model: "gpt-5.4",
+    });
+
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.data.execution).toBeUndefined();
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.data.input).toBeUndefined();
+    useWorkflowStore.getState().redo();
+    expect(useWorkflowStore.getState().nodes.find((node) => node.id === a)?.data.input).toEqual({
+      arguments: "CIR-122",
+    });
+  });
+
+  it("WS21: batched edits collapse into one undo step", () => {
+    const id = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+
+    useWorkflowStore.getState().beginHistoryBatch();
+    useWorkflowStore.getState().setNodeInput(id, { arguments: "CIR" });
+    useWorkflowStore.getState().setNodeInput(id, { arguments: "CIR-122" });
+    useWorkflowStore.getState().endHistoryBatch();
+
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(2);
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes[0].data.input).toBeUndefined();
+  });
+
+  it("WS22: selection and dimension updates do not create undo history", () => {
+    const id = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    useWorkflowStore.getState().undo();
+    useWorkflowStore.getState().redo();
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(1);
+
+    useWorkflowStore.getState().onNodesChange([
+      { id, type: "select", selected: true },
+      { id, type: "dimensions", dimensions: { width: 200, height: 100 } },
+    ] as NodeChange[]);
+
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(1);
+  });
+
+  it("WS23: replaceCanvas and resetWorkflow clear undo history", () => {
+    const node = workflowNode("loaded", { x: 0, y: 0 });
+    useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(1);
+
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: [node],
+      edges: [],
+      workflowId: "wf",
+      workflowName: "Loaded",
+    });
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(0);
+    useWorkflowStore.getState().undo();
+    expect(useWorkflowStore.getState().nodes.map((n) => n.id)).toEqual(["loaded"]);
+
+    useWorkflowStore.getState().addSkillNode(codexSkill, { x: 0, y: 0 });
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(1);
+    useWorkflowStore.getState().resetWorkflow();
+    expect(useWorkflowStore.getState().historyPast).toHaveLength(0);
   });
 });
