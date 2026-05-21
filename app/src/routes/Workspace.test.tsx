@@ -16,6 +16,11 @@ const bridgeMock = vi.hoisted(() => ({
   listWorkflows: vi.fn(async () => []),
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
+  exportWorkflowBundle: vi.fn(async (..._args: unknown[]) => null as unknown),
+  previewWorkflowBundleImport: vi.fn(async (..._args: unknown[]) => null as unknown),
+  importWorkflowBundle: vi.fn(async (..._args: unknown[]) => {
+    throw new Error("not mocked");
+  }) as ReturnType<typeof vi.fn<(...args: unknown[]) => Promise<unknown>>>,
   saveLayout: vi.fn(async () => {}),
 }));
 
@@ -141,6 +146,12 @@ beforeEach(() => {
   bridgeMock.listWorkflows.mockResolvedValue([]);
   bridgeMock.saveWorkflow.mockReset();
   bridgeMock.saveWorkflow.mockResolvedValue(undefined);
+  bridgeMock.exportWorkflowBundle.mockReset();
+  bridgeMock.exportWorkflowBundle.mockResolvedValue(null);
+  bridgeMock.previewWorkflowBundleImport.mockReset();
+  bridgeMock.previewWorkflowBundleImport.mockResolvedValue(null);
+  bridgeMock.importWorkflowBundle.mockReset();
+  bridgeMock.importWorkflowBundle.mockRejectedValue(new Error("not mocked"));
   bridgeMock.saveLayout.mockReset();
   bridgeMock.saveLayout.mockResolvedValue(undefined);
   bridgeMock.loadWorkflow.mockReset();
@@ -657,6 +668,168 @@ describe("Workspace", () => {
       string,
     ];
     expect(JSON.parse(payload).continueOnFailure).toBe(true);
+  });
+
+  it("exports the current workflow as a share bundle", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    bridgeMock.exportWorkflowBundle.mockResolvedValue({
+      path: "/Users/me/shared.circuitflow",
+      skillCount: 1,
+    });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().setWorkflowName("Share me");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/review",
+        provider: "codex",
+        name: "Review",
+        description: "",
+        rootDir: ".codex/skills/review",
+        skillFile: ".codex/skills/review/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByTestId("workflow-export-bundle"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.exportWorkflowBundle).toHaveBeenCalledTimes(1);
+    });
+    const [repoPath, workflowJson, suggestedFileName] =
+      bridgeMock.exportWorkflowBundle.mock.calls[0];
+    expect(repoPath).toBe("/Users/me/alpha");
+    expect(suggestedFileName).toBe("share-me.circuitflow");
+    const workflow = JSON.parse(String(workflowJson));
+    expect(workflow.repositoryId).toBe("id-alpha");
+    expect(workflow.nodes[0].skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/review/SKILL.md",
+    });
+  });
+
+  it("imports a bundle without conflicts as a new workflow copy", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    bridgeMock.previewWorkflowBundleImport.mockResolvedValue({
+      bundlePath: "/Users/me/shared.circuitflow",
+      workflowName: "Shared flow",
+      skillCount: 1,
+      missingSkills: [".codex/skills/review/SKILL.md"],
+      reusedSkills: [],
+      conflicts: [],
+    });
+    bridgeMock.importWorkflowBundle.mockResolvedValue({
+      workflowId: "imported-wf",
+      workflowJson: JSON.stringify({
+        version: "0.1",
+        id: "imported-wf",
+        repositoryId: "id-alpha",
+        name: "Shared flow",
+        nodes: [
+          {
+            id: "n1",
+            type: "skill",
+            skillRef: {
+              source: "repository",
+              provider: "codex",
+              skillFile: ".codex/skills/review/SKILL.md",
+            },
+            label: "Review",
+            position: { x: 1, y: 2 },
+          },
+        ],
+        edges: [],
+        createdAt: "2026-05-21T00:00:00Z",
+        updatedAt: "2026-05-21T00:00:00Z",
+      }),
+      installedSkills: [".codex/skills/review/SKILL.md"],
+      reusedSkills: [],
+      skippedSkills: [],
+      overwrittenSkills: [],
+    });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByTestId("workflow-import-bundle"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.importWorkflowBundle).toHaveBeenCalledTimes(1);
+    });
+    const [repoPath, repositoryId, bundlePath, workflowId, now, resolutions] =
+      bridgeMock.importWorkflowBundle.mock.calls[0];
+    expect(repoPath).toBe("/Users/me/alpha");
+    expect(repositoryId).toBe("id-alpha");
+    expect(bundlePath).toBe("/Users/me/shared.circuitflow");
+    expect(typeof workflowId).toBe("string");
+    expect(typeof now).toBe("string");
+    expect(resolutions).toEqual([]);
+    expect(useWorkflowStore.getState().currentWorkflowId).toBe("imported-wf");
+    expect(useWorkflowStore.getState().workflowName).toBe("Shared flow");
+  });
+
+  it("resolves bundle skill conflicts with apply-to-all overwrite", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+    bridgeMock.previewWorkflowBundleImport.mockResolvedValue({
+      bundlePath: "/Users/me/shared.circuitflow",
+      workflowName: "Shared flow",
+      skillCount: 2,
+      missingSkills: [],
+      reusedSkills: [],
+      conflicts: [
+        {
+          skillFile: ".codex/skills/review/SKILL.md",
+          existingHash: "old-a",
+          incomingHash: "new-a",
+        },
+        {
+          skillFile: ".claude/skills/fix/SKILL.md",
+          existingHash: "old-b",
+          incomingHash: "new-b",
+        },
+      ],
+    });
+    bridgeMock.importWorkflowBundle.mockResolvedValue({
+      workflowId: "imported-wf",
+      workflowJson: JSON.stringify({
+        version: "0.1",
+        id: "imported-wf",
+        repositoryId: "id-alpha",
+        name: "Shared flow",
+        nodes: [],
+        edges: [],
+        createdAt: "2026-05-21T00:00:00Z",
+        updatedAt: "2026-05-21T00:00:00Z",
+      }),
+      installedSkills: [],
+      reusedSkills: [],
+      skippedSkills: [],
+      overwrittenSkills: [
+        ".codex/skills/review/SKILL.md",
+        ".claude/skills/fix/SKILL.md",
+      ],
+    });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-settings"));
+    fireEvent.click(screen.getByTestId("workflow-import-bundle"));
+
+    expect(await screen.findByTestId("workflow-import-conflicts")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workflow-import-apply-all"));
+    fireEvent.change(screen.getAllByTestId("workflow-import-conflict-action")[0], {
+      target: { value: "overwrite" },
+    });
+    fireEvent.click(screen.getByTestId("workflow-import-confirm"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.importWorkflowBundle).toHaveBeenCalledTimes(1);
+    });
+    const resolutions = bridgeMock.importWorkflowBundle.mock.calls[0][5];
+    expect(resolutions).toEqual([
+      { skillFile: ".codex/skills/review/SKILL.md", action: "overwrite" },
+      { skillFile: ".claude/skills/fix/SKILL.md", action: "overwrite" },
+    ]);
   });
 
   it("W8d: adds the tutorial starter flow to an empty selected repo and saves as a regular workflow", async () => {

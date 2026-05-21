@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   isPermissionGranted,
   onAction,
@@ -17,6 +17,10 @@ import type {
   RawSystemSkill,
   RepositoryEnvironmentCheck,
   RunLogEntryDTO,
+  WorkflowBundleExportDTO,
+  WorkflowBundleImportPreviewDTO,
+  WorkflowBundleImportResultDTO,
+  WorkflowBundleSkillResolutionDTO,
   WorkflowSummaryDTO,
   WorkspaceDTO,
 } from "./bridge";
@@ -101,6 +105,56 @@ export const tauriHostBridge: HostBridge = {
 
   async saveWorkflow(repoPath: string, workflowId: string, json: string) {
     await invoke<void>("save_workflow", { repoPath, workflowId, json });
+  },
+
+  async exportWorkflowBundle(repoPath, workflowJson, suggestedFileName) {
+    const selected = await save({
+      defaultPath: suggestedFileName.endsWith(".circuitflow")
+        ? suggestedFileName
+        : `${suggestedFileName}.circuitflow`,
+      filters: [{ name: "Circuit workflow bundle", extensions: ["circuitflow"] }],
+    });
+    if (!selected) return null;
+    return await invoke<WorkflowBundleExportDTO>("export_workflow_bundle", {
+      repoPath,
+      workflowJson,
+      exportedAt: new Date().toISOString(),
+      exportPath: selected,
+    });
+  },
+
+  async previewWorkflowBundleImport(repoPath) {
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      filters: [{ name: "Circuit workflow bundle", extensions: ["circuitflow"] }],
+    });
+    if (typeof selected !== "string") return null;
+    return await invoke<WorkflowBundleImportPreviewDTO>(
+      "preview_workflow_bundle_import",
+      {
+        repoPath,
+        bundlePath: selected,
+      },
+    );
+  },
+
+  async importWorkflowBundle(
+    repoPath: string,
+    repositoryId: string,
+    bundlePath: string,
+    workflowId: string,
+    now: string,
+    resolutions: WorkflowBundleSkillResolutionDTO[],
+  ) {
+    return await invoke<WorkflowBundleImportResultDTO>("import_workflow_bundle", {
+      repoPath,
+      repositoryId,
+      bundlePath,
+      workflowId,
+      now,
+      resolutions,
+    });
   },
 
   async saveRunLog(

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
   ChevronsRight,
+  Download,
   Ellipsis,
   FileText,
   FolderOpen,
@@ -10,6 +11,7 @@ import {
   RotateCcw,
   Save,
   Square,
+  Upload,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import claudeAppIcon from "../assets/claude-app-icon.png";
@@ -25,10 +27,20 @@ import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
-import type { WorkflowSummaryDTO } from "../host/bridge";
+import { getHostBridge, type WorkflowSummaryDTO } from "../host/bridge";
+import type {
+  WorkflowBundleImportPreviewDTO,
+  WorkflowBundleSkillResolutionDTO,
+} from "../host/bridge";
 import { fromWorkflow } from "../workflow/serialize";
 import { createCodexStarterWorkflow } from "../workflow/starterFlow";
-import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
+import {
+  exportCurrent,
+  listForRepo,
+  loadById,
+  loadImportedBundle,
+  saveCurrent,
+} from "../workflow/workflowService";
 import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
 import { consumeStarterFlowPrompt } from "../workflow/starterFlowPrompt";
 import { useRunLogStore } from "../runner/runLogStore";
@@ -89,6 +101,8 @@ export function Workspace() {
   const [starterGoal, setStarterGoal] = useState("");
   const [showStarterFlowPrompt, setShowStarterFlowPrompt] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingImport, setPendingImport] =
+    useState<PendingBundleImport | null>(null);
   const consumedStarterPromptRepoIds = useRef(new Set<string>());
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
@@ -195,6 +209,65 @@ export function Workspace() {
       notifyAppError(err, "Save workflow failed");
     }
   }, [repo, refreshWorkflows]);
+
+  const finishBundleImport = useCallback(async (
+    preview: WorkflowBundleImportPreviewDTO,
+    resolutions: WorkflowBundleSkillResolutionDTO[],
+  ) => {
+    if (!repo) return;
+    const bridge = getHostBridge();
+    if (!bridge.importWorkflowBundle) {
+      throw new Error("workflow bundle import is not available");
+    }
+    const result = await bridge.importWorkflowBundle(
+      repo.path,
+      repo.id,
+      preview.bundlePath,
+      crypto.randomUUID(),
+      new Date().toISOString(),
+      resolutions,
+    );
+    await loadImportedBundle(result);
+    await refreshWorkflows();
+    void scanRepository(repo.id, repo.path);
+  }, [refreshWorkflows, repo, scanRepository]);
+
+  const handleExportBundle = useCallback(async () => {
+    if (!repo) return;
+    try {
+      await exportCurrent({
+        repoPath: repo.path,
+        repositoryId: repo.id,
+      });
+    } catch (err) {
+      notifyAppError(err, "Export workflow failed");
+    }
+  }, [repo]);
+
+  const handleImportBundle = useCallback(async () => {
+    if (!repo) return;
+    try {
+      const bridge = getHostBridge();
+      if (!bridge.previewWorkflowBundleImport) {
+        throw new Error("workflow bundle import is not available");
+      }
+      const preview = await bridge.previewWorkflowBundleImport(repo.path);
+      if (!preview) return;
+      if (preview.conflicts.length === 0) {
+        await finishBundleImport(preview, []);
+        return;
+      }
+      setPendingImport({
+        preview,
+        applyToAll: false,
+        resolutions: Object.fromEntries(
+          preview.conflicts.map((conflict) => [conflict.skillFile, "skip"]),
+        ),
+      });
+    } catch (err) {
+      notifyAppError(err, "Import workflow failed");
+    }
+  }, [finishBundleImport, repo]);
 
   const handleOpenRepository = useCallback(async (
     errorTitle: string,
@@ -416,6 +489,42 @@ export function Workspace() {
                     aria-hidden="true"
                   />
                   Show in Finder
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-export-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleExportBundle();
+                  }}
+                >
+                  <Download
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Export workflow
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-import-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleImportBundle();
+                  }}
+                >
+                  <Upload
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Import workflow
                 </button>
                 <button
                   type="button"
@@ -666,6 +775,118 @@ export function Workspace() {
           </div>
         </div>
       ) : null}
+      {pendingImport ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workflow-import-conflicts-title"
+            data-testid="workflow-import-conflicts"
+          >
+            <h2 id="workflow-import-conflicts-title" className="modal__title">
+              Resolve skill conflicts
+            </h2>
+            <p className="modal__message">
+              {pendingImport.preview.workflowName || "Imported workflow"} includes
+              skill files that already exist with different content.
+            </p>
+            <label className="modal__ack">
+              <input
+                type="checkbox"
+                checked={pendingImport.applyToAll}
+                data-testid="workflow-import-apply-all"
+                onChange={(event) => {
+                  setPendingImport((current) =>
+                    current
+                      ? { ...current, applyToAll: event.target.checked }
+                      : current,
+                  );
+                }}
+              />
+              Apply choice to all conflicts
+            </label>
+            <table className="modal__nodes">
+              <thead>
+                <tr>
+                  <th>Skill</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingImport.preview.conflicts.map((conflict) => (
+                  <tr key={conflict.skillFile}>
+                    <td>{conflict.skillFile}</td>
+                    <td>
+                      <select
+                        aria-label={`Action for ${conflict.skillFile}`}
+                        data-testid="workflow-import-conflict-action"
+                        value={pendingImport.resolutions[conflict.skillFile] ?? "skip"}
+                        onChange={(event) => {
+                          const action =
+                            event.target.value === "overwrite"
+                              ? "overwrite"
+                              : "skip";
+                          setPendingImport((current) => {
+                            if (!current) return current;
+                            if (current.applyToAll) {
+                              return {
+                                ...current,
+                                resolutions: Object.fromEntries(
+                                  current.preview.conflicts.map((item) => [
+                                    item.skillFile,
+                                    action,
+                                  ]),
+                                ),
+                              };
+                            }
+                            return {
+                              ...current,
+                              resolutions: {
+                                ...current.resolutions,
+                                [conflict.skillFile]: action,
+                              },
+                            };
+                          });
+                        }}
+                      >
+                        <option value="skip">Skip</option>
+                        <option value="overwrite">Overwrite</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="modal__footer">
+              <button
+                type="button"
+                data-testid="workflow-import-cancel"
+                onClick={() => setPendingImport(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="workflow-import-confirm"
+                onClick={() => {
+                  const next = pendingImport;
+                  setPendingImport(null);
+                  void finishBundleImport(
+                    next.preview,
+                    Object.entries(next.resolutions).map(([skillFile, action]) => ({
+                      skillFile,
+                      action,
+                    })),
+                  ).catch((err) => notifyAppError(err, "Import workflow failed"));
+                }}
+              >
+                Import
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {sidebarCollapsed ? (
         <button
           type="button"
@@ -759,6 +980,12 @@ type StartSnapshotOptions = {
   startFromNodeId?: string;
   seedPreviousOutputs?: Record<string, SkillExecutionResult>;
   errorTitle?: string;
+};
+
+type PendingBundleImport = {
+  preview: WorkflowBundleImportPreviewDTO;
+  applyToAll: boolean;
+  resolutions: Record<string, "skip" | "overwrite">;
 };
 
 type RerunCandidate = {
