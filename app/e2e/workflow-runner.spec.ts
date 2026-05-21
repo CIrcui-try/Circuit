@@ -110,3 +110,30 @@ test("F7b: clicking Start while a run is in flight is ignored", async ({ page })
   });
   expect(runIdAfter).toBe("pinned-run");
 });
+
+test("F7c: stdin wait is surfaced and fails when input remains pending", async ({ page }) => {
+  await openWorkspace(page);
+
+  await addSkillByButton(page, "Review Code");
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __CIRCUIT_SET_RUNTIME_SCENARIO__: (scenario: "stdin-waiting") => void;
+    };
+    w.__CIRCUIT_SET_RUNTIME_SCENARIO__("stdin-waiting");
+  });
+
+  const startBtn = page.getByTestId("workflow-start");
+  await expect(startBtn).toBeEnabled();
+  await startBtn.click();
+
+  await expect(page.getByTestId("run-log")).toContainText(
+    "Reading additional input from stdin",
+  );
+  await expect(
+    page.locator(
+      '[data-testid="workflow-node"][data-skill-provider="codex"][data-run-state="failed"]',
+    ),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("run-log-run-state")).toContainText("failed");
+  await expect(startBtn).toBeEnabled();
+});

@@ -1,20 +1,68 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { openPath } from "@tauri-apps/plugin-opener";
+import {
+  ChevronDown,
+  ChevronsRight,
+  Download,
+  Ellipsis,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Play,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Save,
+  Square,
+  Trash2,
+  Undo2,
+  Upload,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import claudeAppIcon from "../assets/claude-app-icon.png";
+import codexAppIcon from "../assets/codex-app-icon.png";
+import { notifyAppError } from "../components/AppErrorAlert";
+import { HoverTooltip } from "../components/HoverTooltip";
 import { Canvas } from "../components/layout/Canvas";
 import { LogPanel } from "../components/layout/LogPanel";
 import { PropertiesPanel } from "../components/layout/PropertiesPanel";
+import { ResizeHandle } from "../components/layout/ResizeHandle";
 import { Sidebar } from "../components/layout/Sidebar";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore } from "../stores/skillStore";
-import { useWorkflowStore } from "../stores/workflowStore";
-import type { WorkflowSummaryDTO } from "../host/bridge";
-import { listForRepo, loadById, saveCurrent } from "../workflow/workflowService";
-import { createMockRunner } from "../runner/mockRunner";
+import { useLayoutStore } from "../stores/layoutStore";
+import { useWorkflowStore, type SkillNode } from "../stores/workflowStore";
+import { getHostBridge, type WorkflowSummaryDTO } from "../host/bridge";
+import type {
+  WorkflowBundleImportPreviewDTO,
+  WorkflowBundleSkillResolutionDTO,
+} from "../host/bridge";
+import { fromWorkflow } from "../workflow/serialize";
+import { createCodexStarterWorkflow } from "../workflow/starterFlow";
+import {
+  deleteById,
+  exportCurrent,
+  listForRepo,
+  loadById,
+  loadImportedBundle,
+  saveCurrent,
+} from "../workflow/workflowService";
+import { loadWorkflowDraft, saveWorkflowDraft } from "../workflow/workflowDraft";
+import { consumeStarterFlowPrompt } from "../workflow/starterFlowPrompt";
+import { useRunLogStore } from "../runner/runLogStore";
 import { useRunStore } from "../runner/runStore";
-import { runWorkflow } from "../runner/runWorkflow";
-import type { RunnableEdge, RunnableNode } from "../runner/runner";
+import { analyzeWorkflowGraph, topoSort } from "../runner/topoSort";
+import {
+  cancelWorkflowRun,
+  startWorkflowRun,
+} from "../runner/runController";
+import type { WorkflowRunSnapshot } from "../runner/runStore";
+import type { RunWorkflowOutcome } from "../runner/runWorkflow";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 
 const NEW_WORKFLOW_VALUE = "__new__";
+const TOOLBAR_TOOLTIP_DELAY_MS = 500;
+const WORKFLOW_AUTOSAVE_DELAY_MS = 700;
 
 export function Workspace() {
   const { repoId } = useParams<{ repoId?: string }>();
@@ -24,35 +72,159 @@ export function Workspace() {
   );
   const selectRepository = useRepositoryStore((s) => s.selectRepository);
   const scanRepository = useSkillStore((s) => s.scanRepository);
+  const scanDefaultCatalog = useSkillStore((s) => s.scanDefaultCatalog);
   const resetWorkflow = useWorkflowStore((s) => s.resetWorkflow);
   const workflowName = useWorkflowStore((s) => s.workflowName);
   const currentWorkflowId = useWorkflowStore((s) => s.currentWorkflowId);
+  const continueOnFailure = useWorkflowStore((s) => s.continueOnFailure);
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
-  const nodeCount = useWorkflowStore((s) => s.nodes.length);
-  const isRunning = useRunStore((s) => s.status === "running");
-  const resetRun = useRunStore((s) => s.reset);
+  const setContinueOnFailure = useWorkflowStore((s) => s.setContinueOnFailure);
+  const autoLayoutWorkflow = useWorkflowStore((s) => s.autoLayoutWorkflow);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const edges = useWorkflowStore((s) => s.edges);
+  const canUndoWorkflowEdit = useWorkflowStore((s) => s.historyPast.length > 0);
+  const canRedoWorkflowEdit = useWorkflowStore((s) => s.historyFuture.length > 0);
+  const nodeCount = nodes.length;
+  const runRecord = useRunStore((s) =>
+    repo?.id ? s.getRunForRepository(repo.id) : s,
+  );
+  const logRecord = useRunLogStore((s) =>
+    repo?.id ? s.getLogForRepository(repo.id) : s,
+  );
+  const runStatus = runRecord.status;
+  const isRunningHere = runStatus === "running";
+  const runId = runRecord.runId;
+  const acknowledgeRun = useRunStore((s) => s.acknowledgeRun);
+  const lastRunSnapshot = runRecord.snapshot;
+  const lastRunNodeStates = runRecord.nodeStates;
+  const lastRunNodeResults = logRecord.nodeResults;
+  const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useLayoutStore((s) => s.setSidebarCollapsed);
+  const propsCollapsed = useLayoutStore((s) => s.propsCollapsed);
+  const setPropsCollapsed = useLayoutStore((s) => s.setPropsCollapsed);
+  const logCollapsed = useLayoutStore((s) => s.logCollapsed);
+  const setLogCollapsed = useLayoutStore((s) => s.setLogCollapsed);
+  const activeRunSnapshot =
+    runRecord.status === "running" ? runRecord.snapshot : null;
 
   const [workflows, setWorkflows] = useState<WorkflowSummaryDTO[]>([]);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [starterGoal, setStarterGoal] = useState("");
+  const [showStarterFlowPrompt, setShowStarterFlowPrompt] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingImport, setPendingImport] =
+    useState<PendingBundleImport | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    useState<WorkflowSummaryDTO | null>(null);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+  const [editingWorkflowName, setEditingWorkflowName] = useState(false);
+  const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
+  const consumedStarterPromptRepoIds = useRef(new Set<string>());
+  const autosaveSeqRef = useRef(0);
+  const autosaveBaselineRef = useRef<string | null>(null);
+  const workflowNameInputRef = useRef<HTMLInputElement | null>(null);
+  const workflowMenuRef = useRef<HTMLDivElement | null>(null);
+  const [pendingCycleRun, setPendingCycleRun] =
+    useState<WorkflowRunSnapshot | null>(null);
 
-  const runner = useMemo(() => createMockRunner({ delayMs: 250 }), []);
+  const rerunCandidate = buildRerunCandidate({
+    repoId: repo?.id,
+    status: runStatus,
+    snapshot: lastRunSnapshot,
+    nodeStates: lastRunNodeStates,
+    nodeResults: lastRunNodeResults,
+  });
+
+  const markAutosaveReadyAfterHydration = useCallback(() => {
+    window.setTimeout(() => {
+      setAutosaveReady(true);
+    }, 0);
+  }, []);
+
+  const captureAutosaveBaseline = useCallback(() => {
+    autosaveBaselineRef.current = toAutosaveSignature(useWorkflowStore.getState());
+  }, []);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
   }, [repoId, selectRepository]);
 
   useEffect(() => {
+    if (!repo?.id || !runId) return;
+    if (runStatus !== "success") return;
+    acknowledgeRun(runId, repo.id);
+  }, [acknowledgeRun, repo?.id, runId, runStatus]);
+
+  useEffect(() => {
+    setAutosaveReady(false);
     resetWorkflow();
-    resetRun();
+    captureAutosaveBaseline();
     setWorkflows([]);
-    setSaveStatus(null);
-  }, [repoId, resetWorkflow, resetRun]);
+    setShowStarterFlowPrompt(false);
+    if (!repo) return;
+    if (isRunningHere && activeRunSnapshot) {
+      useWorkflowStore.getState().replaceCanvas({
+        nodes: activeRunSnapshot.nodes.map(toCanvasNode),
+        edges: activeRunSnapshot.edges.map((edge) => ({ ...edge })),
+        workflowId: activeRunSnapshot.workflowId,
+        workflowName: activeRunSnapshot.workflowName,
+        continueOnFailure: activeRunSnapshot.continueOnFailure,
+      });
+      return;
+    }
+    const draft = loadWorkflowDraft(repo.id);
+    if (!draft) {
+      const shouldShowStarterPrompt =
+        consumedStarterPromptRepoIds.current.has(repo.id) ||
+        consumeStarterFlowPrompt(repo.id);
+      if (shouldShowStarterPrompt) {
+        consumedStarterPromptRepoIds.current.add(repo.id);
+      }
+      setShowStarterFlowPrompt(shouldShowStarterPrompt);
+      markAutosaveReadyAfterHydration();
+      return;
+    }
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: draft.nodes,
+      edges: draft.edges,
+      workflowId: draft.workflowId,
+      workflowName: draft.workflowName,
+      continueOnFailure: draft.continueOnFailure,
+    });
+    captureAutosaveBaseline();
+    markAutosaveReadyAfterHydration();
+  }, [
+    captureAutosaveBaseline,
+    markAutosaveReadyAfterHydration,
+    repo,
+    repoId,
+    resetWorkflow,
+  ]);
+
+  useEffect(() => {
+    if (!repo) return;
+    return useWorkflowStore.subscribe((state) => {
+      saveWorkflowDraft(repo.id, {
+        workflowId: state.currentWorkflowId,
+        workflowName: state.workflowName,
+        continueOnFailure: state.continueOnFailure,
+        nodes: state.nodes,
+        edges: state.edges,
+      });
+    });
+  }, [repo]);
 
   useEffect(() => {
     if (repo) {
       scanRepository(repo.id, repo.path);
     }
   }, [repo, scanRepository]);
+
+  useEffect(() => {
+    if (repo) {
+      void scanDefaultCatalog();
+    }
+  }, [repo, scanDefaultCatalog]);
 
   const refreshWorkflows = useCallback(async () => {
     if (!repo) return;
@@ -66,64 +238,359 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleSave = useCallback(async () => {
+  const selectedWorkflow =
+    workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
+
+  useEffect(() => {
+    if (!editingWorkflowName) return;
+    workflowNameInputRef.current?.focus();
+    workflowNameInputRef.current?.select();
+  }, [editingWorkflowName]);
+
+  useEffect(() => {
+    if (!workflowMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!workflowMenuRef.current?.contains(event.target as Node)) {
+        setWorkflowMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [workflowMenuOpen]);
+
+  const persistCurrentWorkflow = useCallback(async (errorTitle: string) => {
     if (!repo) return;
-    setSaveStatus("Saving…");
+    const savedSignature = toAutosaveSignature(useWorkflowStore.getState());
     try {
-      const result = await saveCurrent({
+      await saveCurrent({
         repoPath: repo.path,
         repositoryId: repo.id,
       });
-      setSaveStatus(`Saved ${result.name}`);
+      autosaveBaselineRef.current = savedSignature;
       await refreshWorkflows();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSaveStatus(`Save failed: ${message}`);
+      notifyAppError(err, errorTitle);
     }
   }, [repo, refreshWorkflows]);
 
-  const handleStart = useCallback(async () => {
-    const { nodes, edges, currentWorkflowId } = useWorkflowStore.getState();
-    const runnable: RunnableNode[] = nodes.map((n) => ({
-      id: n.id,
-      label: n.data.label,
-      skillRef: {
-        provider: n.data.skillRef.provider,
-        skillFile: n.data.skillRef.skillFile,
-      },
-    }));
-    const runnableEdges: RunnableEdge[] = edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-    }));
-    await runWorkflow({
-      nodes: runnable,
-      edges: runnableEdges,
-      workflowId: currentWorkflowId,
-      runner,
-      store: useRunStore,
+  useEffect(() => {
+    if (!repo || isRunningHere || activeRunSnapshot) return;
+    if (!autosaveReady) return;
+    if (!selectedWorkflow) return;
+    const signature = toAutosaveSignature({
+      workflowName,
+      continueOnFailure,
+      nodes,
+      edges,
     });
-  }, [runner]);
+    if (signature === autosaveBaselineRef.current) return;
+
+    const seq = autosaveSeqRef.current + 1;
+    autosaveSeqRef.current = seq;
+    const timer = window.setTimeout(() => {
+      if (autosaveSeqRef.current !== seq) return;
+      void persistCurrentWorkflow("Autosave workflow failed");
+    }, WORKFLOW_AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeRunSnapshot,
+    autosaveReady,
+    continueOnFailure,
+    edges,
+    isRunningHere,
+    nodes,
+    persistCurrentWorkflow,
+    repo,
+    selectedWorkflow,
+    workflowName,
+  ]);
+
+  const finishBundleImport = useCallback(async (
+    preview: WorkflowBundleImportPreviewDTO,
+    resolutions: WorkflowBundleSkillResolutionDTO[],
+  ) => {
+    if (!repo) return;
+    const bridge = getHostBridge();
+    if (!bridge.importWorkflowBundle) {
+      throw new Error("workflow bundle import is not available");
+    }
+    const result = await bridge.importWorkflowBundle(
+      repo.path,
+      repo.id,
+      preview.bundlePath,
+      crypto.randomUUID(),
+      new Date().toISOString(),
+      resolutions,
+    );
+    await loadImportedBundle(result);
+    await refreshWorkflows();
+    void scanRepository(repo.id, repo.path);
+  }, [refreshWorkflows, repo, scanRepository]);
+
+  const handleExportBundle = useCallback(async () => {
+    if (!repo) return;
+    try {
+      await exportCurrent({
+        repoPath: repo.path,
+        repositoryId: repo.id,
+      });
+    } catch (err) {
+      notifyAppError(err, "Export workflow failed");
+    }
+  }, [repo]);
+
+  const handleImportBundle = useCallback(async () => {
+    if (!repo) return;
+    try {
+      const bridge = getHostBridge();
+      if (!bridge.previewWorkflowBundleImport) {
+        throw new Error("workflow bundle import is not available");
+      }
+      const preview = await bridge.previewWorkflowBundleImport(repo.path);
+      if (!preview) return;
+      if (preview.conflicts.length === 0) {
+        await finishBundleImport(preview, []);
+        return;
+      }
+      setPendingImport({
+        preview,
+        applyToAll: false,
+        resolutions: Object.fromEntries(
+          preview.conflicts.map((conflict) => [conflict.skillFile, "skip"]),
+        ),
+      });
+    } catch (err) {
+      notifyAppError(err, "Import workflow failed");
+    }
+  }, [finishBundleImport, repo]);
+
+  const handleOpenRepository = useCallback(async (
+    errorTitle: string,
+    appName?: string,
+  ) => {
+    if (!repo) return;
+    try {
+      if (appName) {
+        await openPath(repo.path, appName);
+      } else {
+        await openPath(repo.path);
+      }
+    } catch (err) {
+      notifyAppError(err, errorTitle);
+    }
+  }, [repo]);
+
+  const handleOpenAgentsMd = useCallback(async () => {
+    if (!repo) return;
+    try {
+      await openPath(`${repo.path}/AGENTS.md`);
+    } catch (err) {
+      notifyAppError(err, "Open AGENTS.md failed");
+    }
+  }, [repo]);
+
+  const startSnapshot = useCallback(async (
+    snapshot: WorkflowRunSnapshot,
+    options: StartSnapshotOptions = {},
+  ) => {
+    setLogCollapsed(false);
+    try {
+      const outcome = await startWorkflowRun({
+        snapshot,
+        allowCycles: options.allowCycles,
+        startFromNodeId: options.startFromNodeId,
+        seedPreviousOutputs: options.seedPreviousOutputs,
+        continueOnFailure: snapshot.continueOnFailure,
+      });
+      if (outcome.kind === "rejected") {
+        notifyAppError(
+          outcome.message ?? formatRunRejection(outcome.reason),
+          options.errorTitle ?? "Start Circuit failed",
+        );
+        return;
+      }
+      if (outcome.status === "failed" || outcome.status === "timeout") {
+        notifyAppError(
+          describeLastRunFailure(snapshot.repository.id) ??
+            "Workflow failed. Check the run log for details.",
+          options.errorTitle ?? "Start Circuit failed",
+        );
+      }
+    } catch (err) {
+      notifyAppError(err, options.errorTitle ?? "Start Circuit failed");
+    }
+  }, [setLogCollapsed]);
+
+  const handleStart = useCallback(async () => {
+    if (!repo) return;
+    const snapshot = buildRunSnapshot(repo);
+    const graph = analyzeWorkflowGraph(
+      snapshot.nodes.map((node) => node.id),
+      snapshot.edges,
+    );
+    if (!graph.valid) {
+      notifyAppError(
+        formatRunRejection("invalid-graph"),
+        "Start Circuit failed",
+      );
+      return;
+    }
+    if (graph.hasCycle) {
+      setPendingCycleRun(snapshot);
+      return;
+    }
+    void startSnapshot(snapshot);
+  }, [repo, startSnapshot]);
+
+  const handleAddStarterFlow = useCallback(() => {
+    if (!repo) return;
+    const initialRequest = starterGoal.trim();
+    const workflow = createCodexStarterWorkflow({
+      repositoryId: repo.id,
+      initialRequest,
+    });
+    const restored = fromWorkflow(workflow);
+    useWorkflowStore.getState().replaceCanvas({
+      nodes: restored.nodes,
+      edges: restored.edges,
+      workflowId: restored.meta.id,
+      workflowName: restored.meta.name,
+      continueOnFailure: restored.meta.continueOnFailure,
+    });
+    consumedStarterPromptRepoIds.current.delete(repo.id);
+    setShowStarterFlowPrompt(false);
+  }, [repo, starterGoal]);
+
+  const handleCancel = useCallback(() => {
+    if (!isRunningHere) return;
+    setCancelling(true);
+    void cancelWorkflowRun(repo?.id);
+  }, [isRunningHere, repo?.id]);
+
+  useEffect(() => {
+    if (!isRunningHere) setCancelling(false);
+  }, [isRunningHere]);
 
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
       if (!repo) return;
+      setWorkflowMenuOpen(false);
       if (value === NEW_WORKFLOW_VALUE) {
+        setAutosaveReady(false);
         resetWorkflow();
-        setSaveStatus(null);
+        captureAutosaveBaseline();
+        markAutosaveReadyAfterHydration();
         return;
       }
       try {
+        setAutosaveReady(false);
         await loadById({ repoPath: repo.path, workflowId: value });
-        setSaveStatus(null);
+        captureAutosaveBaseline();
+        markAutosaveReadyAfterHydration();
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setSaveStatus(`Load failed: ${message}`);
+        markAutosaveReadyAfterHydration();
+        notifyAppError(err, "Load workflow failed");
       }
     },
-    [repo, resetWorkflow],
+    [captureAutosaveBaseline, markAutosaveReadyAfterHydration, repo, resetWorkflow],
   );
+
+  const handleAutoLayout = useCallback(() => {
+    autoLayoutWorkflow();
+  }, [autoLayoutWorkflow]);
+
+  const handleDeleteWorkflow = useCallback(async () => {
+    if (!repo || !pendingDelete) return;
+    try {
+      setAutosaveReady(false);
+      await deleteById({
+        repoPath: repo.path,
+        workflowId: pendingDelete.id,
+      });
+      resetWorkflow();
+      captureAutosaveBaseline();
+      setPendingDelete(null);
+      await refreshWorkflows();
+      markAutosaveReadyAfterHydration();
+    } catch (err) {
+      markAutosaveReadyAfterHydration();
+      notifyAppError(err, "Delete workflow failed");
+    }
+  }, [
+    markAutosaveReadyAfterHydration,
+    captureAutosaveBaseline,
+    pendingDelete,
+    refreshWorkflows,
+    repo,
+    resetWorkflow,
+  ]);
+
+  const handleUndo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyPast.length === 0) return;
+    store.undo();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyFuture.length === 0) return;
+    store.redo();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
+        if (isEditableShortcutTarget(event.target)) return;
+        if (key === "z" && event.shiftKey) {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+        if (key === "z") {
+          event.preventDefault();
+          handleUndo();
+          return;
+        }
+        if (key === "y") {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+      }
+      if ((event.metaKey || event.ctrlKey) && key === "s") {
+        if (!repo) return;
+        event.preventDefault();
+        void persistCurrentWorkflow("Save workflow failed");
+        return;
+      }
+      if (event.metaKey && event.key === "Enter") {
+        if (!repo || isRunningHere || nodeCount === 0) return;
+        event.preventDefault();
+        void handleStart();
+        return;
+      }
+      if (event.key === "Escape") {
+        if (!isRunningHere) return;
+        event.preventDefault();
+        handleCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handleCancel,
+    handleRedo,
+    handleStart,
+    handleUndo,
+    isRunningHere,
+    nodeCount,
+    persistCurrentWorkflow,
+    repo,
+  ]);
 
   if (repoId && hydrated && !repo) {
     return (
@@ -140,63 +607,911 @@ export function Workspace() {
   }
 
   return (
-    <div className="workspace" data-testid="workspace-root">
+    <div
+      className={[
+        "workspace",
+        sidebarCollapsed ? "workspace--sidebar-collapsed" : "",
+        propsCollapsed ? "workspace--props-collapsed" : "",
+        logCollapsed ? "workspace--log-collapsed" : "",
+      ].filter(Boolean).join(" ")}
+      data-testid="workspace-root"
+    >
       <header className="workspace__toolbar">
         <Link to="/" aria-label="Back to repository list">←</Link>
-        <span className="workspace__toolbar-title">Circuit</span>
-        <span style={{ color: "#8a8a92" }}>
-          {repo ? `Repository: ${repo.name}` : "No repository selected"}
+        <span className="workspace__repository-label">
+          {repo ? repo.name : "No repository selected"}
         </span>
+        <div className="workspace__settings">
+          <button
+            type="button"
+            data-testid="workflow-settings"
+            className="workspace__settings-trigger"
+            aria-label="Repository settings"
+            aria-haspopup="menu"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+            disabled={!repo}
+          >
+            <Ellipsis size={17} strokeWidth={2} aria-hidden="true" />
+          </button>
+          {settingsOpen && repo ? (
+            <div
+              className="workspace__settings-menu"
+              role="menu"
+              data-testid="workflow-settings-menu"
+            >
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="show-repository-in-finder"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleOpenRepository("Show repository in Finder failed");
+                  }}
+                >
+                  <FolderOpen
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Show in Finder
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleOpenAgentsMd();
+                  }}
+                >
+                  <FileText
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Open AGENTS.md
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleOpenRepository("Open Codex app failed", "Codex");
+                  }}
+                >
+                  <img
+                    className="workspace__settings-app-icon"
+                    src={codexAppIcon}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Open Codex app
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleOpenRepository("Open Claude app failed", "Claude");
+                  }}
+                >
+                  <img
+                    className="workspace__settings-app-icon"
+                    src={claudeAppIcon}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Open Claude app
+                </button>
+              </div>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-export-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleExportBundle();
+                  }}
+                >
+                  <Download
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Export workflow
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-import-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleImportBundle();
+                  }}
+                >
+                  <Upload
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Import workflow
+                </button>
+              </div>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-option workspace__settings-switch"
+                  role="switch"
+                  aria-checked={continueOnFailure}
+                  onClick={() => setContinueOnFailure(!continueOnFailure)}
+                >
+                  <ChevronsRight
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  <span>Continue on failure</span>
+                  <span
+                    className="workspace__settings-switch-track"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
         <span className="workspace__toolbar-spacer" />
-        <input
-          type="text"
-          aria-label="Workflow name"
-          data-testid="workflow-name-input"
-          className="workspace__toolbar-input"
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          disabled={!repo}
-        />
-        <select
+        <div
+          className="workspace__workflow-control"
+          role="group"
           aria-label="Workflow"
-          data-testid="workflow-menu"
-          value={currentWorkflowId ?? NEW_WORKFLOW_VALUE}
-          onChange={(e) => void handleSelectWorkflow(e.target.value)}
-          disabled={!repo}
+          ref={workflowMenuRef}
         >
-          <option value={NEW_WORKFLOW_VALUE}>New workflow</option>
-          {workflows.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name || "(untitled)"}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          data-testid="workflow-save"
-          onClick={() => void handleSave()}
-          disabled={!repo}
+          {editingWorkflowName ? (
+            <input
+              ref={workflowNameInputRef}
+              type="text"
+              aria-label="Workflow name"
+              data-testid="workflow-name-input"
+              className="workspace__toolbar-input workspace__workflow-name-input"
+              value={workflowName}
+              onBlur={() => setEditingWorkflowName(false)}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEditingWorkflowName(false);
+                }
+              }}
+              disabled={!repo}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label="Edit workflow name"
+              data-testid="workflow-name-button"
+              className="workspace__workflow-name-button"
+              onClick={() => setEditingWorkflowName(true)}
+              disabled={!repo}
+            >
+              <span>{workflowName || "(untitled)"}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Switch workflow"
+            aria-haspopup="menu"
+            aria-expanded={workflowMenuOpen}
+            data-testid="workflow-menu"
+            className="workspace__toolbar-icon-button"
+            onClick={() => setWorkflowMenuOpen((open) => !open)}
+            disabled={!repo}
+          >
+            <ChevronDown size={15} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+          {workflowMenuOpen && repo ? (
+            <div
+              className="workspace__workflow-menu-list"
+              role="menu"
+              data-testid="workflow-menu-list"
+            >
+              <button
+                type="button"
+                className="workspace__workflow-menu-item workspace__workflow-menu-item--new"
+                role="menuitem"
+                data-testid="workflow-new"
+                onClick={() => void handleSelectWorkflow(NEW_WORKFLOW_VALUE)}
+              >
+                <Plus
+                  className="workspace__workflow-menu-item-icon"
+                  size={15}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+                <span>New workflow</span>
+              </button>
+              <div
+                className="workspace__workflow-menu-separator"
+                role="separator"
+                data-testid="workflow-menu-separator"
+                aria-hidden="true"
+              />
+              <div
+                className="workspace__workflow-menu-section-label"
+                data-testid="workflow-menu-section-label"
+              >
+                Workflows
+              </div>
+              {workflows.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  className="workspace__workflow-menu-item"
+                  role="menuitem"
+                  onClick={() => void handleSelectWorkflow(w.id)}
+                >
+                  <span>{w.name || "(untitled)"}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {selectedWorkflow ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Delete workflow"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-delete-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-delete"
+              className="workspace__toolbar-icon-button"
+              aria-label="Delete workflow"
+              onClick={() => setPendingDelete(selectedWorkflow)}
+              disabled={!repo || isRunningHere}
+            >
+              <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        ) : (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Save workflow (⌘S)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-save-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-save"
+              className="workspace__toolbar-icon-button"
+              aria-label="Save workflow"
+              aria-keyshortcuts="Meta+S Control+S"
+              onClick={() => void persistCurrentWorkflow("Save workflow failed")}
+              disabled={!repo || isRunningHere}
+            >
+              <Save size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        )}
+        <div
+          className="workspace__toolbar-button-group"
+          role="group"
+          aria-label="Edit history"
         >
-          Save
-        </button>
-        <button
-          type="button"
-          data-testid="workflow-start"
-          onClick={() => void handleStart()}
-          disabled={!repo || isRunning || nodeCount === 0}
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Undo (⌘Z)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-undo-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-undo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Undo"
+              aria-keyshortcuts="Meta+Z Control+Z"
+              onClick={handleUndo}
+              disabled={!repo || isRunningHere || !canUndoWorkflowEdit}
+            >
+              <Undo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Redo (⇧⌘Z / ⌘Y)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-redo-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-redo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Redo"
+              aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Meta+Y Control+Y"
+              onClick={handleRedo}
+              disabled={!repo || isRunningHere || !canRedoWorkflowEdit}
+            >
+              <Redo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        </div>
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content="Auto layout"
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-auto-layout-tooltip"
         >
-          {isRunning ? "Running…" : "Start Circuit"}
-        </button>
-        {saveStatus ? (
-          <span className="workspace__toolbar-status" data-testid="workflow-save-status">
-            {saveStatus}
-          </span>
+          <button
+            type="button"
+            data-testid="workflow-auto-layout"
+            className="workspace__toolbar-action-button"
+            aria-label="Auto layout"
+            onClick={handleAutoLayout}
+            disabled={!repo || isRunningHere || nodeCount === 0}
+          >
+            <GitBranch size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Auto layout</span>
+          </button>
+        </HoverTooltip>
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content={isRunningHere ? "Running" : "Start Circuit (⌘Enter)"}
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-start-tooltip"
+        >
+          <button
+            type="button"
+            data-testid="workflow-start"
+            className="workspace__toolbar-icon-button workspace__toolbar-start"
+            aria-label={isRunningHere ? "Running" : "Start Circuit"}
+            aria-keyshortcuts="Meta+Enter"
+            onClick={() => void handleStart()}
+            disabled={!repo || isRunningHere || nodeCount === 0}
+          >
+            {isRunningHere ? (
+              <span
+                className="cli-status-spinner cli-status-spinner--inline"
+                aria-hidden="true"
+                role="presentation"
+              />
+            ) : (
+              <Play size={15} strokeWidth={2} aria-hidden="true" />
+            )}
+          </button>
+        </HoverTooltip>
+        {rerunCandidate ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Rerun from failed"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-rerun-from-failed-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-rerun-from-failed"
+              className="workspace__toolbar-icon-button"
+              aria-label="Rerun from failed"
+              onClick={() => {
+                void startSnapshot(rerunCandidate.snapshot, {
+                  startFromNodeId: rerunCandidate.startFromNodeId,
+                  seedPreviousOutputs: rerunCandidate.seedPreviousOutputs,
+                  errorTitle: "Rerun from failed failed",
+                });
+              }}
+              disabled={isRunningHere}
+            >
+              <RotateCcw size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        ) : null}
+        {isRunningHere || cancelling ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content={cancelling ? "Cancelling run" : "Cancel run (Esc)"}
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-cancel-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-cancel"
+              className="workspace__toolbar-icon-button"
+              aria-label={cancelling ? "Cancelling run" : "Cancel run"}
+              aria-keyshortcuts="Escape"
+              onClick={handleCancel}
+              disabled={!isRunningHere || cancelling}
+            >
+              <Square size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
         ) : null}
       </header>
-      <Sidebar repoId={repo?.id} />
+      {pendingDelete ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workflow-delete-title"
+            data-testid="workflow-delete-confirm"
+          >
+            <h2 id="workflow-delete-title" className="modal__title">
+              Delete workflow
+            </h2>
+            <p className="modal__message">
+              Delete {pendingDelete.name || "(untitled)"}? This removes the saved
+              workflow file only.
+            </p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                data-testid="workflow-delete-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => void handleDeleteWorkflow()}
+                data-testid="workflow-delete-confirm-delete"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {pendingCycleRun ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cycle-run-title"
+            data-testid="cycle-run-confirm"
+          >
+            <h2 id="cycle-run-title" className="modal__title">
+              Run workflow loop
+            </h2>
+            <p className="modal__message">
+              This workflow contains a loop and will repeat until it fails,
+              is cancelled, or a skill stops the loop.
+            </p>
+            <p className="modal__message">Start repeated execution?</p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingCycleRun(null)}
+                data-testid="cycle-run-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => {
+                  const snapshot = pendingCycleRun;
+                  setPendingCycleRun(null);
+                  void startSnapshot(snapshot, { allowCycles: true });
+                }}
+                data-testid="cycle-run-confirm-proceed"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {pendingImport ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workflow-import-conflicts-title"
+            data-testid="workflow-import-conflicts"
+          >
+            <h2 id="workflow-import-conflicts-title" className="modal__title">
+              Resolve skill conflicts
+            </h2>
+            <p className="modal__message">
+              {pendingImport.preview.workflowName || "Imported workflow"} includes
+              skill files that already exist with different content.
+            </p>
+            <label className="modal__ack">
+              <input
+                type="checkbox"
+                checked={pendingImport.applyToAll}
+                data-testid="workflow-import-apply-all"
+                onChange={(event) => {
+                  setPendingImport((current) =>
+                    current
+                      ? { ...current, applyToAll: event.target.checked }
+                      : current,
+                  );
+                }}
+              />
+              Apply choice to all conflicts
+            </label>
+            <table className="modal__nodes">
+              <thead>
+                <tr>
+                  <th>Skill</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingImport.preview.conflicts.map((conflict) => (
+                  <tr key={conflict.skillFile}>
+                    <td>{conflict.skillFile}</td>
+                    <td>
+                      <select
+                        aria-label={`Action for ${conflict.skillFile}`}
+                        data-testid="workflow-import-conflict-action"
+                        value={pendingImport.resolutions[conflict.skillFile] ?? "skip"}
+                        onChange={(event) => {
+                          const action =
+                            event.target.value === "overwrite"
+                              ? "overwrite"
+                              : "skip";
+                          setPendingImport((current) => {
+                            if (!current) return current;
+                            if (current.applyToAll) {
+                              return {
+                                ...current,
+                                resolutions: Object.fromEntries(
+                                  current.preview.conflicts.map((item) => [
+                                    item.skillFile,
+                                    action,
+                                  ]),
+                                ),
+                              };
+                            }
+                            return {
+                              ...current,
+                              resolutions: {
+                                ...current.resolutions,
+                                [conflict.skillFile]: action,
+                              },
+                            };
+                          });
+                        }}
+                      >
+                        <option value="skip">Skip</option>
+                        <option value="overwrite">Overwrite</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="modal__footer">
+              <button
+                type="button"
+                data-testid="workflow-import-cancel"
+                onClick={() => setPendingImport(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="workflow-import-confirm"
+                onClick={() => {
+                  const next = pendingImport;
+                  setPendingImport(null);
+                  void finishBundleImport(
+                    next.preview,
+                    Object.entries(next.resolutions).map(([skillFile, action]) => ({
+                      skillFile,
+                      action,
+                    })),
+                  ).catch((err) => notifyAppError(err, "Import workflow failed"));
+                }}
+              >
+                Import
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {sidebarCollapsed ? (
+        <button
+          type="button"
+          className="workspace__sidebar-restore"
+          data-testid="skills-sidebar-restore"
+          aria-label="Show skills sidebar"
+          onClick={() => setSidebarCollapsed(false)}
+        >
+          Skills
+        </button>
+      ) : (
+        <Sidebar
+          repoId={repo?.id}
+          onCollapse={() => setSidebarCollapsed(true)}
+        />
+      )}
       <Canvas />
-      <PropertiesPanel />
-      <LogPanel />
+      {repo && nodeCount === 0 && showStarterFlowPrompt ? (
+        <section className="starter-flow-empty" data-testid="starter-flow-empty">
+          <button
+            type="button"
+            className="starter-flow-empty__dismiss"
+            data-testid="starter-flow-dismiss"
+            aria-label="Dismiss starter flow prompt"
+            onClick={() => {
+              consumedStarterPromptRepoIds.current.delete(repo.id);
+              setShowStarterFlowPrompt(false);
+            }}
+          >
+            ×
+          </button>
+          <h2 className="starter-flow-empty__title">Add starter flow</h2>
+          <p className="starter-flow-empty__copy">
+            This flow will run against <strong>{repo.name}</strong> at{" "}
+            <code>{repo.path}</code>.
+          </p>
+          <label className="starter-flow-empty__field">
+            <span>What would you like to build?</span>
+            <input
+              value={starterGoal}
+              data-testid="starter-flow-goal-input"
+              placeholder="Example: add a theme toggle to settings"
+              onChange={(event) => setStarterGoal(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="starter-flow-empty__action"
+            data-testid="starter-flow-add"
+            onClick={handleAddStarterFlow}
+          >
+            Add Starter Flow
+          </button>
+        </section>
+      ) : null}
+      {propsCollapsed ? (
+        <button
+          type="button"
+          className="workspace__props-restore"
+          data-testid="properties-panel-restore"
+          aria-label="Show properties panel"
+          onClick={() => setPropsCollapsed(false)}
+        >
+          Properties
+        </button>
+      ) : (
+        <PropertiesPanel onCollapse={() => setPropsCollapsed(true)} />
+      )}
+      {logCollapsed ? (
+        <button
+          type="button"
+          className="workspace__log-restore"
+          data-testid="run-log-restore"
+          aria-label="Show run log"
+          onClick={() => setLogCollapsed(false)}
+        >
+          Run Log
+        </button>
+      ) : (
+        <LogPanel onCollapse={() => setLogCollapsed(true)} />
+      )}
+      {sidebarCollapsed ? null : <ResizeHandle direction="sidebar" />}
+      {propsCollapsed ? null : <ResizeHandle direction="props" />}
+      {logCollapsed ? null : <ResizeHandle direction="log" />}
     </div>
   );
+}
+
+type StartSnapshotOptions = {
+  allowCycles?: boolean;
+  startFromNodeId?: string;
+  seedPreviousOutputs?: Record<string, SkillExecutionResult>;
+  errorTitle?: string;
+};
+
+type PendingBundleImport = {
+  preview: WorkflowBundleImportPreviewDTO;
+  applyToAll: boolean;
+  resolutions: Record<string, "skip" | "overwrite">;
+};
+
+type RerunCandidate = {
+  snapshot: WorkflowRunSnapshot;
+  startFromNodeId: string;
+  seedPreviousOutputs: Record<string, SkillExecutionResult>;
+};
+
+function toAutosaveSignature(state: {
+  workflowName: string;
+  continueOnFailure: boolean;
+  nodes: SkillNode[];
+  edges: ReadonlyArray<unknown>;
+}): string {
+  return JSON.stringify({
+    workflowName: state.workflowName,
+    continueOnFailure: state.continueOnFailure,
+    nodes: state.nodes,
+    edges: state.edges,
+  });
+}
+
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
+}
+
+function buildRerunCandidate({
+  repoId,
+  status,
+  snapshot,
+  nodeStates,
+  nodeResults,
+}: {
+  repoId?: string;
+  status: ReturnType<typeof useRunStore.getState>["status"];
+  snapshot: WorkflowRunSnapshot | null;
+  nodeStates: ReturnType<typeof useRunStore.getState>["nodeStates"];
+  nodeResults: ReturnType<typeof useRunLogStore.getState>["nodeResults"];
+}): RerunCandidate | null {
+  if (!repoId || !snapshot || snapshot.repository.id !== repoId) return null;
+  if (status !== "failed" && status !== "timeout" && status !== "cancelled") {
+    return null;
+  }
+  const sorted = topoSort(
+    snapshot.nodes.map((node) => node.id),
+    snapshot.edges,
+  );
+  const runOrder = sorted.cycle
+    ? snapshot.nodes.map((node) => node.id)
+    : sorted.order;
+  const failedNodeId = runOrder.find((id) =>
+    isRerunnableNodeState(nodeStates[id]),
+  );
+  if (!failedNodeId) return null;
+
+  const seedPreviousOutputs: Record<string, SkillExecutionResult> = {};
+  for (const id of runOrder) {
+    const result = nodeResults[id];
+    if (!result) continue;
+    seedPreviousOutputs[id] = result;
+    if (id === failedNodeId) break;
+  }
+
+  return {
+    snapshot,
+    startFromNodeId: failedNodeId,
+    seedPreviousOutputs,
+  };
+}
+
+function isRerunnableNodeState(
+  state: ReturnType<typeof useRunStore.getState>["nodeStates"][string],
+): boolean {
+  return state === "failed" || state === "timeout" || state === "cancelled";
+}
+
+function formatRunRejection(
+  reason: Extract<RunWorkflowOutcome, { kind: "rejected" }>["reason"],
+): string {
+  switch (reason) {
+    case "already-running":
+      return "A workflow is already running.";
+    case "empty":
+      return "Add at least one skill before starting Circuit.";
+    case "cycle":
+      return "The workflow has a cycle. Remove the loop and try again.";
+    case "invalid-graph":
+      return "Workflow graph must have exactly one root. Connect every node into one entry flow before starting Circuit.";
+    case "repository-preflight":
+      return "Repository environment is not ready.";
+    default:
+      return reason;
+  }
+}
+
+function buildRunSnapshot(repo: {
+  id: string;
+  name: string;
+  path: string;
+}): WorkflowRunSnapshot {
+  const { nodes, edges, currentWorkflowId, continueOnFailure } =
+    useWorkflowStore.getState();
+  return {
+    repository: { id: repo.id, name: repo.name, path: repo.path },
+    workflowId: currentWorkflowId,
+    workflowName: useWorkflowStore.getState().workflowName,
+    continueOnFailure,
+    nodes: nodes.map((n) => ({
+      id: n.id,
+      type: "skill",
+      skillRef: {
+        source: n.data.skillRef.source ?? "repository",
+        provider: n.data.skillRef.provider,
+        ...(n.data.skillRef.source === "system"
+          ? { systemSkillId: n.data.skillRef.systemSkillId }
+          : { skillFile: n.data.skillRef.skillFile }),
+      },
+      label: n.data.label,
+      position: { x: n.position.x, y: n.position.y },
+      ...(n.data.execution ? { execution: { ...n.data.execution } } : {}),
+      input: (n.data.input as Record<string, unknown> | undefined) ?? {},
+    })),
+    edges: edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      kind: "dependency",
+    })),
+  };
+}
+
+function toCanvasNode(node: WorkflowRunSnapshot["nodes"][number]): SkillNode {
+  return {
+    id: node.id,
+    type: "skill" as const,
+    position: { ...node.position },
+    data: {
+      label: node.label,
+      skillRef: {
+        source: node.skillRef.source ?? "repository",
+        provider: node.skillRef.provider as SkillNode["data"]["skillRef"]["provider"],
+        skillFile: node.skillRef.skillFile ?? "",
+        ...(node.skillRef.source === "system"
+          ? { systemSkillId: node.skillRef.systemSkillId }
+          : {}),
+      },
+      ...(node.execution ? { execution: { ...node.execution } } : {}),
+      ...(node.input !== undefined ? { input: node.input } : {}),
+    },
+  };
+}
+
+function describeLastRunFailure(repositoryId: string): string | null {
+  const { nodeResults, events } =
+    useRunLogStore.getState().getLogForRepository(repositoryId);
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    if (result.status === "success") continue;
+    return describeNodeFailure(nodeId, result);
+  }
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i].event;
+    if (event.type === "error" && event.message.trim()) {
+      return event.message;
+    }
+  }
+  return null;
+}
+
+function describeNodeFailure(
+  nodeId: string,
+  result: SkillExecutionResult,
+): string {
+  for (let i = result.logs.length - 1; i >= 0; i -= 1) {
+    const event = result.logs[i];
+    if (event.type === "error" && event.message.trim()) {
+      return `${nodeId}: ${event.message}`;
+    }
+  }
+  if (result.summary) return `${nodeId}: ${result.summary}`;
+  if (result.exitCode != null) {
+    return `${nodeId}: ${result.status} (exit ${result.exitCode})`;
+  }
+  return `${nodeId}: ${result.status}`;
 }

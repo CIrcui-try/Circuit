@@ -1,0 +1,6 @@
+interface:
+  display_name: "Boarding"
+  short_description: "Linear 이슈 요구사항과 코드 영향 범위 정리"
+  default_prompt: "Use $boarding to summarize a Linear issue before implementation."
+policy:
+  allow_implicit_invocation: true

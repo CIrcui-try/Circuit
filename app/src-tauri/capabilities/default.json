@@ -6,7 +6,27 @@
   "permissions": [
     "core:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$HOME/**/.*/**" },
+        { "path": "$HOME/**/.*" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$HOME/**", "app": true },
+        { "path": "$HOME/**/.*/**", "app": true },
+        { "path": "$HOME/**/.*", "app": true }
+      ]
+    },
     "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-confirm",
+    "notification:default",
+    "core:window:allow-set-badge-count",
     "store:default"
   ]
 }

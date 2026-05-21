@@ -1,0 +1,6 @@
+interface:
+  display_name: "Autoland"
+  short_description: "PR checks 통과 후 머지와 landing 정리"
+  default_prompt: "Use $autoland to merge a completed PR and run landing cleanup."
+policy:
+  allow_implicit_invocation: true

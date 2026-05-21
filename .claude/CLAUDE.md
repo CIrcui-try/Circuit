@@ -12,6 +12,8 @@ Plan mode 가 활성화된 상태에서 슬래시 커맨드가 호출되어도 *
 
 ### 커밋 / GitHub 계정
 
-- 커밋 author 와 committer 는 반드시 `enebin`. 두 값이 일치해야 한다.
+- 개인별 커밋 author / committer / GitHub CLI active account 정책은 공개 추적 파일에 기록하지 않는다. 필요한 경우 `AGENTS.local.md` 같은 ignored 로컬 파일이나 사용자 홈 디렉터리 설정에 둔다.
+- PR 제목, PR 본문, 커밋 메시지는 반드시 영어로 작성한다. 한국어를 쓰지 않는다.
 - 커밋 메시지에 `Co-Authored-By` 트레일러를 추가하지 않는다.
-- `gh` 계정도 `enebin`. 다르면 작업을 중단하고 사용자에게 알린다.
+- GitHub CLI(`gh`) 를 실제로 호출하는 워크플로에서는 첫 `gh` 명령 직전에만 `gh-auth-check` 스킬 절차로 로그인 상태를 확인한다. 로그인되어 있지 않으면 작업을 중단하고 사용자에게 알린다.
+- 앱 시작, 저장소 읽기, 로컬 구현, 테스트, 커밋-only 작업처럼 `gh` 를 호출하지 않는 흐름에서는 `gh-auth-check` 를 선제 실행하지 않는다.

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Taxiing"
+  short_description: "구현 계획에 따라 작업하고 중간 커밋까지 수행"
+  default_prompt: "Use $taxiing to implement the saved plan and commit progress."
+policy:
+  allow_implicit_invocation: true

@@ -19,6 +19,18 @@ async function addSkillByButton(page: Page, skillName: string | RegExp) {
   await item.getByRole("button", { name: /Add .+ to canvas/i }).click();
 }
 
+async function editWorkflowName(page: Page, name: string) {
+  await page.getByTestId("workflow-name-button").click();
+  await page.getByTestId("workflow-name-input").fill(name);
+  await page.keyboard.press("Enter");
+}
+
+async function openWorkflowMenu(page: Page) {
+  await page.getByTestId("workflow-menu").click();
+  await expect(page.getByTestId("workflow-menu-list")).toBeVisible();
+  return page.getByTestId("workflow-menu-list");
+}
+
 async function connectFirstTwoNodes(page: Page) {
   await page.evaluate(() => {
     const w = window as unknown as {
@@ -45,12 +57,34 @@ async function connectFirstTwoNodes(page: Page) {
   });
 }
 
-test("F6: save workflow, reload page, restore graph from disk", async ({ page }) => {
+test("F6: save workflow, reload page, restore the last edited graph and input", async ({ page }) => {
   await openWorkspace(page);
 
   await addSkillByButton(page, "Implement Feature");
-  await addSkillByButton(page, "Review Code");
+  await addSkillByButton(page, "boarding");
   await connectFirstTwoNodes(page);
+  await page
+    .getByTestId("workflow-node")
+    .filter({ hasText: "Implement Feature" })
+    .getByTestId("skill-node-input-edit")
+    .click();
+  await page
+    .getByTestId("skill-node-input-prompt")
+    .fill("Implement the persistence regression");
+  await page
+    .getByLabel("Close input editor")
+    .click();
+  await page
+    .getByTestId("workflow-node")
+    .filter({ hasText: "boarding" })
+    .getByTestId("skill-node-input-edit")
+    .click();
+  await page
+    .getByTestId("skill-node-input-arguments")
+    .fill("CIR-46 --force");
+  await page
+    .getByLabel("Close input editor")
+    .click();
 
   await expect(page.getByTestId("workflow-node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
@@ -60,7 +94,11 @@ test("F6: save workflow, reload page, restore graph from disk", async ({ page })
     const w = window as unknown as {
       __WORKFLOW_STORE__: {
         getState: () => {
-          nodes: Array<{ id: string; position: { x: number; y: number } }>;
+          nodes: Array<{
+            id: string;
+            position: { x: number; y: number };
+            data: { input?: Record<string, unknown> };
+          }>;
           edges: Array<{ id: string; source: string; target: string }>;
         };
       };
@@ -69,39 +107,40 @@ test("F6: save workflow, reload page, restore graph from disk", async ({ page })
     return {
       nodeIds: s.nodes.map((n) => n.id),
       positions: s.nodes.map((n) => ({ x: n.position.x, y: n.position.y })),
+      inputs: s.nodes.map((n) => n.data.input),
       edges: s.edges.map((e) => ({ source: e.source, target: e.target })),
     };
   });
 
   // Set a recognizable workflow name and save.
-  const nameInput = page.getByTestId("workflow-name-input");
-  await nameInput.fill("Persisted flow");
+  await editWorkflowName(page, "Persisted flow");
   await page.getByTestId("workflow-save").click();
 
-  await expect(page.getByTestId("workflow-save-status")).toContainText(/Saved/i);
+  let menu = await openWorkflowMenu(page);
+  await expect(menu.getByRole("menuitem", { name: "Persisted flow" })).toHaveCount(1);
 
-  // Reload — canvas resets, but the JSON survives in the mock bridge's localStorage.
+  // Reload — the local draft should restore the last edited workflow immediately.
   await page.reload();
 
   await expect(page.getByTestId("workspace-root")).toBeVisible();
-  // Drop into the workspace fresh — no nodes yet.
-  await expect(page.getByTestId("workflow-node")).toHaveCount(0);
-
-  // The saved entry should now appear in the workflow menu.
-  const menu = page.getByTestId("workflow-menu");
-  await expect(menu.locator("option", { hasText: "Persisted flow" })).toHaveCount(1);
-
-  await menu.selectOption({ label: "Persisted flow" });
-
   await expect(page.getByTestId("workflow-node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await expect(nameInput).toHaveValue("Persisted flow");
+  await expect(page.getByTestId("workflow-name-button")).toHaveText("Persisted flow");
+  await expect(page.getByText("CIR-46 --force")).toBeVisible();
+
+  // The saved entry should now appear in the workflow menu.
+  menu = await openWorkflowMenu(page);
+  await expect(menu.getByRole("menuitem", { name: "Persisted flow" })).toHaveCount(1);
 
   const after = await page.evaluate(() => {
     const w = window as unknown as {
       __WORKFLOW_STORE__: {
         getState: () => {
-          nodes: Array<{ id: string; position: { x: number; y: number } }>;
+          nodes: Array<{
+            id: string;
+            position: { x: number; y: number };
+            data: { input?: Record<string, unknown> };
+          }>;
           edges: Array<{ id: string; source: string; target: string }>;
         };
       };
@@ -110,11 +149,53 @@ test("F6: save workflow, reload page, restore graph from disk", async ({ page })
     return {
       nodeIds: s.nodes.map((n) => n.id),
       positions: s.nodes.map((n) => ({ x: n.position.x, y: n.position.y })),
+      inputs: s.nodes.map((n) => n.data.input),
       edges: s.edges.map((e) => ({ source: e.source, target: e.target })),
     };
   });
 
   expect(after.nodeIds.sort()).toEqual(before.nodeIds.sort());
   expect(after.positions).toEqual(before.positions);
+  expect(after.inputs).toEqual(before.inputs);
   expect(after.edges).toEqual(before.edges);
+
+  await page.getByTestId("workflow-start").click();
+  await expect(page.locator('[data-testid="workflow-node"][data-run-state="success"]')).toHaveCount(2);
+  const prompts = await page.evaluate(() => {
+    const w = window as unknown as {
+      __CIRCUIT_RUNTIME_SPAWN_CALLS__: Array<{ args?: string[] }>;
+    };
+    return w.__CIRCUIT_RUNTIME_SPAWN_CALLS__
+      .map((call) => call.args?.join("\n") ?? "")
+      .filter((value) => value.includes("# Input"));
+  });
+  expect(prompts.join("\n")).toContain('"arguments": "CIR-46 --force"');
+  expect(prompts.join("\n")).toContain('"prompt": "Implement the persistence regression"');
+});
+
+test("deletes the selected saved workflow", async ({ page }) => {
+  await openWorkspace(page);
+
+  await addSkillByButton(page, "boarding");
+  await editWorkflowName(page, "Temporary flow");
+  await page.getByTestId("workflow-save").click();
+
+  let menu = await openWorkflowMenu(page);
+  await expect(menu.getByRole("menuitem", { name: "Temporary flow" })).toHaveCount(1);
+  await expect(page.getByTestId("workflow-delete")).toBeEnabled();
+
+  await page.getByTestId("workflow-delete").click();
+  await expect(page.getByTestId("workflow-delete-confirm")).toContainText(
+    "Temporary flow",
+  );
+  await page.getByTestId("workflow-delete-confirm-delete").click();
+
+  menu = await openWorkflowMenu(page);
+  await expect(menu.getByRole("menuitem", { name: "Temporary flow" })).toHaveCount(0);
+  await expect(page.getByTestId("workflow-save")).toBeEnabled();
+
+  await page.reload();
+  await expect(page.getByTestId("workspace-root")).toBeVisible();
+  menu = await openWorkflowMenu(page);
+  await expect(menu.getByRole("menuitem", { name: "Temporary flow" })).toHaveCount(0);
 });

@@ -2,11 +2,19 @@ export const WORKFLOW_VERSION = "0.1" as const;
 
 export type WorkflowVersion = typeof WORKFLOW_VERSION;
 
-export type WorkflowSkillProvider = "claude" | "codex";
+export const WORKFLOW_SKILL_PROVIDERS = ["claude", "codex", "shell", "git"] as const;
+
+export type WorkflowSkillProvider = (typeof WORKFLOW_SKILL_PROVIDERS)[number];
+
+export const WORKFLOW_SKILL_SOURCES = ["repository", "default", "system"] as const;
+
+export type WorkflowSkillSource = (typeof WORKFLOW_SKILL_SOURCES)[number];
 
 export type WorkflowSkillRef = {
+  source?: WorkflowSkillSource;
   provider: WorkflowSkillProvider;
-  skillFile: string;
+  skillFile?: string;
+  systemSkillId?: string;
 };
 
 export type WorkflowNodePosition = {
@@ -14,12 +22,18 @@ export type WorkflowNodePosition = {
   y: number;
 };
 
+export type WorkflowNodeExecution = {
+  model?: string;
+};
+
 export type WorkflowSkillNode = {
   id: string;
   type: "skill";
   skillRef: WorkflowSkillRef;
   label: string;
+  description?: string;
   position: WorkflowNodePosition;
+  execution?: WorkflowNodeExecution;
   input?: Record<string, unknown>;
 };
 
@@ -39,6 +53,7 @@ export type Workflow = {
   id: string;
   repositoryId: string;
   name: string;
+  continueOnFailure?: boolean;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   createdAt: string;

@@ -1,9 +1,16 @@
 import type { Page } from "@playwright/test";
 
 export const FIXTURE_REPO_PATH = "/fixtures/repos/sample-repo";
+export const TUTORIAL_REPO_PATH = "/fixtures/repos/Circuit Tutorial";
 
 export async function installMockBridge(page: Page) {
-  await page.addInitScript((repoPath: string) => {
+  await page.addInitScript(({
+    repoPath,
+    tutorialRepoPath,
+  }: {
+    repoPath: string;
+    tutorialRepoPath: string;
+  }) => {
     type RawSkill = {
       provider: "claude" | "codex";
       dirName: string;
@@ -37,6 +44,14 @@ export async function installMockBridge(page: Page) {
       },
       {
         provider: "codex",
+        dirName: "boarding",
+        rootDir: ".codex/skills/boarding",
+        skillFile: ".codex/skills/boarding/SKILL.md",
+        content:
+          "---\nname: boarding\ndescription: Prepare a Linear issue before implementation.\n---\n",
+      },
+      {
+        provider: "codex",
         dirName: "review-code",
         rootDir: ".codex/skills/review-code",
         skillFile: ".codex/skills/review-code/SKILL.md",
@@ -47,6 +62,8 @@ export async function installMockBridge(page: Page) {
 
     const REPO_LS_KEY = "__circuit_mock_repositories__";
     const WORKFLOW_LS_KEY = "__circuit_mock_workflows__";
+    let runtimeScenario: "success" | "stdin-waiting" = "success";
+    const spawnCalls: unknown[] = [];
 
     function readRepositories(): Repository[] {
       try {
@@ -79,6 +96,9 @@ export async function installMockBridge(page: Page) {
     (window as unknown as { __CIRCUIT_BRIDGE__: unknown }).__CIRCUIT_BRIDGE__ = {
       async openRepositoryDialog() {
         return repoPath;
+      },
+      async createTutorialRepository() {
+        return tutorialRepoPath;
       },
       async scanSkills(_path: string) {
         return fixtureSkills;
@@ -131,6 +151,86 @@ export async function installMockBridge(page: Page) {
         all[repoPathArg] = bucket;
         writeWorkflows(all);
       },
+      async deleteWorkflow(repoPathArg: string, workflowId: string): Promise<void> {
+        const all = readWorkflows();
+        const bucket = all[repoPathArg] ?? {};
+        delete bucket[workflowId];
+        all[repoPathArg] = bucket;
+        writeWorkflows(all);
+      },
     };
-  }, FIXTURE_REPO_PATH);
+
+    const listeners = new Map<string, Set<(event: unknown) => void>>();
+
+    function emit(runId: string, raw: Record<string, unknown>) {
+      const ev = {
+        ...raw,
+        runId,
+        timestamp: new Date().toISOString(),
+      };
+      for (const listener of listeners.get(runId) ?? []) listener(ev);
+    }
+
+    (
+      window as unknown as {
+        __CIRCUIT_SET_RUNTIME_SCENARIO__?: (scenario: typeof runtimeScenario) => void;
+      }
+    ).__CIRCUIT_SET_RUNTIME_SCENARIO__ = (scenario) => {
+      runtimeScenario = scenario;
+    };
+    (
+      window as unknown as {
+        __CIRCUIT_RUNTIME_SPAWN_CALLS__?: unknown[];
+      }
+    ).__CIRCUIT_RUNTIME_SPAWN_CALLS__ = spawnCalls;
+
+    (window as unknown as { __CIRCUIT_RUNTIME__: unknown }).__CIRCUIT_RUNTIME__ = {
+      async readFile(absPath: string) {
+        const skill = fixtureSkills.find((s) => absPath.endsWith(s.skillFile));
+        if (!skill) throw new Error(`mock file not found: ${absPath}`);
+        return skill.content;
+      },
+      async spawn(options: { runId: string }) {
+        spawnCalls.push(options);
+        queueMicrotask(() => {
+          emit(options.runId, { type: "started" });
+          if (runtimeScenario === "stdin-waiting") {
+            emit(options.runId, {
+              type: "stderr",
+              text: "Reading additional input from stdin...",
+            });
+            return;
+          }
+          emit(options.runId, { type: "exited", exitCode: 0 });
+        });
+        return { runId: options.runId };
+      },
+      async cancel(runId: string) {
+        emit(runId, { type: "cancelled" });
+      },
+      async sendInput(runId: string, text: string) {
+        emit(runId, { type: "stdout", text });
+      },
+      async closeInput(runId: string) {
+        if (runtimeScenario === "stdin-waiting") {
+          emit(runId, { type: "exited", exitCode: 0 });
+        }
+      },
+      subscribe(runId: string, listener: (event: unknown) => void) {
+        let set = listeners.get(runId);
+        if (!set) {
+          set = new Set();
+          listeners.set(runId, set);
+        }
+        set.add(listener);
+        const unsub = () => {
+          const current = listeners.get(runId);
+          if (!current) return;
+          current.delete(listener);
+          if (current.size === 0) listeners.delete(runId);
+        };
+        return Object.assign(unsub, { ready: Promise.resolve() });
+      },
+    };
+  }, { repoPath: FIXTURE_REPO_PATH, tutorialRepoPath: TUTORIAL_REPO_PATH });
 }

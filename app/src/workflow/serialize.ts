@@ -4,6 +4,7 @@ import {
   WORKFLOW_VERSION,
   type Workflow,
   type WorkflowEdge,
+  type WorkflowSkillRef,
   type WorkflowSkillNode,
 } from "./schema";
 
@@ -21,28 +22,35 @@ export type DeserializedWorkflow = {
     id: string;
     name: string;
     repositoryId: string;
+    continueOnFailure: boolean;
     createdAt: string;
     updatedAt: string;
   };
 };
 
 export function toWorkflow(
-  state: { nodes: SkillNode[]; edges: Edge[] },
+  state: { nodes: SkillNode[]; edges: Edge[]; continueOnFailure?: boolean },
   meta: SerializeMeta,
   now: () => string = () => new Date().toISOString(),
 ): Workflow {
   const nodes: WorkflowSkillNode[] = state.nodes.map((n) => ({
     id: n.id,
     type: "skill",
-    skillRef: {
-      provider: n.data.skillRef.provider,
-      skillFile: n.data.skillRef.skillFile,
-    },
+    skillRef: toWorkflowSkillRef(n.data.skillRef),
     label: n.data.label,
+    ...(typeof n.data.description === "string" && n.data.description.length > 0
+      ? { description: n.data.description }
+      : {}),
     position: {
       x: Math.round(n.position.x),
       y: Math.round(n.position.y),
     },
+    ...(isExecutionConfig(n.data.execution)
+      ? { execution: n.data.execution }
+      : {}),
+    ...("input" in n.data && isRecord(n.data.input)
+      ? { input: n.data.input }
+      : {}),
   }));
 
   const edges: WorkflowEdge[] = state.edges.map((e) => ({
@@ -57,6 +65,7 @@ export function toWorkflow(
     id: meta.id,
     repositoryId: meta.repositoryId,
     name: meta.name,
+    ...(state.continueOnFailure ? { continueOnFailure: true } : {}),
     nodes,
     edges,
     createdAt: meta.createdAt,
@@ -78,8 +87,13 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
     if (n.type !== "skill") {
       throw new Error(`Unsupported node type: ${String(n.type)}`);
     }
-    if (!n.skillRef || !n.skillRef.provider || !n.skillRef.skillFile) {
+    if (!n.skillRef || !n.skillRef.provider) {
       throw new Error(`Node ${n.id} is missing skillRef`);
+    }
+    if (n.skillRef.provider !== "claude" && n.skillRef.provider !== "codex") {
+      throw new Error(
+        `Node ${n.id} uses provider "${n.skillRef.provider}" which is reserved for future adapters and not supported by this UI`,
+      );
     }
     return {
       id: n.id,
@@ -87,10 +101,10 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
       position: { x: n.position.x, y: n.position.y },
       data: {
         label: n.label,
-        skillRef: {
-          provider: n.skillRef.provider,
-          skillFile: n.skillRef.skillFile,
-        },
+        ...(n.description ? { description: n.description } : {}),
+        skillRef: fromWorkflowSkillRef(n.id, n.skillRef),
+        ...(isExecutionConfig(n.execution) ? { execution: n.execution } : {}),
+        ...(n.input ? { input: n.input } : {}),
       },
     };
   });
@@ -108,8 +122,84 @@ export function fromWorkflow(wf: Workflow): DeserializedWorkflow {
       id: wf.id,
       name: wf.name,
       repositoryId: wf.repositoryId,
+      continueOnFailure: wf.continueOnFailure === true,
       createdAt: wf.createdAt,
       updatedAt: wf.updatedAt,
     },
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isExecutionConfig(value: unknown): value is { model?: string } {
+  if (!isRecord(value)) return false;
+  return typeof value.model === "string" && value.model.trim().length > 0;
+}
+
+function toWorkflowSkillRef(ref: SkillNode["data"]["skillRef"]): WorkflowSkillRef {
+  if (ref.source === "system") {
+    if (!ref.systemSkillId) {
+      throw new Error("System skillRef is missing systemSkillId");
+    }
+    return {
+      source: "system",
+      provider: ref.provider,
+      systemSkillId: ref.systemSkillId,
+    };
+  }
+
+  if (ref.source === "default") {
+    return {
+      source: "default",
+      provider: ref.provider,
+      skillFile: ref.skillFile,
+    };
+  }
+
+  return {
+    source: "repository",
+    provider: ref.provider,
+    skillFile: ref.skillFile,
+  };
+}
+
+function fromWorkflowSkillRef(
+  nodeId: string,
+  ref: WorkflowSkillRef,
+): SkillNode["data"]["skillRef"] {
+  const source = ref.source ?? "repository";
+  if (source === "system") {
+    if (!ref.systemSkillId) {
+      throw new Error(`Node ${nodeId} is missing systemSkillId`);
+    }
+    const provider = toUiProvider(ref.provider);
+    return {
+      source: "system",
+      provider,
+      skillFile: "",
+      systemSkillId: ref.systemSkillId,
+    };
+  }
+
+  if (!ref.skillFile) {
+    throw new Error(`Node ${nodeId} is missing skillRef.skillFile`);
+  }
+  return {
+    source,
+    provider: toUiProvider(ref.provider),
+    skillFile: ref.skillFile,
+  };
+}
+
+function toUiProvider(
+  provider: WorkflowSkillRef["provider"],
+): SkillNode["data"]["skillRef"]["provider"] {
+  if (provider !== "claude" && provider !== "codex") {
+    throw new Error(
+      `Provider "${provider}" is reserved for future adapters and not supported by this UI`,
+    );
+  }
+  return provider;
 }

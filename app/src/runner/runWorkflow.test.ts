@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 import { createMockRunner } from "./mockRunner";
 import type { RunnableEdge, RunnableNode, WorkflowRunner } from "./runner";
-import { useRunStore } from "./runStore";
+import { useRunLogStore } from "./runLogStore";
+import { useRunStore, type WorkflowRunSnapshot } from "./runStore";
 import { runWorkflow } from "./runWorkflow";
 
 const node = (id: string, label = id): RunnableNode => ({
@@ -18,11 +20,16 @@ const edge = (id: string, source: string, target: string): RunnableEdge => ({
 
 beforeEach(() => {
   useRunStore.getState().reset();
+  useRunLogStore.getState().reset();
 });
 
 describe("runWorkflow", () => {
   it("RW1: runs every node in topo order and ends with status=success", async () => {
     const order: string[] = [];
+    const times = [
+      "2026-05-09T00:00:00.000Z",
+      "2026-05-09T00:00:05.000Z",
+    ];
     const runner: WorkflowRunner = {
       async runNode(n) {
         order.push(n.id);
@@ -36,7 +43,7 @@ describe("runWorkflow", () => {
       workflowId: "wf",
       runner,
       store: useRunStore,
-      now: () => "t",
+      now: () => times.shift() ?? "2026-05-09T00:00:05.000Z",
       newRunId: () => "run_1",
     });
 
@@ -44,6 +51,8 @@ describe("runWorkflow", () => {
     expect(order).toEqual(["a", "b", "c"]);
     const s = useRunStore.getState();
     expect(s.status).toBe("success");
+    expect(s.startedAt).toBe("2026-05-09T00:00:00.000Z");
+    expect(s.finishedAt).toBe("2026-05-09T00:00:05.000Z");
     expect(s.nodeStates).toEqual({ a: "success", b: "success", c: "success" });
   });
 
@@ -69,6 +78,166 @@ describe("runWorkflow", () => {
       a: "success",
       b: "failed",
       c: "skipped",
+    });
+  });
+
+  it("continues after failed nodes when continueOnFailure is enabled", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (n.id === "b") {
+          return { ok: false, status: "failed", reason: "boom" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "c"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+      c: "success",
+    });
+  });
+
+  it("stops on cancelled even when continueOnFailure is enabled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "cancelled", reason: "cancelled" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "cancelled",
+      c: "skipped",
+    });
+  });
+
+  it("stops on timeout even when continueOnFailure is enabled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "timeout", reason: "timeout" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "timeout" });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "timeout",
+      c: "skipped",
+    });
+  });
+
+  it("continues after thrown runner errors when continueOnFailure is enabled", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (n.id === "b") throw new Error("boom");
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: null,
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      continueOnFailure: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "c"]);
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+      c: "success",
+    });
+  });
+
+  it("starts from the requested node and seeds previous outputs", async () => {
+    const order: string[] = [];
+    const seeded: SkillExecutionResult = {
+      status: "success",
+      output: { value: 1 },
+      logs: [],
+      startedAt: "t0",
+      finishedAt: "t1",
+    };
+    const seedPreviousOutputs = vi.fn();
+    const runner: WorkflowRunner = {
+      seedPreviousOutputs,
+      async runNode(n) {
+        order.push(n.id);
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "c")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      startFromNodeId: "b",
+      seedPreviousOutputs: { a: seeded },
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(order).toEqual(["b", "c"]);
+    expect(seedPreviousOutputs).toHaveBeenCalledWith({ a: seeded });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "skipped",
+      b: "success",
+      c: "success",
     });
   });
 
@@ -104,6 +273,82 @@ describe("runWorkflow", () => {
     const runner: WorkflowRunner = {
       runNode: vi.fn(async () => ({ ok: true as const })),
     };
+    const times = [
+      "2026-05-09T00:00:00.000Z",
+      "2026-05-09T00:00:02.000Z",
+    ];
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => times.shift() ?? "2026-05-09T00:00:02.000Z",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "rejected", reason: "cycle" });
+    expect(runner.runNode).not.toHaveBeenCalled();
+    const s = useRunStore.getState();
+    expect(s.status).toBe("failed");
+    expect(s.finishedAt).toBe("2026-05-09T00:00:02.000Z");
+    expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
+  });
+
+  it("rejects disconnected graphs before invoking the runner", async () => {
+    const runner: WorkflowRunner = {
+      runNode: vi.fn(async () => ({ ok: true as const })),
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "b")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "rejected", reason: "invalid-graph" });
+    expect(runner.runNode).not.toHaveBeenCalled();
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      nodeStates: { a: "skipped", b: "skipped", c: "skipped" },
+    });
+  });
+
+  it("rejects multiple-root graphs before invoking the runner", async () => {
+    const runner: WorkflowRunner = {
+      runNode: vi.fn(async () => ({ ok: true as const })),
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [edge("e1", "a", "c"), edge("e2", "b", "c")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "rejected", reason: "invalid-graph" });
+    expect(runner.runNode).not.toHaveBeenCalled();
+  });
+
+  it("RW4b: an allowed cycle repeats nodes until a skill stops it", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (order.length === 6) {
+          return { ok: false, status: "failed", reason: "stop" };
+        }
+        return { ok: true };
+      },
+    };
 
     const outcome = await runWorkflow({
       nodes: [node("a"), node("b")],
@@ -113,13 +358,134 @@ describe("runWorkflow", () => {
       store: useRunStore,
       now: () => "t",
       newRunId: () => "run_1",
+      allowCycles: true,
     });
 
-    expect(outcome).toEqual({ kind: "rejected", reason: "cycle" });
-    expect(runner.runNode).not.toHaveBeenCalled();
-    const s = useRunStore.getState();
-    expect(s.status).toBe("failed");
-    expect(s.nodeStates).toEqual({ a: "skipped", b: "skipped" });
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "a", "b", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      runMode: "cycle",
+      iteration: 3,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+    });
+  });
+
+  it("RW4b2: an allowed cycle can finish successfully from a loop completion signal", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (order.length === 5) {
+          return {
+            ok: true,
+            completeWorkflow: true,
+            reason: "all tickets complete",
+          };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [
+        edge("e1", "a", "b"),
+        edge("e2", "b", "c"),
+        edge("e3", "c", "a"),
+      ],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(order).toEqual(["a", "b", "c", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "success",
+      runMode: "cycle",
+      iteration: 2,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "success",
+      c: "skipped",
+    });
+  });
+
+  it("RW4c: an allowed cycle stops on the failed iteration and node", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (order.length === 4) {
+          return { ok: false, status: "failed", reason: "boom" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "failed" });
+    expect(order).toEqual(["a", "b", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "failed",
+      runMode: "cycle",
+      iteration: 2,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "failed",
+    });
+  });
+
+  it("RW4d: an allowed cycle preserves cancelled as the terminal state", async () => {
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        if (n.id === "b") {
+          return { ok: false, status: "cancelled", reason: "cancelled" };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b"), edge("e2", "b", "a")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    expect(useRunStore.getState()).toMatchObject({
+      status: "cancelled",
+      runMode: "cycle",
+      iteration: 1,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "cancelled",
+    });
   });
 
   it("RW5: empty workflow is rejected without mutating store status", async () => {
@@ -167,5 +533,160 @@ describe("runWorkflow", () => {
       b: "failed",
       c: "skipped",
     });
+  });
+
+  it("RW7: cancelled runner result marks node and app status cancelled", async () => {
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: false, status: "cancelled", reason: "cancelled" };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b")],
+      edges: [edge("e1", "a", "b")],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "cancelled" });
+    const s = useRunStore.getState();
+    expect(s.status).toBe("cancelled");
+    expect(s.nodeStates).toEqual({ a: "cancelled", b: "skipped" });
+  });
+
+  it("RW8: timeout runner result marks node and app status timeout", async () => {
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: false, status: "timeout", reason: "timeout" };
+      },
+    };
+
+    await runWorkflow({
+      nodes: [node("a")],
+      edges: [],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+    });
+
+    const s = useRunStore.getState();
+    expect(s.status).toBe("timeout");
+    expect(s.nodeStates).toEqual({ a: "timeout" });
+  });
+
+  it("RW9: stores repository metadata and an isolated run snapshot at start", async () => {
+    let release!: () => void;
+    const blocker = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const snapshot: WorkflowRunSnapshot = {
+      repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
+      workflowId: "wf-1",
+      workflowName: "Release flow",
+      continueOnFailure: false,
+      nodes: [
+        {
+          id: "a",
+          type: "skill",
+          label: "A",
+          skillRef: {
+            provider: "claude",
+            skillFile: ".claude/skills/a/SKILL.md",
+          },
+          position: { x: 1, y: 2 },
+          input: { prompt: "original" },
+        },
+      ],
+      edges: [],
+    };
+    const runner: WorkflowRunner = {
+      async runNode() {
+        await blocker;
+        return { ok: true };
+      },
+    };
+
+    const pending = runWorkflow({
+      nodes: [node("a", "A")],
+      edges: [],
+      workflowId: snapshot.workflowId,
+      workflowName: snapshot.workflowName,
+      repository: { id: snapshot.repository.id, name: snapshot.repository.name },
+      snapshot,
+      runner,
+      store: useRunStore,
+      now: () => "2026-05-09T00:00:00.000Z",
+      newRunId: () => "run-1",
+    });
+
+    await vi.waitFor(() => {
+      expect(useRunStore.getState().status).toBe("running");
+    });
+    snapshot.workflowName = "Mutated flow";
+    snapshot.nodes[0].label = "Mutated";
+    snapshot.nodes[0].input = { prompt: "mutated" };
+
+    const s = useRunStore.getState();
+    expect(s.repositoryId).toBe("repo-1");
+    expect(s.repositoryName).toBe("alpha");
+    expect(s.workflowName).toBe("Release flow");
+    expect(s.snapshot?.workflowName).toBe("Release flow");
+    expect(s.snapshot?.nodes[0].label).toBe("A");
+    expect(s.snapshot?.nodes[0].input).toEqual({ prompt: "original" });
+
+    release();
+    await pending;
+  });
+
+  it("RW10: preserves arguments input inside the run snapshot", async () => {
+    const snapshot: WorkflowRunSnapshot = {
+      repository: { id: "repo-1", name: "alpha", path: "/Users/me/alpha" },
+      workflowId: "wf-1",
+      workflowName: "Release flow",
+      continueOnFailure: true,
+      nodes: [
+        {
+          id: "a",
+          type: "skill",
+          label: "Boarding",
+          skillRef: {
+            provider: "codex",
+            skillFile: ".codex/skills/boarding/SKILL.md",
+          },
+          position: { x: 1, y: 2 },
+          input: { arguments: "CIR-46" },
+        },
+      ],
+      edges: [],
+    };
+    const runner: WorkflowRunner = {
+      async runNode() {
+        return { ok: true };
+      },
+    };
+
+    await runWorkflow({
+      nodes: [node("a", "Boarding")],
+      edges: [],
+      workflowId: snapshot.workflowId,
+      workflowName: snapshot.workflowName,
+      repository: { id: snapshot.repository.id, name: snapshot.repository.name },
+      snapshot,
+      runner,
+      store: useRunStore,
+      now: () => "2026-05-09T00:00:00.000Z",
+      newRunId: () => "run-1",
+    });
+
+    expect(useRunStore.getState().snapshot?.nodes[0].input).toEqual({
+      arguments: "CIR-46",
+    });
+    expect(useRunStore.getState().snapshot?.continueOnFailure).toBe(true);
   });
 });

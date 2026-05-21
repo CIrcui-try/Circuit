@@ -1,0 +1,135 @@
+{
+  "version": "0.1",
+  "id": "tutorial-ticket-loop",
+  "repositoryId": "tutorial-repository",
+  "name": "Ticket loop tutorial",
+  "nodes": [
+    {
+      "id": "create_project_plan",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "codex",
+        "skillFile": ".codex/skills/create-project-plan/SKILL.md"
+      },
+      "label": "create-project-plan",
+      "description": "Create or refresh project.md and ticket markdown files.",
+      "position": { "x": 120, "y": 120 },
+      "input": {
+        "arguments": "Create a small tutorial project with three implementation tickets."
+      }
+    },
+    {
+      "id": "pick_next_ticket",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "codex",
+        "skillFile": ".codex/skills/pick-next-ticket/SKILL.md"
+      },
+      "label": "pick-next-ticket",
+      "description": "Select the next unfinished ticket or complete the loop.",
+      "position": { "x": 400, "y": 120 }
+    },
+    {
+      "id": "plan_ticket",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "codex",
+        "skillFile": ".codex/skills/plan-ticket/SKILL.md"
+      },
+      "label": "plan-ticket",
+      "description": "Write the implementation and test plan for the selected ticket.",
+      "position": { "x": 400, "y": 300 },
+      "input": {
+        "prompt": "Plan the ticket selected by pick-next-ticket. Previous output: ${steps.pick_next_ticket.output}"
+      }
+    },
+    {
+      "id": "implement_ticket_plan",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "claude",
+        "skillFile": ".claude/skills/implement-ticket-plan/SKILL.md"
+      },
+      "label": "implement-ticket-plan",
+      "description": "Implement the planned ticket and add tests.",
+      "position": { "x": 400, "y": 480 },
+      "input": {
+        "prompt": "Implement the ticket plan. Previous output: ${steps.plan_ticket.output}"
+      }
+    },
+    {
+      "id": "review_major_issues",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "codex",
+        "skillFile": ".codex/skills/review-major-issues/SKILL.md"
+      },
+      "label": "review-major-issues",
+      "description": "Review the implementation and fix only major issues.",
+      "position": { "x": 400, "y": 660 },
+      "input": {
+        "prompt": "Review the implementation from implement-ticket-plan. Previous output: ${steps.implement_ticket_plan.output}"
+      }
+    },
+    {
+      "id": "verify_tests",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "codex",
+        "skillFile": ".codex/skills/verify-tests/SKILL.md"
+      },
+      "label": "verify-tests",
+      "description": "Run tests, verify the ticket, and mark it complete.",
+      "position": { "x": 120, "y": 660 },
+      "input": {
+        "prompt": "Verify the ticket after review-major-issues. Previous output: ${steps.review_major_issues.output}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_create_project_plan_to_pick_next_ticket",
+      "source": "create_project_plan",
+      "target": "pick_next_ticket",
+      "kind": "dependency"
+    },
+    {
+      "id": "edge_pick_next_ticket_to_plan_ticket",
+      "source": "pick_next_ticket",
+      "target": "plan_ticket",
+      "kind": "dependency"
+    },
+    {
+      "id": "edge_plan_ticket_to_implement_ticket_plan",
+      "source": "plan_ticket",
+      "target": "implement_ticket_plan",
+      "kind": "dependency"
+    },
+    {
+      "id": "edge_implement_ticket_plan_to_review_major_issues",
+      "source": "implement_ticket_plan",
+      "target": "review_major_issues",
+      "kind": "dependency"
+    },
+    {
+      "id": "edge_review_major_issues_to_verify_tests",
+      "source": "review_major_issues",
+      "target": "verify_tests",
+      "kind": "dependency"
+    },
+    {
+      "id": "edge_verify_tests_to_pick_next_ticket",
+      "source": "verify_tests",
+      "target": "pick_next_ticket",
+      "kind": "dependency"
+    }
+  ],
+  "createdAt": "2026-05-21T00:00:00.000Z",
+  "updatedAt": "2026-05-21T00:00:00.000Z"
+}

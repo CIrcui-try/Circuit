@@ -7,6 +7,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "foo")).toEqual({
       name: "Foo Skill",
       description: "Does foo things",
+      inputHints: [],
     });
   });
 
@@ -15,6 +16,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "x")).toEqual({
       name: "Quoted Name",
       description: "single quoted",
+      inputHints: [],
     });
   });
 
@@ -23,6 +25,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "ignored")).toEqual({
       name: "Heading Title",
       description: "only desc",
+      inputHints: [],
     });
   });
 
@@ -31,6 +34,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "ignored")).toEqual({
       name: "Hello World",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -39,6 +43,7 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "my-dir")).toEqual({
       name: "my-dir",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -47,14 +52,16 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta(content, "dir")).toEqual({
       name: "Real Heading",
       description: "",
+      inputHints: [],
     });
   });
 
   it("P7: ignores unknown frontmatter keys", () => {
-    const content = `---\nname: Skill\nversion: 1.2\nauthor: kai\n---\n`;
+    const content = `---\nname: Skill\nversion: 1.2\nauthor: contributor\n---\n`;
     expect(parseSkillMeta(content, "dir")).toEqual({
       name: "Skill",
       description: "",
+      inputHints: [],
     });
   });
 
@@ -62,6 +69,76 @@ describe("parseSkillMeta", () => {
     expect(parseSkillMeta("", "fallback-name")).toEqual({
       name: "fallback-name",
       description: "",
+      inputHints: [],
+    });
+  });
+
+  it("P9: extracts command-style arguments placeholder from $ARGUMENTS format", () => {
+    const content = [
+      "# boarding",
+      "",
+      "## Command Template",
+      "",
+      "`$ARGUMENTS` 형식: `<ISSUE-ID> [--force]`. 예: `/boarding CIR-15`.",
+    ].join("\n");
+
+    expect(parseSkillMeta(content, "boarding").inputHints).toEqual([
+      {
+        kind: "command",
+        key: "arguments",
+        label: "ISSUE-ID",
+        placeholder: "<ISSUE-ID> [--force]",
+      },
+    ]);
+  });
+
+  it("P10: reads explicit argument-hint frontmatter before body inference", () => {
+    const content = [
+      "---",
+      "name: planning",
+      "argument-hint: <task, request, or issue>",
+      "---",
+      "",
+      "## Command Template",
+      "`$ARGUMENTS` format: `<TASK>`.",
+    ].join("\n");
+
+    expect(parseSkillMeta(content, "planning").inputHints).toEqual([
+      {
+        kind: "command",
+        key: "arguments",
+        label: "task, request, or issue",
+        placeholder: "<task, request, or issue>",
+      },
+    ]);
+  });
+
+  it("P11: does not infer command input when no explicit hint exists", () => {
+    const content = "## Command Template\n\nRun this command carefully.";
+
+    expect(parseSkillMeta(content, "command").inputHints).toEqual([]);
+  });
+
+  it("P12: reads default node input and model from frontmatter", () => {
+    const content = [
+      "---",
+      "name: Custom Skill",
+      "description: Runs with defaults",
+      "default-arguments: CIR-94 --force",
+      "default-prompt: Check the implementation",
+      "default-model: gpt-5.4",
+      "---",
+    ].join("\n");
+
+    expect(parseSkillMeta(content, "custom")).toEqual({
+      name: "Custom Skill",
+      description: "Runs with defaults",
+      inputHints: [],
+      defaultInput: {
+        arguments: "CIR-94 --force",
+        prompt: "Check the implementation",
+      },
+      defaultModel: "gpt-5.4",
     });
   });
 });

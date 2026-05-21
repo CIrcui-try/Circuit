@@ -1,0 +1,1031 @@
+use std::collections::HashMap;
+use std::env;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use serde::Serialize;
+use tauri::ipc::Channel;
+use tauri::State;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{ChildStdin, Command};
+use tokio::sync::{oneshot, Mutex as AsyncMutex};
+use tokio::time::timeout;
+
+const MAX_READ_BYTES: u64 = 1024 * 1024;
+const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_millis(1_000);
+
+struct RunHandle {
+    cancel: Option<oneshot::Sender<()>>,
+    stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+}
+
+type RunRegistry = Arc<Mutex<HashMap<String, RunHandle>>>;
+
+#[derive(Default)]
+pub struct RuntimeBridgeState {
+    inner: RunRegistry,
+}
+
+impl RuntimeBridgeState {
+    fn register(
+        &self,
+        run_id: String,
+        cancel_tx: oneshot::Sender<()>,
+        stdin: Arc<AsyncMutex<Option<ChildStdin>>>,
+    ) {
+        let mut map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.insert(
+            run_id,
+            RunHandle {
+                cancel: Some(cancel_tx),
+                stdin,
+            },
+        );
+    }
+
+    fn take_cancel(&self, run_id: &str) -> Option<oneshot::Sender<()>> {
+        let mut map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.get_mut(run_id).and_then(|h| h.cancel.take())
+    }
+
+    fn stdin_for(&self, run_id: &str) -> Option<Arc<AsyncMutex<Option<ChildStdin>>>> {
+        let map = self.inner.lock().expect("runtime bridge state poisoned");
+        map.get(run_id).map(|h| Arc::clone(&h.stdin))
+    }
+
+    fn inner_arc(&self) -> RunRegistry {
+        Arc::clone(&self.inner)
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalKind {
+    Trust,
+    Command,
+    Freeform,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum RuntimeProcessEvent {
+    Started {
+        run_id: String,
+        timestamp: String,
+    },
+    Stdout {
+        run_id: String,
+        timestamp: String,
+        text: String,
+    },
+    Stderr {
+        run_id: String,
+        timestamp: String,
+        text: String,
+    },
+    Exited {
+        run_id: String,
+        timestamp: String,
+        exit_code: Option<i32>,
+    },
+    Cancelled {
+        run_id: String,
+        timestamp: String,
+    },
+    Timeout {
+        run_id: String,
+        timestamp: String,
+    },
+    Error {
+        run_id: String,
+        timestamp: String,
+        message: String,
+    },
+    /// Emitted when the spawned CLI is waiting for the user to answer an
+    /// interactive prompt (e.g. codex's "Do you trust this directory?"). The
+    /// caller must reply via `runtime_send_input(run_id, response)` before the
+    /// child can continue. **Not terminal** — the run keeps streaming.
+    ///
+    /// In v1 this variant is reserved for tests / future approval-detection
+    /// helpers. The production approval-forwarding path lives entirely in JS
+    /// (see `approvalProtocol.ts`) and pushes a synthetic AgentRunEvent based
+    /// on stderr lines, so Rust does not yet emit ApprovalRequest itself.
+    #[allow(dead_code)]
+    ApprovalRequest {
+        run_id: String,
+        timestamp: String,
+        request_id: String,
+        prompt: String,
+        kind: ApprovalKind,
+    },
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliResolveAttempt {
+    source: String,
+    ok: bool,
+    detail: String,
+    path: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliResolveResult {
+    command: String,
+    ok: bool,
+    resolved_path: Option<String>,
+    source: Option<String>,
+    error_message: Option<String>,
+    process_path: String,
+    login_shell: Option<String>,
+    attempts: Vec<CliResolveAttempt>,
+}
+
+struct LoginShellProbe {
+    shell: Option<String>,
+    path: Option<PathBuf>,
+    detail: String,
+}
+
+impl LoginShellProbe {
+    fn skipped(detail: impl Into<String>) -> Self {
+        Self {
+            shell: None,
+            path: None,
+            detail: detail.into(),
+        }
+    }
+}
+
+fn attempt(
+    source: &str,
+    ok: bool,
+    detail: impl Into<String>,
+    path: Option<&Path>,
+) -> CliResolveAttempt {
+    CliResolveAttempt {
+        source: source.to_string(),
+        ok,
+        detail: detail.into(),
+        path: path.map(|p| p.to_string_lossy().into_owned()),
+    }
+}
+
+fn is_valid_command_name(command: &str) -> bool {
+    !command.is_empty()
+        && command
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+}
+
+#[cfg(unix)]
+fn is_executable_file(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable_file(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false)
+}
+
+fn expand_home(path: &str, home: Option<&Path>) -> PathBuf {
+    if path == "~" {
+        return home.map(PathBuf::from).unwrap_or_else(|| PathBuf::from(path));
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = home {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn find_in_path(command: &str, process_path: &str) -> Option<PathBuf> {
+    for dir in env::split_paths(process_path) {
+        let candidate = dir.join(command);
+        if is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn known_cli_dirs(home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = vec![PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")];
+    if let Some(home) = home {
+        dirs.push(home.join(".local/bin"));
+        dirs.push(home.join(".cargo/bin"));
+    }
+    dirs
+}
+
+fn first_line(text: &str) -> String {
+    text.lines().next().unwrap_or("").trim().to_string()
+}
+
+async fn probe_login_shell(command: &str) -> LoginShellProbe {
+    if !is_valid_command_name(command) {
+        return LoginShellProbe::skipped("invalid command name for shell probe");
+    }
+
+    let shell = match env::var("SHELL") {
+        Ok(shell) if !shell.trim().is_empty() => shell,
+        _ => return LoginShellProbe::skipped("SHELL is not set"),
+    };
+
+    let mut child = Command::new(&shell);
+    child
+        .args(["-lc", &format!("command -v {command}")])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
+
+    let output = match timeout(LOGIN_SHELL_TIMEOUT, child.output()).await {
+        Ok(Ok(output)) => output,
+        Ok(Err(err)) => {
+            return LoginShellProbe {
+                shell: Some(shell),
+                path: None,
+                detail: format!("failed to run login shell: {err}"),
+            };
+        }
+        Err(_) => {
+            return LoginShellProbe {
+                shell: Some(shell),
+                path: None,
+                detail: format!("timed out after {}ms", LOGIN_SHELL_TIMEOUT.as_millis()),
+            };
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let line = first_line(&stdout);
+    if !output.status.success() {
+        return LoginShellProbe {
+            shell: Some(shell),
+            path: None,
+            detail: format!(
+                "exit {}{}",
+                output
+                    .status
+                    .code()
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "null".to_string()),
+                if stderr.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", stderr.trim())
+                }
+            ),
+        };
+    }
+
+    if line.is_empty() {
+        return LoginShellProbe {
+            shell: Some(shell),
+            path: None,
+            detail: "empty output".to_string(),
+        };
+    }
+
+    let path = PathBuf::from(&line);
+    let detail = if is_executable_file(&path) {
+        "found executable".to_string()
+    } else {
+        "command -v output is not an executable file".to_string()
+    };
+    LoginShellProbe {
+        shell: Some(shell),
+        path: Some(path),
+        detail,
+    }
+}
+
+fn build_cli_resolution(
+    command: &str,
+    manual_path: Option<&str>,
+    process_path: &str,
+    home: Option<&Path>,
+    login: LoginShellProbe,
+    known_dirs: &[PathBuf],
+) -> CliResolveResult {
+    let mut attempts = Vec::new();
+    let mut manual_error: Option<String> = None;
+
+    if !is_valid_command_name(command) {
+        return CliResolveResult {
+            command: command.to_string(),
+            ok: false,
+            resolved_path: None,
+            source: None,
+            error_message: Some("invalid CLI command name".to_string()),
+            process_path: process_path.to_string(),
+            login_shell: login.shell,
+            attempts,
+        };
+    }
+
+    if let Some(raw) = manual_path.map(str::trim).filter(|p| !p.is_empty()) {
+        let path = expand_home(raw, home);
+        if is_executable_file(&path) {
+            attempts.push(attempt(
+                "manualOverride",
+                true,
+                "manual override is executable",
+                Some(&path),
+            ));
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("manualOverride".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+        let message = format!("manual override is not an executable file: {}", path.display());
+        attempts.push(attempt("manualOverride", false, &message, Some(&path)));
+        manual_error = Some(message);
+    }
+
+    if let Some(path) = find_in_path(command, process_path) {
+        attempts.push(attempt("processPath", true, "found in current PATH", Some(&path)));
+        if manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("processPath".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    } else {
+        attempts.push(attempt(
+            "processPath",
+            false,
+            "not found in current PATH",
+            None,
+        ));
+    }
+
+    if let Some(path) = login.path {
+        let executable = is_executable_file(&path);
+        attempts.push(attempt("loginShell", executable, login.detail, Some(&path)));
+        if executable && manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("loginShell".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    } else {
+        attempts.push(attempt("loginShell", false, login.detail, None));
+    }
+
+    for dir in known_dirs {
+        let path = dir.join(command);
+        let executable = is_executable_file(&path);
+        attempts.push(attempt(
+            "knownLocation",
+            executable,
+            if executable {
+                "found in known CLI location"
+            } else {
+                "not found in known CLI location"
+            },
+            Some(&path),
+        ));
+        if executable && manual_error.is_none() {
+            return CliResolveResult {
+                command: command.to_string(),
+                ok: true,
+                resolved_path: Some(path.to_string_lossy().into_owned()),
+                source: Some("knownLocation".to_string()),
+                error_message: None,
+                process_path: process_path.to_string(),
+                login_shell: login.shell,
+                attempts,
+            };
+        }
+    }
+
+    CliResolveResult {
+        command: command.to_string(),
+        ok: false,
+        resolved_path: None,
+        source: None,
+        error_message: manual_error.or_else(|| {
+            Some(format!(
+                "{command} was not found in the app environment, login shell, or known CLI locations"
+            ))
+        }),
+        process_path: process_path.to_string(),
+        login_shell: login.shell,
+        attempts,
+    }
+}
+
+fn now_iso8601() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let dur = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let secs = dur.as_secs();
+    let millis = dur.subsec_millis();
+    let days_since_epoch = secs / 86_400;
+    let secs_of_day = secs % 86_400;
+    let hour = secs_of_day / 3600;
+    let minute = (secs_of_day % 3600) / 60;
+    let second = secs_of_day % 60;
+    let (year, month, day) = days_to_ymd(days_since_epoch as i64);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        year, month, day, hour, minute, second, millis
+    )
+}
+
+fn days_to_ymd(mut days: i64) -> (i32, u32, u32) {
+    days += 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let doe = (days - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = (y + if m <= 2 { 1 } else { 0 }) as i32;
+    (year, m as u32, d as u32)
+}
+
+fn validate_inside_repo_root(target: &Path, repo_root: &Path) -> Result<PathBuf, String> {
+    let target_abs = target
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize {}: {e}", target.display()))?;
+    let root_abs = repo_root
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize repo root {}: {e}", repo_root.display()))?;
+    if !target_abs.starts_with(&root_abs) {
+        return Err(format!(
+            "path is outside repository root: path={} repoRoot={}",
+            target_abs.display(),
+            root_abs.display()
+        ));
+    }
+    Ok(target_abs)
+}
+
+#[tauri::command]
+pub fn runtime_read_file(path: String, repo_root: String) -> Result<String, String> {
+    let target = PathBuf::from(&path);
+    let repo = PathBuf::from(&repo_root);
+    let resolved = validate_inside_repo_root(&target, &repo)?;
+    let metadata = std::fs::metadata(&resolved)
+        .map_err(|e| format!("failed to stat {}: {e}", resolved.display()))?;
+    if metadata.len() > MAX_READ_BYTES {
+        return Err(format!(
+            "file too large to read via runtime bridge: {} bytes (max {})",
+            metadata.len(),
+            MAX_READ_BYTES
+        ));
+    }
+    std::fs::read_to_string(&resolved)
+        .map_err(|e| format!("failed to read {}: {e}", resolved.display()))
+}
+
+#[tauri::command]
+pub async fn runtime_resolve_cli(
+    command: String,
+    manual_path: Option<String>,
+) -> Result<CliResolveResult, String> {
+    let process_path = env::var("PATH").unwrap_or_default();
+    let home = env::var_os("HOME").map(PathBuf::from);
+    let login = probe_login_shell(&command).await;
+    Ok(build_cli_resolution(
+        &command,
+        manual_path.as_deref(),
+        &process_path,
+        home.as_deref(),
+        login,
+        &known_cli_dirs(home.as_deref()),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn runtime_spawn(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+    command: String,
+    args: Vec<String>,
+    cwd: String,
+    env: Option<HashMap<String, String>>,
+    timeout_ms: Option<u64>,
+    stdin_mode: Option<String>,
+    on_event: Channel<RuntimeProcessEvent>,
+) -> Result<(), String> {
+    let cwd_path = PathBuf::from(&cwd);
+    let _ = cwd_path
+        .canonicalize()
+        .map_err(|e| format!("failed to canonicalize cwd {}: {e}", cwd_path.display()))?;
+
+    let mut cmd = Command::new(&command);
+    let stdin_mode = stdin_mode.unwrap_or_else(|| "piped".to_string());
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Stdio::piped(),
+        "null" => Stdio::null(),
+        other => return Err(format!("unsupported stdin mode: {other}")),
+    };
+
+    cmd.args(&args)
+        .current_dir(&cwd_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(stdin);
+    if let Some(envs) = env {
+        for (k, v) in envs {
+            cmd.env(k, v);
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to spawn {command}: {e}"))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "failed to capture stdout".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "failed to capture stderr".to_string())?;
+    let stdin = match stdin_mode.as_str() {
+        "piped" => Some(
+            child
+                .stdin
+                .take()
+                .ok_or_else(|| "failed to capture stdin".to_string())?,
+        ),
+        "null" => None,
+        _ => unreachable!("stdin mode was validated before spawn"),
+    };
+
+    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+    let stdin_slot = Arc::new(AsyncMutex::new(stdin));
+    state.register(run_id.clone(), cancel_tx, Arc::clone(&stdin_slot));
+
+    // Channel<T> is cheap to clone and is safe to share across the spawn task
+    // and any post-task cleanup we add later (e.g. ApprovalRequest emit from a
+    // sibling helper).
+    let event = on_event;
+    let _ = event.send(RuntimeProcessEvent::Started {
+        run_id: run_id.clone(),
+        timestamp: now_iso8601(),
+    });
+
+    let state_handle = state.inner_arc();
+    let run_id_task = run_id.clone();
+    let event_task = event.clone();
+    let stdin_for_task = Arc::clone(&stdin_slot);
+
+    tokio::spawn(async move {
+        let run_id = run_id_task;
+        let event = event_task;
+        let stdin_slot = stdin_for_task;
+        let mut stdout_reader = BufReader::new(stdout).lines();
+        let mut stderr_reader = BufReader::new(stderr).lines();
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+
+        let timeout_fut: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
+            match timeout_ms {
+                Some(ms) => Box::pin(tokio::time::sleep(std::time::Duration::from_millis(ms))),
+                None => Box::pin(std::future::pending::<()>()),
+            };
+        tokio::pin!(timeout_fut);
+
+        let final_event: Option<RuntimeProcessEvent>;
+        loop {
+            tokio::select! {
+                line = stdout_reader.next_line(), if !stdout_done => match line {
+                    Ok(Some(text)) => {
+                        let _ = event.send(RuntimeProcessEvent::Stdout {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
+                    }
+                    Ok(None) => {
+                        stdout_done = true;
+                    }
+                    Err(e) => {
+                        final_event = Some(RuntimeProcessEvent::Error {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            message: format!("stdout read error: {e}"),
+                        });
+                        let _ = child.kill().await;
+                        break;
+                    }
+                },
+                line = stderr_reader.next_line(), if !stderr_done => match line {
+                    Ok(Some(text)) => {
+                        let _ = event.send(RuntimeProcessEvent::Stderr {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            text,
+                        });
+                    }
+                    Ok(None) => {
+                        stderr_done = true;
+                    }
+                    Err(e) => {
+                        final_event = Some(RuntimeProcessEvent::Error {
+                            run_id: run_id.clone(),
+                            timestamp: now_iso8601(),
+                            message: format!("stderr read error: {e}"),
+                        });
+                        let _ = child.kill().await;
+                        break;
+                    }
+                },
+                exit = child.wait() => {
+                    match exit {
+                        Ok(status) => {
+                            final_event = Some(RuntimeProcessEvent::Exited {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                exit_code: status.code(),
+                            });
+                        }
+                        Err(e) => {
+                            final_event = Some(RuntimeProcessEvent::Error {
+                                run_id: run_id.clone(),
+                                timestamp: now_iso8601(),
+                                message: format!("wait error: {e}"),
+                            });
+                        }
+                    }
+                    break;
+                },
+                _ = &mut timeout_fut => {
+                    let _ = child.kill().await;
+                    final_event = Some(RuntimeProcessEvent::Timeout {
+                        run_id: run_id.clone(),
+                        timestamp: now_iso8601(),
+                    });
+                    break;
+                },
+                _ = &mut cancel_rx => {
+                    let _ = child.kill().await;
+                    final_event = Some(RuntimeProcessEvent::Cancelled {
+                        run_id: run_id.clone(),
+                        timestamp: now_iso8601(),
+                    });
+                    break;
+                },
+            }
+        }
+
+        // drain remaining lines
+        while let Ok(Some(text)) = stdout_reader.next_line().await {
+            let _ = event.send(RuntimeProcessEvent::Stdout {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
+        }
+        while let Ok(Some(text)) = stderr_reader.next_line().await {
+            let _ = event.send(RuntimeProcessEvent::Stderr {
+                run_id: run_id.clone(),
+                timestamp: now_iso8601(),
+                text,
+            });
+        }
+
+        if let Some(ev) = final_event {
+            let _ = event.send(ev);
+        }
+
+        // Close stdin so any in-flight send_input rejects cleanly rather than
+        // blocking forever on a dead pipe.
+        {
+            let mut guard = stdin_slot.lock().await;
+            *guard = None;
+        }
+
+        let mut map = state_handle.lock().expect("runtime bridge state poisoned");
+        map.remove(&run_id);
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn runtime_cancel(state: State<'_, RuntimeBridgeState>, run_id: String) -> Result<(), String> {
+    if let Some(tx) = state.take_cancel(&run_id) {
+        let _ = tx.send(());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_send_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+    text: String,
+) -> Result<(), String> {
+    let stdin_slot = state
+        .stdin_for(&run_id)
+        .ok_or_else(|| format!("no active run for id {run_id}"))?;
+    let mut guard = stdin_slot.lock().await;
+    let stdin = guard
+        .as_mut()
+        .ok_or_else(|| format!("stdin already closed for run {run_id}"))?;
+    stdin
+        .write_all(text.as_bytes())
+        .await
+        .map_err(|e| format!("stdin write failed: {e}"))?;
+    stdin
+        .flush()
+        .await
+        .map_err(|e| format!("stdin flush failed: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn runtime_close_input(
+    state: State<'_, RuntimeBridgeState>,
+    run_id: String,
+) -> Result<(), String> {
+    if let Some(stdin_slot) = state.stdin_for(&run_id) {
+        let mut guard = stdin_slot.lock().await;
+        *guard = None;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_tmp_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("circuit-runtime-{tag}-{nanos}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn make_executable(dir: &Path, name: &str) -> PathBuf {
+        let path = dir.join(name);
+        fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&path, perms).unwrap();
+        }
+        path
+    }
+
+    fn skipped_login() -> LoginShellProbe {
+        LoginShellProbe::skipped("not tested")
+    }
+
+    #[test]
+    fn read_file_returns_content_inside_repo_root() {
+        let repo = unique_tmp_dir("ok");
+        let file = repo.join("hello.txt");
+        fs::write(&file, "hi").unwrap();
+        let got = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect("read should succeed");
+        assert_eq!(got, "hi");
+    }
+
+    #[test]
+    fn read_file_rejects_path_outside_repo_root() {
+        let repo = unique_tmp_dir("deny");
+        let other_repo = unique_tmp_dir("other");
+        let file = other_repo.join("secret.txt");
+        fs::write(&file, "shh").unwrap();
+        let err = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("read should be rejected");
+        assert!(err.contains("outside repository root"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn read_file_rejects_traversal_escape() {
+        let repo = unique_tmp_dir("trav");
+        let other_repo = unique_tmp_dir("trav-other");
+        let outside = other_repo.join("evil.txt");
+        fs::write(&outside, "x").unwrap();
+        let traversal = repo.join("..").join(outside.file_name().unwrap());
+        let err = runtime_read_file(
+            traversal.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("read should be rejected");
+        assert!(
+            err.contains("outside repository root") || err.contains("failed to canonicalize"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn read_file_rejects_oversized_file() {
+        let repo = unique_tmp_dir("big");
+        let file = repo.join("big.bin");
+        let big = vec![b'a'; (MAX_READ_BYTES + 1) as usize];
+        fs::write(&file, &big).unwrap();
+        let err = runtime_read_file(
+            file.to_string_lossy().into_owned(),
+            repo.to_string_lossy().into_owned(),
+        )
+        .expect_err("oversize read should be rejected");
+        assert!(err.contains("too large"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn resolve_cli_prefers_current_process_path() {
+        let bin = unique_tmp_dir("resolve-path");
+        let command = "fake-cli-process";
+        let executable = make_executable(&bin, command);
+        let known = unique_tmp_dir("resolve-known");
+        make_executable(&known, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            &bin.to_string_lossy(),
+            None,
+            LoginShellProbe {
+                shell: Some("/bin/zsh".to_string()),
+                path: Some(known.join(command)),
+                detail: "found executable".to_string(),
+            },
+            &[known],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("processPath"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(executable.to_string_lossy().as_ref())
+        );
+        assert!(!result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation"));
+    }
+
+    #[test]
+    fn resolve_cli_uses_login_shell_before_known_locations() {
+        let login_dir = unique_tmp_dir("resolve-login");
+        let known_dir = unique_tmp_dir("resolve-known-login");
+        let command = "fake-cli-login";
+        let login_path = make_executable(&login_dir, command);
+        make_executable(&known_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            "",
+            None,
+            LoginShellProbe {
+                shell: Some("/bin/zsh".to_string()),
+                path: Some(login_path.clone()),
+                detail: "found executable".to_string(),
+            },
+            &[known_dir],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("loginShell"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(login_path.to_string_lossy().as_ref())
+        );
+        assert!(!result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation"));
+    }
+
+    #[test]
+    fn resolve_cli_uses_known_location_after_path_and_shell_fail() {
+        let known_dir = unique_tmp_dir("resolve-known-only");
+        let command = "fake-cli-known";
+        let known_path = make_executable(&known_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            None,
+            "",
+            None,
+            skipped_login(),
+            &[known_dir],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("knownLocation"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(known_path.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn resolve_cli_manual_override_wins() {
+        let manual_dir = unique_tmp_dir("resolve-manual");
+        let path_dir = unique_tmp_dir("resolve-manual-path");
+        let command = "fake-cli-manual";
+        let manual_path = make_executable(&manual_dir, command);
+        make_executable(&path_dir, command);
+
+        let result = build_cli_resolution(
+            command,
+            Some(&manual_path.to_string_lossy()),
+            &path_dir.to_string_lossy(),
+            None,
+            skipped_login(),
+            &[],
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.source.as_deref(), Some("manualOverride"));
+        assert_eq!(
+            result.resolved_path.as_deref(),
+            Some(manual_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(result.attempts.len(), 1);
+    }
+
+    #[test]
+    fn resolve_cli_bad_manual_override_reports_error_and_attempts_fallbacks() {
+        let path_dir = unique_tmp_dir("resolve-bad-manual-path");
+        let known_dir = unique_tmp_dir("resolve-bad-manual-known");
+        let command = "fake-cli-bad-manual";
+        make_executable(&path_dir, command);
+        make_executable(&known_dir, command);
+        let missing_manual = unique_tmp_dir("resolve-bad-manual").join(command);
+
+        let result = build_cli_resolution(
+            command,
+            Some(&missing_manual.to_string_lossy()),
+            &path_dir.to_string_lossy(),
+            None,
+            skipped_login(),
+            &[known_dir],
+        );
+
+        assert!(!result.ok);
+        assert!(result.resolved_path.is_none());
+        assert_eq!(result.source, None);
+        assert!(result
+            .error_message
+            .as_deref()
+            .unwrap_or("")
+            .contains("manual override"));
+        assert!(result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "processPath" && attempt.ok));
+        assert!(result
+            .attempts
+            .iter()
+            .any(|attempt| attempt.source == "knownLocation" && attempt.ok));
+    }
+}
