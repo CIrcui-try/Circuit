@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
+  ChevronDown,
   ChevronsRight,
   Download,
   Ellipsis,
@@ -111,9 +112,13 @@ export function Workspace() {
   const [pendingDelete, setPendingDelete] =
     useState<WorkflowSummaryDTO | null>(null);
   const [autosaveReady, setAutosaveReady] = useState(false);
+  const [editingWorkflowName, setEditingWorkflowName] = useState(false);
+  const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   const consumedStarterPromptRepoIds = useRef(new Set<string>());
   const autosaveSeqRef = useRef(0);
   const autosaveBaselineRef = useRef<string | null>(null);
+  const workflowNameInputRef = useRef<HTMLInputElement | null>(null);
+  const workflowMenuRef = useRef<HTMLDivElement | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
 
@@ -230,6 +235,24 @@ export function Workspace() {
 
   const selectedWorkflow =
     workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
+
+  useEffect(() => {
+    if (!editingWorkflowName) return;
+    workflowNameInputRef.current?.focus();
+    workflowNameInputRef.current?.select();
+  }, [editingWorkflowName]);
+
+  useEffect(() => {
+    if (!workflowMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!workflowMenuRef.current?.contains(event.target as Node)) {
+        setWorkflowMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [workflowMenuOpen]);
 
   const persistCurrentWorkflow = useCallback(async (errorTitle: string) => {
     if (!repo) return;
@@ -448,6 +471,7 @@ export function Workspace() {
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
       if (!repo) return;
+      setWorkflowMenuOpen(false);
       if (value === NEW_WORKFLOW_VALUE) {
         setAutosaveReady(false);
         resetWorkflow();
@@ -714,29 +738,78 @@ export function Workspace() {
           ) : null}
         </div>
         <span className="workspace__toolbar-spacer" />
-        <input
-          type="text"
-          aria-label="Workflow name"
-          data-testid="workflow-name-input"
-          className="workspace__toolbar-input"
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          disabled={!repo}
-        />
-        <select
-          aria-label="Workflow"
-          data-testid="workflow-menu"
-          value={currentWorkflowId ?? NEW_WORKFLOW_VALUE}
-          onChange={(e) => void handleSelectWorkflow(e.target.value)}
-          disabled={!repo}
-        >
-          <option value={NEW_WORKFLOW_VALUE}>New workflow</option>
-          {workflows.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name || "(untitled)"}
-            </option>
-          ))}
-        </select>
+        {editingWorkflowName ? (
+          <input
+            ref={workflowNameInputRef}
+            type="text"
+            aria-label="Workflow name"
+            data-testid="workflow-name-input"
+            className="workspace__toolbar-input"
+            value={workflowName}
+            onBlur={() => setEditingWorkflowName(false)}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setEditingWorkflowName(false);
+              }
+            }}
+            disabled={!repo}
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Edit workflow name"
+            data-testid="workflow-name-button"
+            className="workspace__workflow-name-button"
+            onClick={() => setEditingWorkflowName(true)}
+            disabled={!repo}
+          >
+            <span>{workflowName || "(untitled)"}</span>
+          </button>
+        )}
+        <div className="workspace__workflow-menu" ref={workflowMenuRef}>
+          <button
+            type="button"
+            aria-label="Switch workflow"
+            aria-haspopup="menu"
+            aria-expanded={workflowMenuOpen}
+            data-testid="workflow-menu"
+            className="workspace__toolbar-icon-button"
+            onClick={() => setWorkflowMenuOpen((open) => !open)}
+            disabled={!repo}
+          >
+            <ChevronDown size={15} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+          {workflowMenuOpen && repo ? (
+            <div
+              className="workspace__workflow-menu-list"
+              role="menu"
+              data-testid="workflow-menu-list"
+            >
+              <button
+                type="button"
+                className="workspace__workflow-menu-item"
+                role="menuitem"
+                onClick={() => void handleSelectWorkflow(NEW_WORKFLOW_VALUE)}
+              >
+                New workflow
+              </button>
+              {workflows.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  className="workspace__workflow-menu-item"
+                  role="menuitem"
+                  onClick={() => void handleSelectWorkflow(w.id)}
+                >
+                  {w.name || "(untitled)"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         {selectedWorkflow ? (
           <HoverTooltip
             className="workspace__toolbar-tooltip-anchor"

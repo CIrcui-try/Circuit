@@ -82,6 +82,14 @@ function renderAt(route: string) {
   );
 }
 
+async function selectWorkflowMenuItem(name: string) {
+  fireEvent.click(screen.getByTestId("workflow-menu"));
+  await vi.waitFor(() => {
+    expect(screen.getByRole("menuitem", { name })).toBeInTheDocument();
+  });
+  fireEvent.click(screen.getByRole("menuitem", { name }));
+}
+
 beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.scanSkills.mockResolvedValue([]);
@@ -406,6 +414,13 @@ describe("Workspace", () => {
       "Save workflow",
     );
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-menu")).toHaveAccessibleName(
+      "Switch workflow",
+    );
+    expect(screen.getByTestId("workflow-name-button")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-name-button")).toHaveTextContent(
+      "Untitled workflow",
+    );
     expect(screen.queryByTestId("workflow-delete")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-auto-layout")).toBeDisabled();
     expect(screen.getByTestId("workflow-auto-layout")).toHaveTextContent(
@@ -678,9 +693,7 @@ describe("Workspace", () => {
       useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
       renderAt("/workspace/id-alpha");
-      fireEvent.change(screen.getByTestId("workflow-menu"), {
-        target: { value: "wf-saved" },
-      });
+      await selectWorkflowMenuItem("Saved flow");
       await vi.waitFor(() => {
         expect(screen.getByTestId("workflow-delete")).not.toBeDisabled();
       });
@@ -724,6 +737,22 @@ describe("Workspace", () => {
     await vi.waitFor(() => {
       expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("edits the workflow name inline from the toolbar", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+
+    fireEvent.click(screen.getByTestId("workflow-name-button"));
+    const input = screen.getByTestId("workflow-name-input");
+    fireEvent.change(input, { target: { value: "Renamed flow" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useWorkflowStore.getState().workflowName).toBe("Renamed flow");
+    expect(screen.getByTestId("workflow-name-button")).toHaveTextContent(
+      "Renamed flow",
+    );
   });
 
   it("W8b: saves Continue on failure with the workflow", async () => {
@@ -774,9 +803,7 @@ describe("Workspace", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
     });
-    fireEvent.change(screen.getByTestId("workflow-menu"), {
-      target: { value: "wf-delete" },
-    });
+    await selectWorkflowMenuItem("Delete me");
     await vi.waitFor(() => {
       expect(screen.getByTestId("workflow-delete")).not.toBeDisabled();
     });
@@ -1541,7 +1568,9 @@ describe("Workspace", () => {
     expect(useWorkflowStore.getState().nodes).toHaveLength(1);
     expect(useWorkflowStore.getState().nodes[0].id).toBe("draft-node");
     expect(useWorkflowStore.getState().continueOnFailure).toBe(true);
-    expect(screen.getByTestId("workflow-name-input")).toHaveValue("Unsaved draft");
+    expect(screen.getByTestId("workflow-name-button")).toHaveTextContent(
+      "Unsaved draft",
+    );
   });
 
   it("W12: persists workflow edits into the local draft", () => {
