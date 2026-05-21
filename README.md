@@ -8,10 +8,6 @@
 
 ## For your SDD (Skill-Driven Development)
 
-<p align="center">
-  <img src="docs/assets/readme/banner.png" alt="Circuit workflow banner" width="920">
-</p>
-
 Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
 
 Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow gets hidden inside the black box of long prompts, command chains, and TUI sessions. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.

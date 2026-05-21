@@ -8,10 +8,6 @@
 
 ## 为你的 SDD（Skill-Driven Development）而生
 
-<p align="center">
-  <img src="docs/assets/readme/banner.png" alt="Circuit workflow banner" width="920">
-</p>
-
 Circuit 是一个工作空间，用来把可复用的智能体 Skill 转化为可见、可重复、可控制的开发工作流。
 
 Circuit 源于 AI-native 项目中反复出现的一个痛点。随着越来越多的工作被交给智能体完成，例如规划、实现和评审，生产力会提升，但真正的开发流程也会被隐藏在冗长的 prompt、命令链和 TUI 会话这个黑盒里。项目越大，这个问题就越明显：为了确认哪个任务已经结束、哪个任务正在运行、问题出现在哪里，常常需要花很长时间回翻终端输出。

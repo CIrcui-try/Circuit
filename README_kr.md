@@ -8,10 +8,6 @@
 
 ## 당신의 SDD(Skill-Driven Development)를 위해
 
-<p align="center">
-  <img src="docs/assets/readme/banner.png" alt="Circuit workflow banner" width="920">
-</p>
-
 Circuit은 재사용 가능한 에이전트 스킬을 눈에 보이고, 반복 가능하고, 통제 가능한 개발 워크플로로 다루기 위한 워크스페이스입니다.
 
 Circuit은 AI-native 프로젝트를 운영하면서 자주 느꼈던 불편함에서 시작했습니다. 에이전트에게 플래닝, 구현, 리뷰 같은 작업을 맡길수록 생산성은 좋아졌지만 실제 개발 흐름은 긴 프롬프트, 명령어 체인, TUI 세션의 블랙박스 안으로 숨어 버렸습니다. 프로젝트가 커질수록 이 문제는 더 뚜렷해져서 어느 작업이 끝났고 어느 작업이 실행 중이며 어디서 문제가 발생했는지 확인하기 위해 터미널 출력을 한참 되짚는 일이 잦아졌습니다.
