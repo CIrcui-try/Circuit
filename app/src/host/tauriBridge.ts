@@ -107,6 +107,10 @@ export const tauriHostBridge: HostBridge = {
     await invoke<void>("save_workflow", { repoPath, workflowId, json });
   },
 
+  async deleteWorkflow(repoPath: string, workflowId: string) {
+    await invoke<void>("delete_workflow", { repoPath, workflowId });
+  },
+
   async exportWorkflowBundle(repoPath, workflowJson, suggestedFileName) {
     const selected = await save({
       defaultPath: suggestedFileName.endsWith(".circuitflow")

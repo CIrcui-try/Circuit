@@ -197,6 +197,7 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   listWorkflows(repoPath: string): Promise<WorkflowSummaryDTO[]>;
   loadWorkflow(repoPath: string, workflowId: string): Promise<string>;
   saveWorkflow(repoPath: string, workflowId: string, json: string): Promise<void>;
+  deleteWorkflow(repoPath: string, workflowId: string): Promise<void>;
   exportWorkflowBundle?(
     repoPath: string,
     workflowJson: string,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
+  ChevronDown,
   ChevronsRight,
   Download,
   Ellipsis,
@@ -11,6 +12,7 @@ import {
   RotateCcw,
   Save,
   Square,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -35,6 +37,7 @@ import type {
 import { fromWorkflow } from "../workflow/serialize";
 import { createCodexStarterWorkflow } from "../workflow/starterFlow";
 import {
+  deleteById,
   exportCurrent,
   listForRepo,
   loadById,
@@ -56,6 +59,7 @@ import type { SkillExecutionResult } from "../runtime/contracts/SkillExecution";
 
 const NEW_WORKFLOW_VALUE = "__new__";
 const TOOLBAR_TOOLTIP_DELAY_MS = 500;
+const WORKFLOW_AUTOSAVE_DELAY_MS = 700;
 
 export function Workspace() {
   const { repoId } = useParams<{ repoId?: string }>();
@@ -73,7 +77,9 @@ export function Workspace() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const setContinueOnFailure = useWorkflowStore((s) => s.setContinueOnFailure);
   const autoLayoutWorkflow = useWorkflowStore((s) => s.autoLayoutWorkflow);
-  const nodeCount = useWorkflowStore((s) => s.nodes.length);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const edges = useWorkflowStore((s) => s.edges);
+  const nodeCount = nodes.length;
   const runRecord = useRunStore((s) =>
     repo?.id ? s.getRunForRepository(repo.id) : s,
   );
@@ -103,7 +109,16 @@ export function Workspace() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingImport, setPendingImport] =
     useState<PendingBundleImport | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    useState<WorkflowSummaryDTO | null>(null);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+  const [editingWorkflowName, setEditingWorkflowName] = useState(false);
+  const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   const consumedStarterPromptRepoIds = useRef(new Set<string>());
+  const autosaveSeqRef = useRef(0);
+  const autosaveBaselineRef = useRef<string | null>(null);
+  const workflowNameInputRef = useRef<HTMLInputElement | null>(null);
+  const workflowMenuRef = useRef<HTMLDivElement | null>(null);
   const [pendingCycleRun, setPendingCycleRun] =
     useState<WorkflowRunSnapshot | null>(null);
 
@@ -114,6 +129,16 @@ export function Workspace() {
     nodeStates: lastRunNodeStates,
     nodeResults: lastRunNodeResults,
   });
+
+  const markAutosaveReadyAfterHydration = useCallback(() => {
+    window.setTimeout(() => {
+      setAutosaveReady(true);
+    }, 0);
+  }, []);
+
+  const captureAutosaveBaseline = useCallback(() => {
+    autosaveBaselineRef.current = toAutosaveSignature(useWorkflowStore.getState());
+  }, []);
 
   useEffect(() => {
     selectRepository(repoId ?? null);
@@ -126,7 +151,9 @@ export function Workspace() {
   }, [acknowledgeRun, repo?.id, runId, runStatus]);
 
   useEffect(() => {
+    setAutosaveReady(false);
     resetWorkflow();
+    captureAutosaveBaseline();
     setWorkflows([]);
     setShowStarterFlowPrompt(false);
     if (!repo) return;
@@ -149,6 +176,7 @@ export function Workspace() {
         consumedStarterPromptRepoIds.current.add(repo.id);
       }
       setShowStarterFlowPrompt(shouldShowStarterPrompt);
+      markAutosaveReadyAfterHydration();
       return;
     }
     useWorkflowStore.getState().replaceCanvas({
@@ -158,7 +186,15 @@ export function Workspace() {
       workflowName: draft.workflowName,
       continueOnFailure: draft.continueOnFailure,
     });
-  }, [repoId, repo, resetWorkflow]);
+    captureAutosaveBaseline();
+    markAutosaveReadyAfterHydration();
+  }, [
+    captureAutosaveBaseline,
+    markAutosaveReadyAfterHydration,
+    repo,
+    repoId,
+    resetWorkflow,
+  ]);
 
   useEffect(() => {
     if (!repo) return;
@@ -197,18 +233,74 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
-  const handleSave = useCallback(async () => {
+  const selectedWorkflow =
+    workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
+
+  useEffect(() => {
+    if (!editingWorkflowName) return;
+    workflowNameInputRef.current?.focus();
+    workflowNameInputRef.current?.select();
+  }, [editingWorkflowName]);
+
+  useEffect(() => {
+    if (!workflowMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!workflowMenuRef.current?.contains(event.target as Node)) {
+        setWorkflowMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [workflowMenuOpen]);
+
+  const persistCurrentWorkflow = useCallback(async (errorTitle: string) => {
     if (!repo) return;
+    const savedSignature = toAutosaveSignature(useWorkflowStore.getState());
     try {
       await saveCurrent({
         repoPath: repo.path,
         repositoryId: repo.id,
       });
+      autosaveBaselineRef.current = savedSignature;
       await refreshWorkflows();
     } catch (err) {
-      notifyAppError(err, "Save workflow failed");
+      notifyAppError(err, errorTitle);
     }
   }, [repo, refreshWorkflows]);
+
+  useEffect(() => {
+    if (!repo || isRunningHere || activeRunSnapshot) return;
+    if (!autosaveReady) return;
+    if (!selectedWorkflow) return;
+    const signature = toAutosaveSignature({
+      workflowName,
+      continueOnFailure,
+      nodes,
+      edges,
+    });
+    if (signature === autosaveBaselineRef.current) return;
+
+    const seq = autosaveSeqRef.current + 1;
+    autosaveSeqRef.current = seq;
+    const timer = window.setTimeout(() => {
+      if (autosaveSeqRef.current !== seq) return;
+      void persistCurrentWorkflow("Autosave workflow failed");
+    }, WORKFLOW_AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeRunSnapshot,
+    autosaveReady,
+    continueOnFailure,
+    edges,
+    isRunningHere,
+    nodes,
+    persistCurrentWorkflow,
+    repo,
+    selectedWorkflow,
+    workflowName,
+  ]);
 
   const finishBundleImport = useCallback(async (
     preview: WorkflowBundleImportPreviewDTO,
@@ -379,22 +471,56 @@ export function Workspace() {
   const handleSelectWorkflow = useCallback(
     async (value: string) => {
       if (!repo) return;
+      setWorkflowMenuOpen(false);
       if (value === NEW_WORKFLOW_VALUE) {
+        setAutosaveReady(false);
         resetWorkflow();
+        captureAutosaveBaseline();
+        markAutosaveReadyAfterHydration();
         return;
       }
       try {
+        setAutosaveReady(false);
         await loadById({ repoPath: repo.path, workflowId: value });
+        captureAutosaveBaseline();
+        markAutosaveReadyAfterHydration();
       } catch (err) {
+        markAutosaveReadyAfterHydration();
         notifyAppError(err, "Load workflow failed");
       }
     },
-    [repo, resetWorkflow],
+    [captureAutosaveBaseline, markAutosaveReadyAfterHydration, repo, resetWorkflow],
   );
 
   const handleAutoLayout = useCallback(() => {
     autoLayoutWorkflow();
   }, [autoLayoutWorkflow]);
+
+  const handleDeleteWorkflow = useCallback(async () => {
+    if (!repo || !pendingDelete) return;
+    try {
+      setAutosaveReady(false);
+      await deleteById({
+        repoPath: repo.path,
+        workflowId: pendingDelete.id,
+      });
+      resetWorkflow();
+      captureAutosaveBaseline();
+      setPendingDelete(null);
+      await refreshWorkflows();
+      markAutosaveReadyAfterHydration();
+    } catch (err) {
+      markAutosaveReadyAfterHydration();
+      notifyAppError(err, "Delete workflow failed");
+    }
+  }, [
+    markAutosaveReadyAfterHydration,
+    captureAutosaveBaseline,
+    pendingDelete,
+    refreshWorkflows,
+    repo,
+    resetWorkflow,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -402,7 +528,7 @@ export function Workspace() {
       if ((event.metaKey || event.ctrlKey) && key === "s") {
         if (!repo) return;
         event.preventDefault();
-        void handleSave();
+        void persistCurrentWorkflow("Save workflow failed");
         return;
       }
       if (event.metaKey && event.key === "Enter") {
@@ -420,7 +546,14 @@ export function Workspace() {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleCancel, handleSave, handleStart, isRunningHere, nodeCount, repo]);
+  }, [
+    handleCancel,
+    handleStart,
+    isRunningHere,
+    nodeCount,
+    persistCurrentWorkflow,
+    repo,
+  ]);
 
   if (repoId && hydrated && !repo) {
     return (
@@ -605,29 +738,116 @@ export function Workspace() {
           ) : null}
         </div>
         <span className="workspace__toolbar-spacer" />
-        <input
-          type="text"
-          aria-label="Workflow name"
-          data-testid="workflow-name-input"
-          className="workspace__toolbar-input"
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          disabled={!repo}
-        />
-        <select
-          aria-label="Workflow"
-          data-testid="workflow-menu"
-          value={currentWorkflowId ?? NEW_WORKFLOW_VALUE}
-          onChange={(e) => void handleSelectWorkflow(e.target.value)}
-          disabled={!repo}
-        >
-          <option value={NEW_WORKFLOW_VALUE}>New workflow</option>
-          {workflows.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name || "(untitled)"}
-            </option>
-          ))}
-        </select>
+        {editingWorkflowName ? (
+          <input
+            ref={workflowNameInputRef}
+            type="text"
+            aria-label="Workflow name"
+            data-testid="workflow-name-input"
+            className="workspace__toolbar-input"
+            value={workflowName}
+            onBlur={() => setEditingWorkflowName(false)}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setEditingWorkflowName(false);
+              }
+            }}
+            disabled={!repo}
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Edit workflow name"
+            data-testid="workflow-name-button"
+            className="workspace__workflow-name-button"
+            onClick={() => setEditingWorkflowName(true)}
+            disabled={!repo}
+          >
+            <span>{workflowName || "(untitled)"}</span>
+          </button>
+        )}
+        <div className="workspace__workflow-menu" ref={workflowMenuRef}>
+          <button
+            type="button"
+            aria-label="Switch workflow"
+            aria-haspopup="menu"
+            aria-expanded={workflowMenuOpen}
+            data-testid="workflow-menu"
+            className="workspace__toolbar-icon-button"
+            onClick={() => setWorkflowMenuOpen((open) => !open)}
+            disabled={!repo}
+          >
+            <ChevronDown size={15} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+          {workflowMenuOpen && repo ? (
+            <div
+              className="workspace__workflow-menu-list"
+              role="menu"
+              data-testid="workflow-menu-list"
+            >
+              <button
+                type="button"
+                className="workspace__workflow-menu-item"
+                role="menuitem"
+                onClick={() => void handleSelectWorkflow(NEW_WORKFLOW_VALUE)}
+              >
+                New workflow
+              </button>
+              {workflows.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  className="workspace__workflow-menu-item"
+                  role="menuitem"
+                  onClick={() => void handleSelectWorkflow(w.id)}
+                >
+                  {w.name || "(untitled)"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {selectedWorkflow ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Delete workflow"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-delete-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-delete"
+              className="workspace__toolbar-icon-button"
+              aria-label="Delete workflow"
+              onClick={() => setPendingDelete(selectedWorkflow)}
+              disabled={!repo || isRunningHere}
+            >
+              <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        ) : (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Save workflow (⌘S)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-save-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-save"
+              className="workspace__toolbar-icon-button"
+              aria-label="Save workflow"
+              aria-keyshortcuts="Meta+S Control+S"
+              onClick={() => void persistCurrentWorkflow("Save workflow failed")}
+              disabled={!repo || isRunningHere}
+            >
+              <Save size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        )}
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Auto layout"
@@ -644,24 +864,6 @@ export function Workspace() {
           >
             <GitBranch size={15} strokeWidth={1.9} aria-hidden="true" />
             <span>Auto layout</span>
-          </button>
-        </HoverTooltip>
-        <HoverTooltip
-          className="workspace__toolbar-tooltip-anchor"
-          content="Save workflow (⌘S)"
-          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
-          testId="workflow-save-tooltip"
-        >
-          <button
-            type="button"
-            data-testid="workflow-save"
-            className="workspace__toolbar-icon-button"
-            aria-label="Save workflow"
-            aria-keyshortcuts="Meta+S Control+S"
-            onClick={() => void handleSave()}
-            disabled={!repo}
-          >
-            <Save size={15} strokeWidth={1.9} aria-hidden="true" />
           </button>
         </HoverTooltip>
         <HoverTooltip
@@ -736,6 +938,42 @@ export function Workspace() {
           </HoverTooltip>
         ) : null}
       </header>
+      {pendingDelete ? (
+        <div className="modal__backdrop">
+          <div
+            className="modal__panel modal__panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workflow-delete-title"
+            data-testid="workflow-delete-confirm"
+          >
+            <h2 id="workflow-delete-title" className="modal__title">
+              Delete workflow
+            </h2>
+            <p className="modal__message">
+              Delete {pendingDelete.name || "(untitled)"}? This removes the saved
+              workflow file only.
+            </p>
+            <div className="modal__footer">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                data-testid="workflow-delete-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={() => void handleDeleteWorkflow()}
+                data-testid="workflow-delete-confirm-delete"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {pendingCycleRun ? (
         <div className="modal__backdrop">
           <div
@@ -995,6 +1233,20 @@ type RerunCandidate = {
   startFromNodeId: string;
   seedPreviousOutputs: Record<string, SkillExecutionResult>;
 };
+
+function toAutosaveSignature(state: {
+  workflowName: string;
+  continueOnFailure: boolean;
+  nodes: SkillNode[];
+  edges: ReadonlyArray<unknown>;
+}): string {
+  return JSON.stringify({
+    workflowName: state.workflowName,
+    continueOnFailure: state.continueOnFailure,
+    nodes: state.nodes,
+    edges: state.edges,
+  });
+}
 
 function buildRerunCandidate({
   repoId,

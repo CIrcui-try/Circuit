@@ -384,10 +384,81 @@ a:hover {
   border-radius: 6px;
   padding: 4px 8px;
   width: 200px;
+  height: 30px;
 }
 
 .workspace__toolbar-input:disabled {
   opacity: 0.5;
+}
+
+.workspace__workflow-name-button {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  width: 200px;
+  height: 30px;
+  padding: 4px 8px;
+  color: inherit;
+  text-align: left;
+  background: #2d2d33;
+  border-color: #3a3a42;
+}
+
+.workspace__workflow-name-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace__workflow-name-button:hover,
+.workspace__workflow-name-button:focus-visible {
+  color: #ffffff;
+  background: #36363d;
+}
+
+.workspace__workflow-name-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.workspace__workflow-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.workspace__workflow-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 6px;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #26262b;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.workspace__workflow-menu-item {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 6px;
+  color: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.workspace__workflow-menu-item:hover,
+.workspace__workflow-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .workspace__toolbar-status {

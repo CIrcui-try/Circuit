@@ -10,6 +10,7 @@ const bridgeMock = vi.hoisted(() => ({
   listWorkflows: vi.fn(async () => []),
   loadWorkflow: vi.fn(async () => "{}"),
   saveWorkflow: vi.fn(async () => {}),
+  deleteWorkflow: vi.fn(async () => {}),
   setAppIconRunBadgeCount: vi.fn(async (_count: number) => {}),
   notifyRunFinished: vi.fn(
     async (_notification: {

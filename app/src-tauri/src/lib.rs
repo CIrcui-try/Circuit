@@ -66,6 +66,7 @@ pub fn run() {
             workflow_store::list_workflows,
             workflow_store::load_workflow,
             workflow_store::save_workflow,
+            workflow_store::delete_workflow,
             workflow_store::export_workflow_bundle,
             workflow_store::preview_workflow_bundle_import,
             workflow_store::import_workflow_bundle,

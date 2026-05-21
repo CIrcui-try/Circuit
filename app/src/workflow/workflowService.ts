@@ -65,6 +65,13 @@ export async function listForRepo(repoPath: string): Promise<WorkflowSummaryDTO[
   return await getHostBridge().listWorkflows(repoPath);
 }
 
+export async function deleteById(args: {
+  repoPath: string;
+  workflowId: string;
+}): Promise<void> {
+  await getHostBridge().deleteWorkflow(args.repoPath, args.workflowId);
+}
+
 export async function exportCurrent(args: {
   repoPath: string;
   repositoryId: string;
