@@ -391,6 +391,17 @@ a:hover {
   opacity: 0.5;
 }
 
+.workspace__workflow-control {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  overflow: visible;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #2d2d33;
+}
+
 .workspace__workflow-name-button {
   display: inline-flex;
   align-items: center;
@@ -400,8 +411,9 @@ a:hover {
   padding: 4px 8px;
   color: inherit;
   text-align: left;
-  background: #2d2d33;
-  border-color: #3a3a42;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .workspace__workflow-name-button span {
@@ -422,9 +434,18 @@ a:hover {
   opacity: 0.5;
 }
 
-.workspace__workflow-menu {
-  position: relative;
-  flex: 0 0 auto;
+.workspace__workflow-name-input {
+  width: 200px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace__workflow-control > .workspace__toolbar-icon-button {
+  border: 0;
+  border-left: 1px solid #3a3a42;
+  border-radius: 0;
+  background: transparent;
 }
 
 .workspace__workflow-menu-list {
@@ -532,6 +553,33 @@ a:hover {
 .workspace__toolbar-icon-button:disabled:hover {
   color: #d7d7dd;
   background: #2d2d33;
+}
+
+.workspace__toolbar-button-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  background: #2d2d33;
+}
+
+.workspace__toolbar-button-group .workspace__toolbar-tooltip-anchor {
+  display: inline-flex;
+}
+
+.workspace__toolbar-group-button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace__toolbar-button-group .workspace__toolbar-tooltip-anchor + .workspace__toolbar-tooltip-anchor {
+  border-left: 1px solid #3a3a42;
+}
+
+.workspace__toolbar-group-button:disabled:hover {
+  background: transparent;
 }
 
 .workspace__toolbar-action-button {

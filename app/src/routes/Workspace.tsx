@@ -775,38 +775,43 @@ export function Workspace() {
           ) : null}
         </div>
         <span className="workspace__toolbar-spacer" />
-        {editingWorkflowName ? (
-          <input
-            ref={workflowNameInputRef}
-            type="text"
-            aria-label="Workflow name"
-            data-testid="workflow-name-input"
-            className="workspace__toolbar-input"
-            value={workflowName}
-            onBlur={() => setEditingWorkflowName(false)}
-            onChange={(e) => setWorkflowName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                setEditingWorkflowName(false);
-              }
-            }}
-            disabled={!repo}
-          />
-        ) : (
-          <button
-            type="button"
-            aria-label="Edit workflow name"
-            data-testid="workflow-name-button"
-            className="workspace__workflow-name-button"
-            onClick={() => setEditingWorkflowName(true)}
-            disabled={!repo}
-          >
-            <span>{workflowName || "(untitled)"}</span>
-          </button>
-        )}
-        <div className="workspace__workflow-menu" ref={workflowMenuRef}>
+        <div
+          className="workspace__workflow-control"
+          role="group"
+          aria-label="Workflow"
+          ref={workflowMenuRef}
+        >
+          {editingWorkflowName ? (
+            <input
+              ref={workflowNameInputRef}
+              type="text"
+              aria-label="Workflow name"
+              data-testid="workflow-name-input"
+              className="workspace__toolbar-input workspace__workflow-name-input"
+              value={workflowName}
+              onBlur={() => setEditingWorkflowName(false)}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEditingWorkflowName(false);
+                }
+              }}
+              disabled={!repo}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label="Edit workflow name"
+              data-testid="workflow-name-button"
+              className="workspace__workflow-name-button"
+              onClick={() => setEditingWorkflowName(true)}
+              disabled={!repo}
+            >
+              <span>{workflowName || "(untitled)"}</span>
+            </button>
+          )}
           <button
             type="button"
             aria-label="Switch workflow"
@@ -904,42 +909,48 @@ export function Workspace() {
             </button>
           </HoverTooltip>
         )}
-        <HoverTooltip
-          className="workspace__toolbar-tooltip-anchor"
-          content="Undo (⌘Z)"
-          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
-          testId="workflow-undo-tooltip"
+        <div
+          className="workspace__toolbar-button-group"
+          role="group"
+          aria-label="Edit history"
         >
-          <button
-            type="button"
-            data-testid="workflow-undo"
-            className="workspace__toolbar-icon-button"
-            aria-label="Undo"
-            aria-keyshortcuts="Meta+Z Control+Z"
-            onClick={handleUndo}
-            disabled={!repo || isRunningHere || !canUndoWorkflowEdit}
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Undo (⌘Z)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-undo-tooltip"
           >
-            <Undo2 size={15} strokeWidth={1.9} aria-hidden="true" />
-          </button>
-        </HoverTooltip>
-        <HoverTooltip
-          className="workspace__toolbar-tooltip-anchor"
-          content="Redo (⇧⌘Z / ⌘Y)"
-          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
-          testId="workflow-redo-tooltip"
-        >
-          <button
-            type="button"
-            data-testid="workflow-redo"
-            className="workspace__toolbar-icon-button"
-            aria-label="Redo"
-            aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Meta+Y Control+Y"
-            onClick={handleRedo}
-            disabled={!repo || isRunningHere || !canRedoWorkflowEdit}
+            <button
+              type="button"
+              data-testid="workflow-undo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Undo"
+              aria-keyshortcuts="Meta+Z Control+Z"
+              onClick={handleUndo}
+              disabled={!repo || isRunningHere || !canUndoWorkflowEdit}
+            >
+              <Undo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Redo (⇧⌘Z / ⌘Y)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-redo-tooltip"
           >
-            <Redo2 size={15} strokeWidth={1.9} aria-hidden="true" />
-          </button>
-        </HoverTooltip>
+            <button
+              type="button"
+              data-testid="workflow-redo"
+              className="workspace__toolbar-icon-button workspace__toolbar-group-button"
+              aria-label="Redo"
+              aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Meta+Y Control+Y"
+              onClick={handleRedo}
+              disabled={!repo || isRunningHere || !canRedoWorkflowEdit}
+            >
+              <Redo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        </div>
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Auto layout"
