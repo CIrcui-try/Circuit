@@ -9,10 +9,12 @@ import {
   FolderOpen,
   GitBranch,
   Play,
+  Redo2,
   RotateCcw,
   Save,
   Square,
   Trash2,
+  Undo2,
   Upload,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -79,6 +81,8 @@ export function Workspace() {
   const autoLayoutWorkflow = useWorkflowStore((s) => s.autoLayoutWorkflow);
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
+  const canUndoWorkflowEdit = useWorkflowStore((s) => s.historyPast.length > 0);
+  const canRedoWorkflowEdit = useWorkflowStore((s) => s.historyFuture.length > 0);
   const nodeCount = nodes.length;
   const runRecord = useRunStore((s) =>
     repo?.id ? s.getRunForRepository(repo.id) : s,
@@ -522,9 +526,39 @@ export function Workspace() {
     resetWorkflow,
   ]);
 
+  const handleUndo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyPast.length === 0) return;
+    store.undo();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    if (store.historyFuture.length === 0) return;
+    store.redo();
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
+        if (isEditableShortcutTarget(event.target)) return;
+        if (key === "z" && event.shiftKey) {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+        if (key === "z") {
+          event.preventDefault();
+          handleUndo();
+          return;
+        }
+        if (key === "y") {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+      }
       if ((event.metaKey || event.ctrlKey) && key === "s") {
         if (!repo) return;
         event.preventDefault();
@@ -548,7 +582,9 @@ export function Workspace() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [
     handleCancel,
+    handleRedo,
     handleStart,
+    handleUndo,
     isRunningHere,
     nodeCount,
     persistCurrentWorkflow,
@@ -848,6 +884,42 @@ export function Workspace() {
             </button>
           </HoverTooltip>
         )}
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content="Undo (⌘Z)"
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-undo-tooltip"
+        >
+          <button
+            type="button"
+            data-testid="workflow-undo"
+            className="workspace__toolbar-icon-button"
+            aria-label="Undo"
+            aria-keyshortcuts="Meta+Z Control+Z"
+            onClick={handleUndo}
+            disabled={!repo || isRunningHere || !canUndoWorkflowEdit}
+          >
+            <Undo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        </HoverTooltip>
+        <HoverTooltip
+          className="workspace__toolbar-tooltip-anchor"
+          content="Redo (⇧⌘Z / ⌘Y)"
+          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+          testId="workflow-redo-tooltip"
+        >
+          <button
+            type="button"
+            data-testid="workflow-redo"
+            className="workspace__toolbar-icon-button"
+            aria-label="Redo"
+            aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Meta+Y Control+Y"
+            onClick={handleRedo}
+            disabled={!repo || isRunningHere || !canRedoWorkflowEdit}
+          >
+            <Redo2 size={15} strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        </HoverTooltip>
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Auto layout"
@@ -1246,6 +1318,13 @@ function toAutosaveSignature(state: {
     nodes: state.nodes,
     edges: state.edges,
   });
+}
+
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 function buildRerunCandidate({

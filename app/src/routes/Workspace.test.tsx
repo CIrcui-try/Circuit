@@ -423,6 +423,8 @@ describe("Workspace", () => {
     );
     expect(screen.queryByTestId("workflow-delete")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-auto-layout")).toBeDisabled();
+    expect(screen.getByTestId("workflow-undo")).toBeDisabled();
+    expect(screen.getByTestId("workflow-redo")).toBeDisabled();
     expect(screen.getByTestId("workflow-auto-layout")).toHaveTextContent(
       "Auto layout",
     );
@@ -447,6 +449,7 @@ describe("Workspace", () => {
       expect(screen.getByTestId("workflow-start")).not.toBeDisabled();
     });
     expect(screen.getByTestId("workflow-auto-layout")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-undo")).not.toBeDisabled();
     expect(screen.getByTestId("workflow-start")).toHaveTextContent("");
   });
 
@@ -753,6 +756,94 @@ describe("Workspace", () => {
     expect(screen.getByTestId("workflow-name-button")).toHaveTextContent(
       "Renamed flow",
     );
+  });
+
+  it("undoes and redoes workflow edits from the toolbar", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-undo")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-undo"));
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-redo")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByTestId("workflow-redo"));
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+  });
+
+  it("undoes and redoes workflow edits with keyboard shortcuts", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("workflow-undo")).not.toBeDisabled();
+    });
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true });
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    expect(useWorkflowStore.getState().nodes).toHaveLength(0);
+
+    fireEvent.keyDown(document, { key: "y", ctrlKey: true });
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+  });
+
+  it("keeps native text undo when an editable field has focus", () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 10, y: 20 },
+    );
+
+    fireEvent.click(screen.getByTestId("workflow-name-button"));
+    const input = screen.getByTestId("workflow-name-input");
+    input.focus();
+    fireEvent.keyDown(input, {
+      key: "z",
+      metaKey: true,
+    });
+
+    expect(useWorkflowStore.getState().nodes).toHaveLength(1);
   });
 
   it("W8b: saves Continue on failure with the workflow", async () => {

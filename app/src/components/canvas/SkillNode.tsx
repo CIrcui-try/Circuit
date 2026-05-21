@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -81,12 +82,23 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
 
   const handleEditInput = () => {
     useWorkflowStore.getState().selectNode(id);
-    const current = useWorkflowStore.getState().nodes.find((n) => n.id === id)
-      ?.data.input ?? data.input;
+    const store = useWorkflowStore.getState();
+    if (isEditingInput) {
+      store.endHistoryBatch();
+      setIsEditingInput(false);
+      return;
+    }
+    const current = store.nodes.find((n) => n.id === id)?.data.input ?? data.input;
+    store.beginHistoryBatch();
     setDraftArguments(readArguments(current));
     setDraftPrompt(readPrompt(current));
-    setIsEditingInput((open) => !open);
+    setIsEditingInput(true);
   };
+
+  useEffect(() => {
+    if (!isEditingInput) return;
+    return () => useWorkflowStore.getState().endHistoryBatch();
+  }, [isEditingInput]);
 
   useLayoutEffect(() => {
     if (!isEditingInput) return;
@@ -118,6 +130,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   };
 
   const dismissInputEditor = () => {
+    useWorkflowStore.getState().endHistoryBatch();
     setIsEditingInput(false);
   };
 
