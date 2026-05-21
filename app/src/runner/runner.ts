@@ -38,7 +38,7 @@ export type RunnableEdge = {
 };
 
 export type RunResult =
-  | { ok: true }
+  | { ok: true; completeWorkflow?: true; reason?: string }
   | { ok: false; status: Exclude<RunTerminalStatus, "success">; reason: string };
 
 export type WorkflowRunner = {

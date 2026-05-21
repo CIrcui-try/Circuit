@@ -35,6 +35,7 @@ export interface RealWorkflowRunnerOptions {
 const DEFAULT_IDLE_MS = 30_000;
 const STDIN_WAITING_RE = /Reading additional input from stdin/i;
 const LOOP_LIMIT_SKILL_FILE = ".codex/skills/loop-limit/SKILL.md";
+const LOOP_COMPLETE_SUMMARY = "CIRCUIT_LOOP_COMPLETE";
 
 export class RealWorkflowRunner implements WorkflowRunner {
   private previousOutputs: Record<string, SkillExecutionResult> = {};
@@ -223,7 +224,15 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
     await this.persistCurrentLog(repo);
 
-    if (result.status === "success") return { ok: true };
+    if (result.status === "success") {
+      return isLoopCompleteResult(result)
+        ? {
+            ok: true,
+            completeWorkflow: true,
+            reason: result.summary ?? LOOP_COMPLETE_SUMMARY,
+          }
+        : { ok: true };
+    }
     const exitSuffix =
       result.exitCode != null ? ` (exit ${result.exitCode})` : "";
     return {
@@ -441,6 +450,17 @@ export class RealWorkflowRunner implements WorkflowRunner {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function isLoopCompleteResult(result: SkillExecutionResult): boolean {
+  if (result.summary?.trim() === LOOP_COMPLETE_SUMMARY) return true;
+  const output = result.output;
+  return (
+    typeof output === "object" &&
+    output !== null &&
+    !Array.isArray(output) &&
+    (output as { loopComplete?: unknown }).loopComplete === true
+  );
 }
 
 function readNodeTimeoutMs(

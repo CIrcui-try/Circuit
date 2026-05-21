@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import sampleWorkflow from "../../../fixtures/workflows/sample-agent-handoff.json";
+import tutorialTicketLoop from "../../../fixtures/workflows/tutorial-ticket-loop.json";
 import { validateWorkflow } from "./validate";
 
 describe("workflow/validate", () => {
   it("V1: sample-agent-handoff fixture passes validation", () => {
     const result = validateWorkflow(sampleWorkflow);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("V1b: tutorial ticket loop fixture passes validation", () => {
+    const result = validateWorkflow(tutorialTicketLoop);
     expect(result).toEqual({ ok: true });
   });
 

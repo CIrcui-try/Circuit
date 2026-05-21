@@ -374,6 +374,51 @@ describe("runWorkflow", () => {
     });
   });
 
+  it("RW4b2: an allowed cycle can finish successfully from a loop completion signal", async () => {
+    const order: string[] = [];
+    const runner: WorkflowRunner = {
+      async runNode(n) {
+        order.push(n.id);
+        if (order.length === 5) {
+          return {
+            ok: true,
+            completeWorkflow: true,
+            reason: "all tickets complete",
+          };
+        }
+        return { ok: true };
+      },
+    };
+
+    const outcome = await runWorkflow({
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [
+        edge("e1", "a", "b"),
+        edge("e2", "b", "c"),
+        edge("e3", "c", "a"),
+      ],
+      workflowId: "wf",
+      runner,
+      store: useRunStore,
+      now: () => "t",
+      newRunId: () => "run_1",
+      allowCycles: true,
+    });
+
+    expect(outcome).toEqual({ kind: "started", status: "success" });
+    expect(order).toEqual(["a", "b", "c", "a", "b"]);
+    expect(useRunStore.getState()).toMatchObject({
+      status: "success",
+      runMode: "cycle",
+      iteration: 2,
+    });
+    expect(useRunStore.getState().nodeStates).toEqual({
+      a: "success",
+      b: "success",
+      c: "skipped",
+    });
+  });
+
   it("RW4c: an allowed cycle stops on the failed iteration and node", async () => {
     const order: string[] = [];
     const runner: WorkflowRunner = {
