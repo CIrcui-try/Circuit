@@ -9,6 +9,7 @@ import {
   FolderOpen,
   GitBranch,
   Play,
+  Plus,
   Redo2,
   RotateCcw,
   Save,
@@ -826,12 +827,25 @@ export function Workspace() {
             >
               <button
                 type="button"
-                className="workspace__workflow-menu-item"
+                className="workspace__workflow-menu-item workspace__workflow-menu-item--new"
                 role="menuitem"
+                data-testid="workflow-new"
                 onClick={() => void handleSelectWorkflow(NEW_WORKFLOW_VALUE)}
               >
-                New workflow
+                <Plus
+                  className="workspace__workflow-menu-item-icon"
+                  size={15}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+                <span>New workflow</span>
               </button>
+              <div
+                className="workspace__workflow-menu-separator"
+                role="separator"
+                data-testid="workflow-menu-separator"
+                aria-hidden="true"
+              />
               {workflows.map((w) => (
                 <button
                   key={w.id}
@@ -840,7 +854,7 @@ export function Workspace() {
                   role="menuitem"
                   onClick={() => void handleSelectWorkflow(w.id)}
                 >
-                  {w.name || "(untitled)"}
+                  <span>{w.name || "(untitled)"}</span>
                 </button>
               ))}
             </div>

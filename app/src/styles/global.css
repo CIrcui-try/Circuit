@@ -442,8 +442,10 @@ a:hover {
 }
 
 .workspace__workflow-menu-item {
-  display: block;
+  display: flex;
   width: 100%;
+  align-items: center;
+  gap: 8px;
   min-height: 30px;
   padding: 5px 6px;
   color: inherit;
@@ -456,9 +458,36 @@ a:hover {
   border-radius: 4px;
 }
 
+.workspace__workflow-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workspace__workflow-menu-item:hover,
 .workspace__workflow-menu-item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.workspace__workflow-menu-item--new {
+  color: #e7f0ff;
+  background: rgba(116, 152, 255, 0.1);
+}
+
+.workspace__workflow-menu-item--new:hover,
+.workspace__workflow-menu-item--new:focus-visible {
+  background: rgba(116, 152, 255, 0.18);
+}
+
+.workspace__workflow-menu-item-icon {
+  flex: 0 0 auto;
+  color: #9fc7ff;
+}
+
+.workspace__workflow-menu-separator {
+  height: 1px;
+  margin: 6px 0;
+  background: #3a3a42;
 }
 
 .workspace__toolbar-status {

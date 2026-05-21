@@ -500,6 +500,18 @@ describe("Workspace", () => {
     );
   });
 
+  it("styles New workflow as a distinct menu action", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+    renderAt("/workspace/id-alpha");
+    fireEvent.click(screen.getByTestId("workflow-menu"));
+
+    const newWorkflow = await screen.findByTestId("workflow-new");
+    expect(newWorkflow).toHaveAccessibleName("New workflow");
+    expect(newWorkflow).toHaveClass("workspace__workflow-menu-item--new");
+    expect(screen.getByTestId("workflow-menu-separator")).toBeInTheDocument();
+  });
+
   it("W5d: Auto layout button moves loop targets into a side lane", async () => {
     useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
