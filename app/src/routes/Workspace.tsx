@@ -846,6 +846,12 @@ export function Workspace() {
                 data-testid="workflow-menu-separator"
                 aria-hidden="true"
               />
+              <div
+                className="workspace__workflow-menu-section-label"
+                data-testid="workflow-menu-section-label"
+              >
+                Workflows
+              </div>
               {workflows.map((w) => (
                 <button
                   key={w.id}

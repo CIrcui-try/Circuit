@@ -510,6 +510,9 @@ describe("Workspace", () => {
     expect(newWorkflow).toHaveAccessibleName("New workflow");
     expect(newWorkflow).toHaveClass("workspace__workflow-menu-item--new");
     expect(screen.getByTestId("workflow-menu-separator")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-menu-section-label")).toHaveTextContent(
+      "Workflows",
+    );
   });
 
   it("W5d: Auto layout button moves loop targets into a side lane", async () => {

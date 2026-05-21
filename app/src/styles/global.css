@@ -486,8 +486,15 @@ a:hover {
 
 .workspace__workflow-menu-separator {
   height: 1px;
-  margin: 6px 0;
+  margin: 6px 0 4px;
   background: #3a3a42;
+}
+
+.workspace__workflow-menu-section-label {
+  padding: 2px 6px 4px;
+  color: #8a8a92;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .workspace__toolbar-status {
