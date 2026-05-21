@@ -618,7 +618,6 @@ export function Workspace() {
     >
       <header className="workspace__toolbar">
         <Link to="/" aria-label="Back to repository list">←</Link>
-        <span className="workspace__toolbar-title">Circuit</span>
         <span className="workspace__repository-label">
           {repo ? repo.name : "No repository selected"}
         </span>

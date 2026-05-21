@@ -234,13 +234,9 @@ a:hover {
   border-bottom: 1px solid #3a3a42;
 }
 
-.workspace__toolbar-title {
-  font-weight: 600;
-  margin-right: 16px;
-}
-
 .workspace__repository-label {
-  color: #8a8a92;
+  color: #f2f2f4;
+  font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
 }
