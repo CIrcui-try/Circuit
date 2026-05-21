@@ -259,16 +259,16 @@ describe("runViaBridge approval forwarding", () => {
     expect(result.summary).toBe("CIR-59 구현과 테스트를 완료했습니다.");
   });
 
-  it("keeps gh-auth-check successful when the required account is already active", async () => {
+  it("keeps gh-auth-check successful when GitHub CLI is authenticated", async () => {
     const summary =
-      "GitHub CLI 인증 확인 완료 — active account 가 kai-leeee 로 설정되어 있어 전환 불필요.";
+      "GitHub CLI 인증 확인 완료 — active account 가 contributor 로 설정되어 있습니다.";
     const bridge = createMockRuntimeBridge({
       scenario: () => [
         { event: { type: "started" } },
         {
           event: {
             type: "stdout",
-            text: `GitHub CLI active account: kai-leeee\n\nCIRCUIT_SUMMARY: ${summary}\n`,
+            text: `GitHub CLI active account: contributor\n\nCIRCUIT_SUMMARY: ${summary}\n`,
           },
         },
         { event: { type: "exited", exitCode: 0 } },

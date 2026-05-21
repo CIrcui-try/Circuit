@@ -1,6 +1,6 @@
 interface:
   display_name: "GH Auth Check"
-  short_description: "gh 명령 직전 GitHub CLI 계정을 kai-leeee로 확인·전환"
+  short_description: "gh 명령 직전 GitHub CLI 로그인 상태 확인"
   default_prompt: "Use $gh-auth-check only immediately before a workflow runs an actual gh command."
 policy:
   allow_implicit_invocation: false

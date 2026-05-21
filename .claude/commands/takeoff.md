@@ -38,7 +38,7 @@ argument-hint: <Linear 이슈 ID> [--force]
 2. **워크트리 진입**: `worktree_path` 로 cd. 경로가 없으면 사용자에게 안내 후 중단.
 3. **상태 점검**: `git status` 가 깨끗한지 확인. 미커밋 변경이 있으면 사용자에게 알리고 중단.
 4. **티켓 상태 동기화**: Linear 이슈가 `Done`/`Canceled` 가 아니면 상태를 `In Progress` 로 직접 변경한다.
-5. **GitHub 인증 확인**: `gh-auth-check` 스킬로 GitHub CLI active account 가 `kai-leeee` 인지 확인하고, 다르면 전환 후 재확인한다.
+5. **GitHub 인증 확인**: `gh-auth-check` 스킬로 GitHub CLI 로그인 상태와 active account 를 확인한다.
 6. **develop 리베이스**: `git fetch origin develop && git rebase origin/develop`. 충돌 시 자동 해결 시도하지 말고 사용자에게 위임 후 중단.
 7. **푸시**:
    - 첫 push: `git push -u origin <branch>`.

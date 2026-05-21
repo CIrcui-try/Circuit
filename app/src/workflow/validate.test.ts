@@ -102,7 +102,7 @@ describe("workflow/validate", () => {
       source: "system",
       provider: "codex",
       systemSkillId: "codex:imagegen",
-      skillFile: "/Users/kai.lee/.codex/skills/.system/imagegen/SKILL.md",
+      skillFile: "/Users/example/.codex/skills/.system/imagegen/SKILL.md",
     };
 
     const result = validateWorkflow(wf);

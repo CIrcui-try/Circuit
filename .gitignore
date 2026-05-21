@@ -3,3 +3,7 @@
 .claude/worktrees/
 .codex/state/
 .codex/worktrees/
+AGENTS.local.md
+.agents/local.md
+.codex/local.md
+.claude/local.md

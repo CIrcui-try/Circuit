@@ -435,7 +435,7 @@ describe("Layout shell", () => {
         "Reading additional input from stdin...",
         "OpenAI Codex v0.128.0 (research preview)",
         "--------",
-        "workdir: /Users/kai.lee/Documents/Github/Others/Circuit",
+        "workdir: /Users/example/Documents/GitHub/Others/Circuit",
         "`landing`을 중단했습니다. PR 머지 확인이 불가능했습니다.",
       ].join("\n"),
     });
