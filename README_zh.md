@@ -6,15 +6,21 @@
 
 [English README](README.md) | [한국어 README](README_kr.md)
 
-## 为你的 SDD（Skill-Driven Development）而生。
+## 为你的 SDD（Skill-Driven Development）而生
+
+<p align="center">
+  <img src="docs/assets/readme/banner.png" alt="Circuit workflow banner" width="920">
+</p>
 
 Circuit 是一个工作空间，用来把可复用的智能体 Skill 转化为可见、可重复、可控制的开发工作流。
 
-Circuit 源于 AI-native 项目中反复出现的一个痛点。随着越来越多的工作被交给智能体完成，例如规划、实现和评审，生产力会提升，但真正的开发流程也很容易消失在冗长的 prompt、命令链和 TUI 会话里。项目越大，这个问题就越明显：为了确认哪个任务已经结束、哪个任务正在运行、问题出现在哪里，常常需要花很长时间回翻终端输出。
+Circuit 源于 AI-native 项目中反复出现的一个痛点。随着越来越多的工作被交给智能体完成，例如规划、实现和评审，生产力会提升，但真正的开发流程也会被隐藏在冗长的 prompt、命令链和 TUI 会话这个黑盒里。项目越大，这个问题就越明显：为了确认哪个任务已经结束、哪个任务正在运行、问题出现在哪里，常常需要花很长时间回翻终端输出。
 
-这正是 Skill 派上用场的地方。当智能体工作不断重复出现在规划、实现、评审、提交、合并和部署等环节中时，Skill 就不再只是一次性的 prompt 或辅助脚本，而会成为构成开发流程的可重复工作单元。
+帮助处理这种流程的，正是模块化的 Skill。当智能体工作在规划、实现、评审、提交、合并和部署等环节中形成重复例程时，Skill 就不再只是一次性的 prompt 或辅助脚本，而会成为构成开发流程的可重复工作单元。
 
-Circuit 的目标，是把这种 Skill-Driven Development 转化为可见、可重复，最重要的是人能理解的 _工作流_。
+但这种 Skill-Driven Development 仍然常常依赖文本化的流程，因此工作流不容易编辑和理解。Skill 之间的关系和依赖无法一眼看清，所以即使只是调整顺序或增加分支，也需要重新梳理整个流程。
+
+Circuit 的目标，是把这种 Skill-Driven Development 转化为可见、可重复，最重要的是人能理解的 _可视化工作流_。
 
 ## Circuit 能做什么？
 

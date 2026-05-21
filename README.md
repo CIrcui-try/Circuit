@@ -6,15 +6,21 @@
 
 [한국어 README](README_kr.md) | [中文 README](README_zh.md)
 
-## For your SDD (Skill-Driven Development).
+## For your SDD (Skill-Driven Development)
+
+<p align="center">
+  <img src="docs/assets/readme/banner.png" alt="Circuit workflow banner" width="920">
+</p>
 
 Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
 
-Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow often disappears into long prompts, command chains, and TUI sessions. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
+Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow gets hidden inside the black box of long prompts, command chains, and TUI sessions. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
 
-This is where Skills become useful. As agent work repeats across planning, implementation, review, commit, merge, and deploy, skills move beyond one-off prompts or helper scripts and become repeatable units of development.
+Modular Skills helped manage this flow. As agent work becomes a repeating routine across planning, implementation, review, commit, merge, and deploy, skills move beyond one-off prompts or helper scripts and begin to function as repeatable units of development.
 
-Circuit was built to turn this Skill-Driven Development into a visible, repeatable, and above all human-understandable _workflow_.
+But this Skill-Driven Development still often depends on text-based flows, which makes workflows hard to edit and understand. Relationships and dependencies between skills are not visible at a glance, so even changing order or adding a branch requires tracing the whole flow again.
+
+Circuit was built to turn this Skill-Driven Development into a visible, repeatable, and above all human-understandable _visual workflow_.
 
 ## What Can Circuit Do?
 
