@@ -1,30 +1,49 @@
+# Circuit - Skill-Based AI Agent Harness Editor
+
 <p align="center">
   <img src="docs/assets/readme/circuit-graphic-logo.png" alt="Circuit" width="520">
 </p>
 
-# Circuit
-
 [한국어 README](README_kr.md) | [中文 README](README_zh.md)
 
-## For your SDD (Skill-Driven Development)
+Circuit is a skill-based AI Agent harness editor for turning agent work into visible, repeatable, and controllable development workflows.
 
-Circuit is a workspace for turning reusable agent skills into visible, repeatable, and controllable development workflows.
+Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow gets hidden inside long prompts, command chains, and verbose output that can be hard to understand. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
 
-Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow gets hidden inside the black box of long prompts, command chains, and TUI sessions. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
-
-Modular Skills helped manage this flow. As agent work becomes a repeating routine across planning, implementation, review, commit, merge, and deploy, skills move beyond one-off prompts or helper scripts and begin to function as repeatable units of development.
-
-But this Skill-Driven Development still often depends on text-based flows, which makes workflows hard to edit and understand. Relationships and dependencies between skills are not visible at a glance, so even changing order or adding a branch requires tracing the whole flow again.
+Modular Skills helped manage this flow. As agent work becomes a repeating routine, skills move beyond one-off prompts or helper scripts and begin to function as repeatable units of development. But Skill-Driven Development still often depends on text-based flows, which makes workflows hard to edit and understand. Relationships and dependencies between skills are not visible at a glance, so even changing order or adding a branch requires tracing the whole flow again.
 
 Circuit was built to turn this Skill-Driven Development into a visible, repeatable, and above all human-understandable _visual workflow_.
 
-## What Can Circuit Do?
+## TL;DR
+### Quickstart
 
-### Build Skill-Driven Development Workflows
+The easiest way to get started is to download the latest macOS app from GitHub Releases.
+
+You can also clone this repository and run Circuit from source.
+
+```bash
+git clone https://github.com/CIrcui-try/Circuit
+cd Circuit/app
+pnpm install
+pnpm tauri dev
+```
+
+If you need a local build, run:
+
+```bash
+cd app
+pnpm tauri build
+```
+
+After launching Circuit, choose the repository you want to work with, then place skills from `.claude/skills` or `.codex/skills` onto the canvas to build a workflow.
+
+## What Can You Do With Circuit?
+
+### Build Visual Skill Workflows
 
 https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef
 
-Circuit is not about running a single skill. Its core idea is to help you build SDD workflows from the skills you already use. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
+Circuit is centered on connecting skills into a workflow. You can bring in the skills you need as blocks, reorder them, connect their dependencies, and insert new steps into the flow.
 
 For example, you can create a flow like this:
 
@@ -32,7 +51,7 @@ For example, you can create a flow like this:
 planning → implementation → review → commit
 ```
 
-When the way your SDD routine changes, the workflow can change with it:
+When the routine changes, the workflow can change with it:
 
 ```text
 planning → implementation → commit → review
@@ -44,38 +63,19 @@ If you need an intermediate check, add a new skill into the flow:
 planning → check-token → implementation → review → wrap-up
 ```
 
-When the context gets long, you can add a `compact` skill. If cleanup is needed after the task, you can add a `wrap-up` skill. If you want to check token usage, you can create a skill such as `check-token` and place it between larger steps.
+When the context gets long, you can add a `compact` skill. If you want to check token usage along the way, you can create a skill such as `check-token` and place it between larger steps.
 
-These flows can be written as command lists, but Circuit treats them as visible graphs. When skill order or dependencies change, you do not need to reconstruct the whole SDD process from memory. You can update the nodes and edges instead.
-
-### Use Claude And Codex Together
-
-https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd
-
-Many projects already contain more than one kind of agent automation. Some SDD routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
-
-Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from your local repository and lets you place both kinds of skills on the same canvas. It does not treat Claude and Codex as competing tools. It treats them as different execution capabilities and model choices that belong to the local project.
-
-The actual skill files remain in the repository. Circuit does not move them elsewhere or force them into a separate format. Instead, it reads the skills from the repository, shows them on the canvas, and provides a visual layer for defining their order and dependencies.
-
-### Create A Local Skill In Circuit
-
-When the selected repository has no custom skills yet, the Skills sidebar shows a New Skill action. The same action is also available from the sidebar header. Creating a skill writes a normal `SKILL.md` file back into the selected repository, then Circuit re-scans the repository and adds the new skill to the canvas.
-
-Choose the provider based on the agent that should run the skill:
-
-- Claude skills are created under `.claude/skills/<slug>/SKILL.md`.
-- Codex skills are created under `.codex/skills/<slug>/SKILL.md`.
-
-The slug becomes the directory name and may contain only letters, numbers, hyphens, or underscores. The provider does not change the file format; it controls which runtime adapter is used when the workflow executes the skill.
+With Circuit, when skill order or dependencies change, you do not need to reconstruct the procedure between skills from memory. You can update the nodes and edges instead.
 
 ### Track Execution State
 
 https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f
 
-When a workflow runs, you can see which skill is currently running, which steps have completed, and where a failure happened through the canvas and Run Log. Active workflows can be cancelled when needed, and failed runs are easier to inspect because the stopping point remains visible.
+When a workflow runs, you can see which skill is currently running, which steps have completed, and where a failure happened through the canvas and Run Log.
 
-### Handle Loops And Repeated Flows
+Active workflows can be cancelled when needed, and failed runs are easier to inspect because the stopping point remains visible.
+
+### Handle Loops
 
 https://github.com/user-attachments/assets/4436fe4f-ec41-4ebb-a8a5-5e99944e1604
 
@@ -85,25 +85,41 @@ Circuit helps you manage these repeated flows more safely. Since a cyclic graph 
 
 Because the loop remains visible on the canvas, you can see which skill will be called again and adjust the routine when needed.
 
-## Local-First Runtime Model
+### Use Claude And Codex Together
 
-Circuit is a local-first app. Skills and workflows operate against the user's local repositories.
+https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd
 
-- Skill discovery reads files from the selected repository.
-- Claude and Codex skill definitions keep using the existing repository structure.
-- Workflow execution is handled through a Tauri backend bridge.
-- Claude and Codex execution is connected through provider adapter interfaces.
-- Execution output streams into the in-app log panel.
-- Safety-sensitive runtime behavior stays in the local environment instead of being delegated to a remote service.
+Many projects already contain more than one kind of agent automation. Some routines may be written as Claude skills, while others may be managed as Codex skills. Within the same agent, you may also want to choose different models depending on the task.
 
-Circuit currently centers on explicit manual execution. It does not use file changes as automatic triggers, push to git remotes, perform deployments, or run arbitrary shell-command nodes.
+Circuit reads `.claude/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md` from your local repository and lets you place both kinds of skills on the same canvas. It does not treat Claude and Codex as competing tools. It treats them as different execution capabilities and model choices that belong to the local project.
 
-## Milestones
+The actual skill files remain in the repository. Circuit does not move them elsewhere or force them into a separate format. Instead, it reads the skills from the repository, shows them on the canvas, and provides a visual layer for defining their order and dependencies.
 
-Circuit is in active development. Current limitations include:
+## Contributions Welcome
 
-- There is no collaboration or shared remote workspace yet.
-- Automatic deployment and git push behavior are not provided.
-- User-configurable global skill directory discovery is not available yet.
-- There is no arbitrary shell command node type.
-- The runtime surface is still being strengthened as the app evolves.
+Circuit is still under active development. Bug reports, usability feedback, documentation improvements, example workflows, runtime stability work, and UI improvements are all welcome.
+
+Small contributions are welcome too. If something was confusing while you tried the app, open an issue. If the README can be clearer, improve it. If you have a `.claude/skills` or `.codex/skills` workflow you use often, sharing that example can help a lot.
+
+To develop locally:
+
+```bash
+git clone https://github.com/CIrcui-try/Circuit
+cd Circuit/app
+pnpm install
+pnpm tauri dev
+```
+
+Before opening a PR, please run the checks you reasonably can:
+
+```bash
+cd app
+pnpm test:run
+pnpm build
+cd src-tauri
+cargo test
+```
+
+For larger features or changes to runtime behavior, please open an issue first and share the intent. Circuit deals with local repositories and agent execution flows, so it is important to consider not only convenience but also whether users can understand and control what is happening.
+
+Please write commit messages, PR titles, and PR descriptions in English.
