@@ -23,6 +23,7 @@
       ]
     },
     "dialog:allow-open",
+    "dialog:allow-save",
     "dialog:allow-confirm",
     "notification:default",
     "core:window:allow-set-badge-count",

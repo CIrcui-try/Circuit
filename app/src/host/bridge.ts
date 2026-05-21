@@ -48,6 +48,40 @@ export type WorkflowSummaryDTO = {
   updatedAt: string;
 };
 
+export type WorkflowBundleExportDTO = {
+  path: string;
+  skillCount: number;
+};
+
+export type WorkflowBundleSkillConflictDTO = {
+  skillFile: string;
+  existingHash: string;
+  incomingHash: string;
+};
+
+export type WorkflowBundleImportPreviewDTO = {
+  bundlePath: string;
+  workflowName: string;
+  skillCount: number;
+  missingSkills: string[];
+  reusedSkills: string[];
+  conflicts: WorkflowBundleSkillConflictDTO[];
+};
+
+export type WorkflowBundleSkillResolutionDTO = {
+  skillFile: string;
+  action: "skip" | "overwrite";
+};
+
+export type WorkflowBundleImportResultDTO = {
+  workflowId: string;
+  workflowJson: string;
+  installedSkills: string[];
+  reusedSkills: string[];
+  skippedSkills: string[];
+  overwrittenSkills: string[];
+};
+
 export type RunLogEntryDTO = {
   runId: string;
   savedAt: string;
@@ -163,6 +197,22 @@ export interface HostBridge extends Partial<WorkspaceBridge> {
   listWorkflows(repoPath: string): Promise<WorkflowSummaryDTO[]>;
   loadWorkflow(repoPath: string, workflowId: string): Promise<string>;
   saveWorkflow(repoPath: string, workflowId: string, json: string): Promise<void>;
+  exportWorkflowBundle?(
+    repoPath: string,
+    workflowJson: string,
+    suggestedFileName: string,
+  ): Promise<WorkflowBundleExportDTO | null>;
+  previewWorkflowBundleImport?(
+    repoPath: string,
+  ): Promise<WorkflowBundleImportPreviewDTO | null>;
+  importWorkflowBundle?(
+    repoPath: string,
+    repositoryId: string,
+    bundlePath: string,
+    workflowId: string,
+    now: string,
+    resolutions: WorkflowBundleSkillResolutionDTO[],
+  ): Promise<WorkflowBundleImportResultDTO>;
   saveRunLog?(
     repoPath: string,
     workflowId: string,
