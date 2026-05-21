@@ -4,6 +4,7 @@ import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
 import { getHostBridge } from "../host/bridge";
 import { useRunStore } from "../runner/runStore";
+import type { RunRecord } from "../runner/runStore";
 import { useRepositoryStore } from "../stores/repositoryStore";
 import { useSkillStore, type Skill } from "../stores/skillStore";
 import { TUTORIAL_REPOSITORY_NAME } from "../tutorial";
@@ -119,22 +120,67 @@ export function RepositoryList() {
     }
   }
 
+  function runRecordForRepository(repoId: string): RepositoryRunSummary | null {
+    return (
+      runsByRepositoryId[repoId] ??
+      (runRepositoryId === repoId
+        ? {
+            status: runStatus,
+            runId,
+            workflowName: runWorkflowName,
+            acknowledgedRunId,
+          }
+        : null)
+    );
+  }
+
   return (
     <div className="repository-list">
+      <header className="repository-list__hero">
+        <div className="repository-list__hero-copy">
+          <span className="repository-list__eyebrow">
+            Skill-Based AI Agent Harness Editor
+          </span>
+          <h1 className="repository-list__title">Circuit</h1>
+          <p className="repository-list__subtitle">
+            Run agent workflows across your repositories.
+          </p>
+        </div>
+        <div className="repository-list__hero-actions">
+          <button
+            type="button"
+            className="repository-list__primary-action"
+            onClick={handleAdd}
+            data-testid="add-repository-button"
+          >
+            Add Repository
+          </button>
+          {repositories.length > 0 && (
+            <button
+              type="button"
+              className="repository-list__secondary-action"
+              onClick={handleRefreshAll}
+            >
+              Refresh
+            </button>
+          )}
+        </div>
+      </header>
       <CliStatusPanel />
-      <h1 className="repository-list__heading">Repositories</h1>
-      <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
-        <button
-          type="button"
-          onClick={handleAdd}
-          data-testid="add-repository-button"
-        >
-          Add Repository
-        </button>
-        {repositories.length > 0 && (
-          <button type="button" onClick={handleRefreshAll}>Refresh</button>
-        )}
-      </div>
+      <section className="repository-list__section">
+        <div className="repository-list__section-header">
+          <div>
+            <h2 className="repository-list__heading">Repositories</h2>
+            <p className="repository-list__section-copy">
+              Choose a repository to build, run, and review workflows.
+            </p>
+          </div>
+          {repositories.length > 0 ? (
+            <span className="repository-list__section-count">
+              {repositories.length}
+            </span>
+          ) : null}
+        </div>
       {repositories.length === 0 ? (
         <p className="repository-list__hint">
           {isPreparingTutorial ? (
@@ -152,16 +198,7 @@ export function RepositoryList() {
           {repositories.map((repo) => {
             const skills = byRepo[repo.id];
             const isLoading = loading[repo.id];
-            const runRecord =
-              runsByRepositoryId[repo.id] ??
-              (runRepositoryId === repo.id
-                ? {
-                    status: runStatus,
-                    runId,
-                    workflowName: runWorkflowName,
-                    acknowledgedRunId,
-                  }
-                : null);
+            const runRecord = runRecordForRepository(repo.id);
             const isRunRepo = runRecord?.status === "running";
             const isDoneRepo =
               runRecord?.status === "success" &&
@@ -253,6 +290,7 @@ export function RepositoryList() {
           </li>
         </ul>
       )}
+      </section>
 
       {pendingRemoval ? (
         <div className="modal__backdrop">
@@ -290,6 +328,11 @@ export function RepositoryList() {
     </div>
   );
 }
+
+type RepositoryRunSummary = Pick<
+  RunRecord,
+  "status" | "runId" | "workflowName" | "acknowledgedRunId"
+>;
 
 function normalizePath(path: string): string {
   return path.replace(/\/+$/, "");

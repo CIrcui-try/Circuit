@@ -53,6 +53,21 @@ function createDeferred<T>() {
 }
 
 describe("RepositoryList", () => {
+  it("shows a work-hub header with the primary repository action", () => {
+    renderWithRouter(<RepositoryList />);
+
+    expect(screen.getByRole("heading", { name: "Circuit" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Skill-Based AI Agent Harness Editor"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Run agent workflows across your repositories."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("add-repository-button")).toHaveTextContent(
+      "Add Repository",
+    );
+  });
+
   it("R1: seeds the tutorial repository when no repositories exist", async () => {
     renderWithRouter(<RepositoryList />);
 
@@ -123,6 +138,30 @@ describe("RepositoryList", () => {
       .getState()
       .repositories.find((repo) => repo.name === "alpha");
     expect(added && consumeStarterFlowPrompt(added.id)).toBe(true);
+  });
+
+  it("clicking the primary Add Repository action uses the existing add flow", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "id-alpha",
+          name: "alpha",
+          path: "/Users/me/alpha",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      hydrated: true,
+    });
+    bridgeMock.openRepositoryDialog.mockResolvedValueOnce("/Users/me/projects/beta");
+    const user = userEvent.setup();
+
+    renderWithRouter(<RepositoryList />);
+    await user.click(screen.getByTestId("add-repository-button"));
+
+    expect(bridgeMock.openRepositoryDialog).toHaveBeenCalled();
+    expect(await screen.findByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("/Users/me/projects/beta")).toBeInTheDocument();
   });
 
   it("R3: cancelling the picker leaves the seeded tutorial repo intact", async () => {
