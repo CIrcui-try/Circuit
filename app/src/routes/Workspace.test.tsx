@@ -401,9 +401,12 @@ describe("Workspace", () => {
 
     renderAt("/workspace/id-alpha");
 
-    expect(screen.queryByTestId("workflow-save")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
+    expect(screen.getByTestId("workflow-save")).toHaveAccessibleName(
+      "Save workflow",
+    );
     expect(screen.getByTestId("workflow-menu")).not.toBeDisabled();
-    expect(screen.getByTestId("workflow-delete")).toBeDisabled();
+    expect(screen.queryByTestId("workflow-delete")).not.toBeInTheDocument();
     expect(screen.getByTestId("workflow-auto-layout")).toBeDisabled();
     expect(screen.getByTestId("workflow-auto-layout")).toHaveTextContent(
       "Auto layout",
@@ -582,74 +585,64 @@ describe("Workspace", () => {
 
       renderAt("/workspace/id-alpha");
 
-      fireEvent.mouseEnter(screen.getByTestId("workflow-delete"));
+      fireEvent.mouseEnter(screen.getByTestId("workflow-save"));
 
       act(() => {
         vi.advanceTimersByTime(499);
       });
-      expect(screen.queryByTestId("workflow-delete-tooltip")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("workflow-save-tooltip")).not.toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(1);
       });
-      expect(screen.getByTestId("workflow-delete-tooltip")).toHaveTextContent(
-        "Delete workflow",
+      expect(screen.getByTestId("workflow-save-tooltip")).toHaveTextContent(
+        "Save workflow (⌘S)",
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("W8: autosaves workflow edits with serialized JSON", async () => {
-    vi.useFakeTimers();
-    try {
-      useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+  it("W8: clicking Save calls saveWorkflow with serialized JSON", async () => {
+    useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
 
-      renderAt("/workspace/id-alpha");
+    renderAt("/workspace/id-alpha");
 
-      act(() => {
-        vi.advanceTimersByTime(0);
-      });
-      useWorkflowStore.getState().addSkillNode(
-        {
-          id: "claude:.claude/skills/foo",
-          provider: "claude",
-          name: "Foo",
-          description: "",
-          rootDir: ".claude/skills/foo",
-          skillFile: ".claude/skills/foo/SKILL.md",
-        },
-        { x: 10, y: 20 },
-      );
-
-      await act(async () => {
-        vi.advanceTimersByTime(700);
-      });
-
-      await vi.waitFor(() => {
-        expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
-      });
-      const args = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
-        string,
-        string,
-        string,
-      ];
-      expect(args[0]).toBe("/Users/me/alpha");
-      expect(typeof args[1]).toBe("string");
-      const parsed = JSON.parse(args[2]);
-      expect(parsed.repositoryId).toBe("id-alpha");
-      expect(parsed.nodes).toHaveLength(1);
-      expect(parsed.nodes[0].skillRef).toEqual({
-        source: "repository",
+    useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
         provider: "claude",
+        name: "Foo",
+        description: "",
+        rootDir: ".claude/skills/foo",
         skillFile: ".claude/skills/foo/SKILL.md",
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+      },
+      { x: 10, y: 20 },
+    );
+
+    fireEvent.click(screen.getByTestId("workflow-save"));
+
+    await vi.waitFor(() => {
+      expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
+    });
+    const args = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+    ];
+    expect(args[0]).toBe("/Users/me/alpha");
+    expect(typeof args[1]).toBe("string");
+    const parsed = JSON.parse(args[2]);
+    expect(parsed.repositoryId).toBe("id-alpha");
+    expect(parsed.nodes).toHaveLength(1);
+    expect(parsed.nodes[0].skillRef).toEqual({
+      source: "repository",
+      provider: "claude",
+      skillFile: ".claude/skills/foo/SKILL.md",
+    });
   });
 
-  it("does not autosave an unchanged hydrated canvas", async () => {
+  it("does not autosave an unsaved or unchanged hydrated canvas", async () => {
     vi.useFakeTimers();
     try {
       useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
@@ -661,6 +654,61 @@ describe("Workspace", () => {
       });
 
       expect(bridgeMock.saveWorkflow).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("autosaves edits after selecting a saved workflow", async () => {
+    vi.useFakeTimers();
+    try {
+      bridgeMock.listWorkflows.mockResolvedValue([
+        { id: "wf-saved", name: "Saved flow", updatedAt: "2026-05-21T00:00:00Z" },
+      ]);
+      bridgeMock.loadWorkflow.mockResolvedValue(JSON.stringify({
+        version: "0.1",
+        id: "wf-saved",
+        repositoryId: SAMPLE.id,
+        name: "Saved flow",
+        nodes: [],
+        edges: [],
+        createdAt: "2026-05-21T00:00:00Z",
+        updatedAt: "2026-05-21T00:00:00Z",
+      }));
+      useRepositoryStore.setState({ repositories: [SAMPLE], hydrated: true });
+
+      renderAt("/workspace/id-alpha");
+      fireEvent.change(screen.getByTestId("workflow-menu"), {
+        target: { value: "wf-saved" },
+      });
+      await vi.waitFor(() => {
+        expect(screen.getByTestId("workflow-delete")).not.toBeDisabled();
+      });
+
+      useWorkflowStore.getState().addSkillNode(
+        {
+          id: "claude:.claude/skills/foo",
+          provider: "claude",
+          name: "Foo",
+          description: "",
+          rootDir: ".claude/skills/foo",
+          skillFile: ".claude/skills/foo/SKILL.md",
+        },
+        { x: 10, y: 20 },
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(700);
+      });
+
+      await vi.waitFor(() => {
+        expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
+      });
+      const [, workflowId] = bridgeMock.saveWorkflow.mock.calls[0] as unknown as [
+        string,
+        string,
+        string,
+      ];
+      expect(workflowId).toBe("wf-saved");
     } finally {
       vi.useRealTimers();
     }
@@ -689,9 +737,7 @@ describe("Workspace", () => {
       });
       fireEvent.click(screen.getByTestId("workflow-settings"));
       fireEvent.click(screen.getByRole("switch", { name: "Continue on failure" }));
-      await act(async () => {
-        vi.advanceTimersByTime(700);
-      });
+      fireEvent.click(screen.getByTestId("workflow-save"));
 
       await vi.waitFor(() => {
         expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);
@@ -726,7 +772,7 @@ describe("Workspace", () => {
     renderAt("/workspace/id-alpha");
 
     await vi.waitFor(() => {
-      expect(screen.getByTestId("workflow-delete")).toBeDisabled();
+      expect(screen.getByTestId("workflow-save")).not.toBeDisabled();
     });
     fireEvent.change(screen.getByTestId("workflow-menu"), {
       target: { value: "wf-delete" },
@@ -955,9 +1001,7 @@ describe("Workspace", () => {
       );
       expect(screen.queryByTestId("starter-flow-empty")).not.toBeInTheDocument();
 
-      await act(async () => {
-        vi.advanceTimersByTime(700);
-      });
+      fireEvent.click(screen.getByTestId("workflow-save"));
 
       await vi.waitFor(() => {
         expect(bridgeMock.saveWorkflow).toHaveBeenCalledTimes(1);

@@ -100,9 +100,10 @@ test("F6: save workflow, reload page, restore the last edited graph and input", 
     };
   });
 
-  // Set a recognizable workflow name and wait for autosave.
+  // Set a recognizable workflow name and save.
   const nameInput = page.getByTestId("workflow-name-input");
   await nameInput.fill("Persisted flow");
+  await page.getByTestId("workflow-save").click();
 
   const menu = page.getByTestId("workflow-menu");
   await expect(menu.locator("option", { hasText: "Persisted flow" })).toHaveCount(1);
@@ -165,6 +166,7 @@ test("deletes the selected saved workflow", async ({ page }) => {
 
   await addSkillByButton(page, "boarding");
   await page.getByTestId("workflow-name-input").fill("Temporary flow");
+  await page.getByTestId("workflow-save").click();
 
   const menu = page.getByTestId("workflow-menu");
   await expect(menu.locator("option", { hasText: "Temporary flow" })).toHaveCount(1);
@@ -177,7 +179,7 @@ test("deletes the selected saved workflow", async ({ page }) => {
   await page.getByTestId("workflow-delete-confirm-delete").click();
 
   await expect(menu.locator("option", { hasText: "Temporary flow" })).toHaveCount(0);
-  await expect(page.getByTestId("workflow-delete")).toBeDisabled();
+  await expect(page.getByTestId("workflow-save")).toBeEnabled();
 
   await page.reload();
   await expect(page.getByTestId("workspace-root")).toBeVisible();

@@ -9,6 +9,7 @@ import {
   GitBranch,
   Play,
   RotateCcw,
+  Save,
   Square,
   Trash2,
   Upload,
@@ -227,6 +228,9 @@ export function Workspace() {
     }
   }, [repo, refreshWorkflows]);
 
+  const selectedWorkflow =
+    workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
+
   const persistCurrentWorkflow = useCallback(async (errorTitle: string) => {
     if (!repo) return;
     const savedSignature = toAutosaveSignature(useWorkflowStore.getState());
@@ -245,6 +249,7 @@ export function Workspace() {
   useEffect(() => {
     if (!repo || isRunningHere || activeRunSnapshot) return;
     if (!autosaveReady) return;
+    if (!selectedWorkflow) return;
     const signature = toAutosaveSignature({
       workflowName,
       continueOnFailure,
@@ -270,6 +275,7 @@ export function Workspace() {
     nodes,
     persistCurrentWorkflow,
     repo,
+    selectedWorkflow,
     workflowName,
   ]);
 
@@ -525,9 +531,6 @@ export function Workspace() {
     repo,
   ]);
 
-  const selectedWorkflow =
-    workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
-
   if (repoId && hydrated && !repo) {
     return (
       <div className="repository-list">
@@ -734,23 +737,44 @@ export function Workspace() {
             </option>
           ))}
         </select>
-        <HoverTooltip
-          className="workspace__toolbar-tooltip-anchor"
-          content="Delete workflow"
-          delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
-          testId="workflow-delete-tooltip"
-        >
-          <button
-            type="button"
-            data-testid="workflow-delete"
-            className="workspace__toolbar-icon-button"
-            aria-label="Delete workflow"
-            onClick={() => selectedWorkflow && setPendingDelete(selectedWorkflow)}
-            disabled={!repo || isRunningHere || !selectedWorkflow}
+        {selectedWorkflow ? (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Delete workflow"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-delete-tooltip"
           >
-            <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
-          </button>
-        </HoverTooltip>
+            <button
+              type="button"
+              data-testid="workflow-delete"
+              className="workspace__toolbar-icon-button"
+              aria-label="Delete workflow"
+              onClick={() => setPendingDelete(selectedWorkflow)}
+              disabled={!repo || isRunningHere}
+            >
+              <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        ) : (
+          <HoverTooltip
+            className="workspace__toolbar-tooltip-anchor"
+            content="Save workflow (⌘S)"
+            delayMs={TOOLBAR_TOOLTIP_DELAY_MS}
+            testId="workflow-save-tooltip"
+          >
+            <button
+              type="button"
+              data-testid="workflow-save"
+              className="workspace__toolbar-icon-button"
+              aria-label="Save workflow"
+              aria-keyshortcuts="Meta+S Control+S"
+              onClick={() => void persistCurrentWorkflow("Save workflow failed")}
+              disabled={!repo || isRunningHere}
+            >
+              <Save size={15} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </HoverTooltip>
+        )}
         <HoverTooltip
           className="workspace__toolbar-tooltip-anchor"
           content="Auto layout"
