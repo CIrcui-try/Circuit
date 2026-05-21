@@ -6,7 +6,7 @@ argument-hint: [Linear 이슈 ID 또는 브랜치명]
 
 사후 정리 단계. PR 이 머지된 뒤 워크트리를 제거하고 로컬 develop 을 최신화한다. takeoff 의 자동 체이닝 대상이 아니며 항상 수동 호출한다 (PR 머지 시점은 사용자만 알기 때문).
 
-`$ARGUMENTS` 형식: `[ISSUE-ID 또는 branch]`. 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다. 예: `/landing`, `/landing CIR-15`, `/landing kai/cir-15-fix-...`.
+`$ARGUMENTS` 형식: `[ISSUE-ID 또는 branch]`. 생략하면 커맨드를 호출한 위치의 현재 브랜치를 대상으로 한다. 예: `/landing`, `/landing CIR-15`, `/landing feature/cir-15-fix-...`.
 
 ## 자기 단계 실행 절차
 

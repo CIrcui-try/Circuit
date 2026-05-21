@@ -7,7 +7,7 @@ argument-hint: <Linear 이슈 ID 또는 브랜치명>
 
 PR 머지 여부와 무관하게, 워크트리에서 빠져나와 진행 중인 브랜치를 **메인 레포에 develop 위로 리베이스된 로컬 브랜치로 보존**한다. 워크트리는 별도 디렉토리라 의존성 설치·빌드 캐시·IDE 인덱싱을 다시 해야 하므로, 메인 레포(이미 갖춰진 환경)로 항로를 다시 잡고 그쪽에서 작업을 이어가거나 다른 브랜치로 컨텍스트 스위칭하기 위함이다.
 
-`$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/rejoin CIR-15`, `/rejoin kai/cir-15-fix-...`.
+`$ARGUMENTS` 형식: `<ISSUE-ID 또는 branch>`. 예: `/rejoin CIR-15`, `/rejoin feature/cir-15-fix-...`.
 
 ## 자기 단계 실행 절차
 

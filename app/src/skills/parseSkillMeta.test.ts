@@ -57,7 +57,7 @@ describe("parseSkillMeta", () => {
   });
 
   it("P7: ignores unknown frontmatter keys", () => {
-    const content = `---\nname: Skill\nversion: 1.2\nauthor: kai\n---\n`;
+    const content = `---\nname: Skill\nversion: 1.2\nauthor: contributor\n---\n`;
     expect(parseSkillMeta(content, "dir")).toEqual({
       name: "Skill",
       description: "",
