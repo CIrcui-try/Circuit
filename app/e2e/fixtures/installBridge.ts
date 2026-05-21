@@ -151,6 +151,13 @@ export async function installMockBridge(page: Page) {
         all[repoPathArg] = bucket;
         writeWorkflows(all);
       },
+      async deleteWorkflow(repoPathArg: string, workflowId: string): Promise<void> {
+        const all = readWorkflows();
+        const bucket = all[repoPathArg] ?? {};
+        delete bucket[workflowId];
+        all[repoPathArg] = bucket;
+        writeWorkflows(all);
+      },
     };
 
     const listeners = new Map<string, Set<(event: unknown) => void>>();

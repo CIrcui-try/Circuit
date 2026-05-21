@@ -184,6 +184,17 @@ pub fn save_workflow(
 }
 
 #[tauri::command]
+pub fn delete_workflow(repo_path: String, workflow_id: String) -> Result<(), String> {
+    validate_workflow_id(&workflow_id)?;
+    let path = workflow_file(&repo_path, &workflow_id);
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("failed to delete {}: {e}", path.display())),
+    }
+}
+
+#[tauri::command]
 pub fn export_workflow_bundle(
     repo_path: String,
     workflow_json: String,
@@ -600,6 +611,39 @@ mod tests {
     fn load_workflow_rejects_illegal_id() {
         let repo = unique_repo();
         let result = load_workflow(
+            repo.to_string_lossy().into_owned(),
+            "../etc/passwd".into(),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_workflow_removes_saved_json() {
+        let repo = unique_repo();
+        let p = repo.to_string_lossy().into_owned();
+        save_workflow(
+            p.clone(),
+            "delete-me".into(),
+            sample_workflow_json("delete-me", "Delete me", "2026-04-30T00:00:00Z"),
+        )
+        .unwrap();
+
+        delete_workflow(p.clone(), "delete-me".into()).expect("delete failed");
+
+        assert!(load_workflow(p, "delete-me".into()).is_err());
+    }
+
+    #[test]
+    fn delete_workflow_is_ok_when_file_is_missing() {
+        let repo = unique_repo();
+        let result = delete_workflow(repo.to_string_lossy().into_owned(), "missing".into());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn delete_workflow_rejects_illegal_id() {
+        let repo = unique_repo();
+        let result = delete_workflow(
             repo.to_string_lossy().into_owned(),
             "../etc/passwd".into(),
         );
