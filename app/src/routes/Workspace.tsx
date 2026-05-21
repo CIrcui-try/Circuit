@@ -494,42 +494,6 @@ export function Workspace() {
                   type="button"
                   className="workspace__settings-action"
                   role="menuitem"
-                  data-testid="workflow-export-bundle"
-                  onClick={() => {
-                    setSettingsOpen(false);
-                    void handleExportBundle();
-                  }}
-                >
-                  <Download
-                    className="workspace__settings-item-icon"
-                    size={15}
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  />
-                  Export workflow
-                </button>
-                <button
-                  type="button"
-                  className="workspace__settings-action"
-                  role="menuitem"
-                  data-testid="workflow-import-bundle"
-                  onClick={() => {
-                    setSettingsOpen(false);
-                    void handleImportBundle();
-                  }}
-                >
-                  <Upload
-                    className="workspace__settings-item-icon"
-                    size={15}
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  />
-                  Import workflow
-                </button>
-                <button
-                  type="button"
-                  className="workspace__settings-action"
-                  role="menuitem"
                   onClick={() => {
                     setSettingsOpen(false);
                     void handleOpenAgentsMd();
@@ -576,6 +540,44 @@ export function Workspace() {
                     aria-hidden="true"
                   />
                   Open Claude app
+                </button>
+              </div>
+              <div className="workspace__settings-section">
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-export-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleExportBundle();
+                  }}
+                >
+                  <Download
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Export workflow
+                </button>
+                <button
+                  type="button"
+                  className="workspace__settings-action"
+                  role="menuitem"
+                  data-testid="workflow-import-bundle"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    void handleImportBundle();
+                  }}
+                >
+                  <Upload
+                    className="workspace__settings-item-icon"
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                  Import workflow
                 </button>
               </div>
               <div className="workspace__settings-section">
