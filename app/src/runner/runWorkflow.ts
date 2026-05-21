@@ -235,6 +235,10 @@ async function runCycleWorkflow({
 
       if (result.ok) {
         store.getState().setNodeState(id, "success", repositoryId);
+        if (result.completeWorkflow) {
+          markRemainingSkipped(store, order, i + 1, repositoryId);
+          return "success";
+        }
         continue;
       }
 

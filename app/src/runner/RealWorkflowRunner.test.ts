@@ -441,6 +441,28 @@ describe("RealWorkflowRunner", () => {
     expect(stored.summary).toBe("ok");
   });
 
+  it("R4b: maps CIRCUIT_LOOP_COMPLETE summary to a workflow completion signal", async () => {
+    const node = workflowNode("a");
+    const harness = makeHarness({ nodes: [node] });
+    const adapter = new FakeAgentAdapter({
+      provider: "claude",
+      result: {
+        status: "success",
+        exitCode: 0,
+        summary: "CIRCUIT_LOOP_COMPLETE",
+      },
+    });
+    harness.registry.register(adapter);
+
+    const result = await harness.runner.runNode(runnable(node));
+
+    expect(result).toEqual({
+      ok: true,
+      completeWorkflow: true,
+      reason: "CIRCUIT_LOOP_COMPLETE",
+    });
+  });
+
   it("R5: forwards adapter events to runLogStore (events + nodeEvents)", async () => {
     const node = workflowNode("a");
     const harness = makeHarness({ nodes: [node] });
