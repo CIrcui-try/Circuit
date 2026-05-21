@@ -197,7 +197,7 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
-  it("WS5a: onConnect replaces existing source and target edges", () => {
+  it("WS5a: onConnect keeps multiple outgoing edges from one source", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
     const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
@@ -205,15 +205,15 @@ describe("workflowStore", () => {
       source: a, target: b, sourceHandle: null, targetHandle: null,
     });
     useWorkflowStore.getState().onConnect({
-      source: b, target: c, sourceHandle: null, targetHandle: null,
-    });
-    useWorkflowStore.getState().onConnect({
       source: a, target: c, sourceHandle: null, targetHandle: null,
     });
 
     expect(
       useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
-    ).toEqual([[a, c]]);
+    ).toEqual([
+      [a, b],
+      [a, c],
+    ]);
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
@@ -240,7 +240,7 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
-  it("WS5c: onConnect replaces a source edge when connecting a new node", () => {
+  it("WS5c: onConnect keeps selected edge when adding another outgoing edge", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
     const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
@@ -256,12 +256,15 @@ describe("workflowStore", () => {
 
     expect(
       useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
-    ).toEqual([[a, c]]);
-    expect(useWorkflowStore.getState().selectedEdgeId).toBeNull();
+    ).toEqual([
+      [a, b],
+      [a, c],
+    ]);
+    expect(useWorkflowStore.getState().selectedEdgeId).toBe(firstEdgeId);
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
-  it("WS5d: onConnect replaces a target edge when connecting a node", () => {
+  it("WS5d: onConnect keeps multiple incoming edges into one target", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });
     const c = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 200, y: 0 });
@@ -275,7 +278,10 @@ describe("workflowStore", () => {
 
     expect(
       useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
-    ).toEqual([[b, c]]);
+    ).toEqual([
+      [a, c],
+      [b, c],
+    ]);
     expect(useWorkflowStore.getState().connectionWarning).toBeNull();
   });
 
@@ -294,6 +300,46 @@ describe("workflowStore", () => {
       source: b,
       target: a,
     });
+    expect(useWorkflowStore.getState().connectionWarning).toMatchObject({
+      message: WORKFLOW_CYCLE_WARNING_MESSAGE,
+    });
+  });
+
+  it("WS5f: onConnect keeps original incoming edge when adding a loop-entry edge", () => {
+    const root = useWorkflowStore
+      .getState()
+      .addSkillNode(claudeSkill, { x: 0, y: 0 });
+    const entry = useWorkflowStore
+      .getState()
+      .addSkillNode(codexSkill, { x: 100, y: 0 });
+    const body = useWorkflowStore
+      .getState()
+      .addSkillNode(claudeSkill, { x: 200, y: 0 });
+    const tail = useWorkflowStore
+      .getState()
+      .addSkillNode(codexSkill, { x: 300, y: 0 });
+
+    useWorkflowStore.getState().onConnect({
+      source: root, target: entry, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: entry, target: body, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: body, target: tail, sourceHandle: null, targetHandle: null,
+    });
+    useWorkflowStore.getState().onConnect({
+      source: tail, target: entry, sourceHandle: null, targetHandle: null,
+    });
+
+    expect(
+      useWorkflowStore.getState().edges.map((edge) => [edge.source, edge.target]),
+    ).toEqual([
+      [root, entry],
+      [entry, body],
+      [body, tail],
+      [tail, entry],
+    ]);
     expect(useWorkflowStore.getState().connectionWarning).toMatchObject({
       message: WORKFLOW_CYCLE_WARNING_MESSAGE,
     });
