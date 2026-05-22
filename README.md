@@ -4,7 +4,20 @@
   <img src="docs/assets/readme/circuit-graphic-logo.png" alt="Circuit" width="520">
 </p>
 
+<p align="center">
+  <a href="https://github.com/CIrcui-try/Circuit/actions/workflows/ci.yml?branch=develop"><img src="https://img.shields.io/github/actions/workflow/status/CIrcui-try/Circuit/ci.yml?branch=develop&label=CI&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/CIrcui-try/Circuit/releases"><img src="https://img.shields.io/github/v/release/CIrcui-try/Circuit?include_prereleases&label=Release&style=for-the-badge" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/CIrcui-try/Circuit?style=for-the-badge" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-111827?style=for-the-badge" alt="Platform: macOS and Windows">
+  <img src="https://img.shields.io/badge/Tauri-2.x-24C8DB?logo=tauri&logoColor=white&style=for-the-badge" alt="Tauri 2.x">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827&style=for-the-badge" alt="React 19">
+</p>
+
 [한국어 README](README_kr.md) | [中文 README](README_zh.md)
+
+<p align="center">
+  <img src="docs/assets/readme/circuit-harness-editor.png" alt="Circuit harness editor screenshot" width="920">
+</p>
 
 Circuit is a skill-based AI Agent harness editor for turning agent work into visible, repeatable, and controllable development workflows.
 

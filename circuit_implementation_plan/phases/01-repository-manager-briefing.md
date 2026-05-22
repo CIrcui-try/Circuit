@@ -47,7 +47,7 @@ rm ~/Library/Application\ Support/com.circuit.app/repositories.json
 
 ## Known Limitations
 
-- **스킬 카운트 미표시**: `PRODUCT_SPEC.md` 의 Repository List 요구사항 중 "Detected Claude skills count / Codex skills count" 는 Phase 2 (Skill Discovery) 로 의도적으로 연기. Phase 1 은 디렉터리 등록만 책임짐.
+- **스킬 카운트 미표시**: 초기 Repository List 요구사항 중 "Detected Claude skills count / Codex skills count" 는 Phase 2 (Skill Discovery) 로 의도적으로 연기. Phase 1 은 디렉터리 등록만 책임짐.
 - **선택 상태 비영속**: `selectedId` 는 메모리에만 존재하며 재시작 시 복원되지 않음. Phase 1 검증 체크리스트는 *목록*만 영속을 요구.
 - **저장소 이름 편집/삭제 UI 없음**: 등록 후 이름 변경, 행 제거, 재정렬은 의도적으로 제외. 향후 phase 에서 필요 시 추가.
 - **하이드레이트 시 디스크 검증 없음**: 영속된 경로의 폴더가 이후 삭제되거나 이동되어도 그대로 목록에 남는다. 폴더 존재 여부는 Phase 2 의 SKILL 스캔 단계에서 자연스럽게 드러나므로 별도 사전 검증을 두지 않음.
