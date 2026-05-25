@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/CIrcui-try/Circuit/actions/workflows/ci.yml?branch=develop"><img src="https://img.shields.io/github/actions/workflow/status/CIrcui-try/Circuit/ci.yml?branch=develop&label=CI&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/CIrcui-try/Circuit/actions/workflows/release-check.yml"><img src="https://img.shields.io/github/actions/workflow/status/CIrcui-try/Circuit/release-check.yml?branch=main&label=Release%20Check&style=for-the-badge" alt="Release check status"></a>
   <a href="https://github.com/CIrcui-try/Circuit/releases"><img src="https://img.shields.io/github/v/release/CIrcui-try/Circuit?include_prereleases&label=Release&style=for-the-badge" alt="GitHub release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/CIrcui-try/Circuit?style=for-the-badge" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-111827?style=for-the-badge" alt="Platform: macOS and Windows">

@@ -101,6 +101,18 @@ jobs:
           mkdir -p release-assets
           cp "$dmg_path" "release-assets/${{ needs.release-metadata.outputs.macos-asset-name }}"
 
+      - name: Validate DMG artifact
+        run: |
+          dmg_path="release-assets/${{ needs.release-metadata.outputs.macos-asset-name }}"
+          mount_dir="$(mktemp -d)"
+
+          hdiutil verify "$dmg_path"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$dmg_path"
+          trap 'hdiutil detach "$mount_dir"' EXIT
+
+          test -d "$mount_dir/Circuit.app"
+          codesign --verify --deep --strict --verbose=4 "$mount_dir/Circuit.app"
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -192,7 +204,7 @@ jobs:
 
           Commit: ${GITHUB_SHA}
 
-          The macOS DMG is unsigned and not notarized. macOS Gatekeeper may show a warning during installation.
+          The macOS app is ad-hoc signed and not notarized. macOS Gatekeeper may require approval during installation.
           The Windows installer is unsigned. Windows SmartScreen may show a warning during installation.
           EOF
 
