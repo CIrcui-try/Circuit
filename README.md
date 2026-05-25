@@ -22,16 +22,14 @@
 
 Circuit is a skill-based AI Agent harness editor for turning agent work into visible, repeatable, and controllable development workflows.
 
-Circuit started from a recurring pain point in AI-native projects. As more work gets delegated to agents, such as planning, implementation, and review, productivity improves, but the actual development flow gets hidden inside long prompts, command chains, and verbose output that can be hard to understand. As projects grow, this problem becomes more visible, and it becomes common to spend a long time digging through terminal output just to find which task finished, which one is running, and where a problem occurred.
+AI Agents are useful for development tasks like planning, implementation, and review, but the actual workflow can easily get buried in long prompts, command chains, and terminal output. As projects grow, it becomes harder to see which step is running, what has finished, and where a failure happened.
 
-Modular Skills helped manage this flow. As agent work becomes a repeating routine, skills move beyond one-off prompts or helper scripts and begin to function as repeatable units of development. But Skill-Driven Development still often depends on text-based flows, which makes workflows hard to edit and understand. Relationships and dependencies between skills are not visible at a glance, so even changing order or adding a branch requires tracing the whole flow again.
-
-Circuit was built to turn this Skill-Driven Development into a visible, repeatable, and above all human-understandable _visual workflow_.
+Circuit turns `.claude/skills` and `.codex/skills` in a local repository into a visual workflow. Place skills on the canvas, connect their order and dependencies, then run and inspect the whole flow from one place.
 
 ## TL;DR
 ### Quickstart
 
-The easiest way to get started is to download the latest macOS app from GitHub Releases.
+The easiest way to get started is to download the latest macOS app from [GitHub Releases](https://github.com/CIrcui-try/Circuit/releases).
 
 You can also clone this repository and run Circuit from source.
 
