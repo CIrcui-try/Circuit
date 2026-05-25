@@ -47,8 +47,19 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('app/pnpm-lock.yaml') }}
+
+      - name: Install Playwright system dependencies
+        run: pnpm exec playwright install-deps chromium
+
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium
 
       - name: Run E2E tests
         run: pnpm test:e2e
