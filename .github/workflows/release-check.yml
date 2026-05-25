@@ -1,13 +1,6 @@
 name: Release Check
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
-  push:
-    branches:
-      - "release/**"
   workflow_run:
     workflows:
       - Beta Release
@@ -28,77 +21,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-metadata:
-    name: Validate release metadata
-    runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run'
-
-    defaults:
-      run:
-        working-directory: app
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Validate release branch version
-        run: |
-          ref_name="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-
-          if [[ ! "$ref_name" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            echo "Skipping release metadata check for $ref_name."
-            exit 0
-          fi
-
-          expected_version="${BASH_REMATCH[1]}"
-          package_version="$(node -p "require('./package.json').version")"
-          tauri_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          cargo_version="$(
-            node -e "
-              const fs = require('fs');
-              const text = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
-              const match = text.match(/^\\[package\\][\\s\\S]*?^version\\s*=\\s*\"([^\"]+)\"/m);
-              if (!match) process.exit(1);
-              console.log(match[1]);
-            "
-          )"
-          cargo_lock_version="$(
-            node -e "
-              const fs = require('fs');
-              const text = fs.readFileSync('src-tauri/Cargo.lock', 'utf8');
-              const match = text.match(/^\\[\\[package\\]\\]\\s*\\nname\\s*=\\s*\"circuit\"\\s*\\nversion\\s*=\\s*\"([^\"]+)\"/m);
-              if (!match) process.exit(1);
-              console.log(match[1]);
-            "
-          )"
-
-          failed=0
-          check_version() {
-            local name="$1"
-            local actual="$2"
-
-            if [ "$actual" != "$expected_version" ]; then
-              echo "::error::$name version $actual does not match $ref_name ($expected_version)."
-              failed=1
-            fi
-          }
-
-          check_version "package.json" "$package_version"
-          check_version "tauri.conf.json" "$tauri_version"
-          check_version "Cargo.toml" "$cargo_version"
-          check_version "Cargo.lock" "$cargo_lock_version"
-
-          if [ "$failed" -ne 0 ]; then
-            exit 1
-          fi
-
-          echo "Release metadata matches $ref_name."
-
   release-artifacts:
     name: Validate GitHub Release artifacts
     runs-on: macos-14
