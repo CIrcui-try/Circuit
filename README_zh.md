@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/CIrcui-try/Circuit/actions/workflows/ci.yml?branch=develop"><img src="https://img.shields.io/github/actions/workflow/status/CIrcui-try/Circuit/ci.yml?branch=develop&label=CI&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/CIrcui-try/Circuit/actions/workflows/release-check.yml"><img src="https://img.shields.io/github/actions/workflow/status/CIrcui-try/Circuit/release-check.yml?branch=main&label=Release%20Check&style=for-the-badge" alt="Release check status"></a>
   <a href="https://github.com/CIrcui-try/Circuit/releases"><img src="https://img.shields.io/github/v/release/CIrcui-try/Circuit?include_prereleases&label=Release&style=for-the-badge" alt="GitHub release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/CIrcui-try/Circuit?style=for-the-badge" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-111827?style=for-the-badge" alt="Platform: macOS and Windows">
@@ -21,16 +22,14 @@
 
 Circuit 是一个基于 Skill 的 AI Agent Harness 编辑器，用来把 Agent 工作转化为可见、可重复、可控制的开发工作流。
 
-Circuit 源于 AI-native 项目中反复出现的一个痛点。随着越来越多的工作被交给 Agent 完成，例如规划、实现和评审，生产力会提升，但真正的开发流程也会被隐藏在冗长的 prompt、命令链，以及难以理解的长输出里。项目越大，这个问题就越明显：为了确认哪个任务已经结束、哪个任务正在运行、问题出现在哪里，常常需要花很长时间回翻终端输出。
+AI Agent 很适合处理规划、实现、评审等开发任务，但真正的工作流很容易被埋在冗长的 prompt、命令链和终端输出里。随着项目变大，确认哪个步骤正在运行、哪些已经完成、失败发生在哪里，也会变得越来越困难。
 
-帮助处理这种流程的，正是模块化的 Skill。当 Agent 工作形成重复例程时，Skill 就不再只是一次性的 prompt 或辅助脚本，而会成为构成开发流程的可重复工作单元。但这种 Skill-Driven Development 仍然常常依赖文本化的流程，因此工作流不容易编辑和理解。Skill 之间的关系和依赖无法一眼看清，所以即使只是调整顺序或增加分支，也需要重新梳理整个流程。
-
-Circuit 的目标，是把这种 Skill-Driven Development 转化为可见、可重复，最重要的是人能理解的 _可视化工作流_。
+Circuit 会把本地仓库中的 `.claude/skills` 和 `.codex/skills` 转换成可视化工作流。把 Skill 放到画布上，连接顺序和依赖关系，然后在一个地方运行并检查整个流程。
 
 ## TL;DR
 ### Quickstart
 
-最简单的开始方式，是从 GitHub Releases 下载最新版本的 macOS 应用。
+最简单的开始方式，是从 [GitHub Releases](https://github.com/CIrcui-try/Circuit/releases) 下载最新版本的 macOS 应用。
 
 也可以 clone 这个仓库后从源码运行。
 

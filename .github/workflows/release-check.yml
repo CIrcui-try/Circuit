@@ -1,0 +1,98 @@
+name: Release Check
+
+on:
+  workflow_run:
+    workflows:
+      - Beta Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to validate. Defaults to the latest release.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-check-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  release-artifacts:
+    name: Validate GitHub Release artifacts
+    runs-on: macos-14
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    environment:
+      name: release-check
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          tag="$INPUT_TAG"
+
+          if [ -z "$tag" ] && [ -n "$HEAD_SHA" ]; then
+            tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq ".[] | select(.target_commitish == \"$HEAD_SHA\") | .tag_name" | head -n 1)"
+          fi
+
+          if [ -z "$tag" ]; then
+            tag="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+
+          if [ -z "$tag" ]; then
+            echo "No release tag was found."
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Download release DMG
+        run: |
+          mkdir -p release-assets
+          gh release download "${{ steps.release.outputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "*.dmg" \
+            --dir release-assets
+
+      - name: Validate DMG
+        run: |
+          shopt -s nullglob
+          dmgs=(release-assets/*.dmg)
+
+          if [ "${#dmgs[@]}" -eq 0 ]; then
+            echo "No DMG assets were found."
+            exit 1
+          fi
+
+          mount_dir=""
+          cleanup_mount() {
+            if [ -n "$mount_dir" ] && [ -d "$mount_dir" ]; then
+              hdiutil detach "$mount_dir" || true
+            fi
+          }
+          trap cleanup_mount EXIT
+
+          for dmg_path in "${dmgs[@]}"; do
+            hdiutil verify "$dmg_path"
+
+            mount_dir="$(mktemp -d)"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$dmg_path"
+
+            app_path="$(find "$mount_dir" -maxdepth 1 -name "*.app" -type d -print -quit)"
+            if [ -z "$app_path" ]; then
+              echo "No app bundle was found in $dmg_path."
+              exit 1
+            fi
+
+            codesign --verify --deep --strict --verbose=4 "$app_path"
+
+            hdiutil detach "$mount_dir"
+            mount_dir=""
+          done
