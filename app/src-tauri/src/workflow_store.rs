@@ -194,6 +194,52 @@ pub fn delete_workflow(repo_path: String, workflow_id: String) -> Result<(), Str
     }
 }
 
+pub fn migrate_repository_skill_provider(
+    repo_path: &Path,
+    provider: &str,
+    target_provider: &str,
+    slug: &str,
+) -> Result<(), String> {
+    let dir = repo_path.join(WORKFLOWS_SUBDIR);
+    if !dir.is_dir() {
+        return Ok(());
+    }
+
+    let old_skill_file = format!(".{provider}/skills/{slug}/SKILL.md");
+    let new_skill_file = format!(".{target_provider}/skills/{slug}/SKILL.md");
+    let entries = fs::read_dir(&dir)
+        .map_err(|e| format!("failed to read {}: {e}", dir.display()))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let raw = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let mut workflow: Value = match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if !rewrite_repository_skill_refs(
+            &mut workflow,
+            provider,
+            &old_skill_file,
+            target_provider,
+            &new_skill_file,
+        ) {
+            continue;
+        }
+        let json = serde_json::to_string_pretty(&workflow)
+            .map_err(|e| format!("failed to serialize {}: {e}", path.display()))?;
+        fs::write(&path, json).map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn export_workflow_bundle(
     repo_path: String,
@@ -386,6 +432,46 @@ fn collect_bundle_skills(
         seen.push(skill_file.to_string());
     }
     Ok(skills)
+}
+
+fn rewrite_repository_skill_refs(
+    workflow: &mut Value,
+    provider: &str,
+    old_skill_file: &str,
+    target_provider: &str,
+    new_skill_file: &str,
+) -> bool {
+    let Some(nodes) = workflow.get_mut("nodes").and_then(|v| v.as_array_mut()) else {
+        return false;
+    };
+    let mut changed = false;
+    for node in nodes {
+        let Some(skill_ref) = node.get_mut("skillRef").and_then(|v| v.as_object_mut()) else {
+            continue;
+        };
+        let source = skill_ref
+            .get("source")
+            .and_then(|v| v.as_str())
+            .unwrap_or("repository");
+        if source != "repository" {
+            continue;
+        }
+        let matches_provider = skill_ref
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .is_some_and(|value| value == provider);
+        let matches_file = skill_ref
+            .get("skillFile")
+            .and_then(|v| v.as_str())
+            .is_some_and(|value| value == old_skill_file);
+        if !matches_provider || !matches_file {
+            continue;
+        }
+        skill_ref.insert("provider".into(), json!(target_provider));
+        skill_ref.insert("skillFile".into(), json!(new_skill_file));
+        changed = true;
+    }
+    changed
 }
 
 fn read_bundle(bundle_path: &str) -> Result<WorkflowBundle, String> {

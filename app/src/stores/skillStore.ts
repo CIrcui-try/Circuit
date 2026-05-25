@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   getHostBridge,
+  type ChangeRepositorySkillProviderInput,
   type CreateRepositorySkillInput,
   type DeleteRepositorySkillInput,
 } from "../host/bridge";
@@ -32,6 +33,7 @@ type SkillState = {
   loading: Record<string, boolean>;
   creating: Record<string, boolean>;
   deleting: Record<string, boolean>;
+  changingProvider: Record<string, boolean>;
   errors: Record<string, string | null>;
   scanRepository: (repoId: string, repoPath: string) => Promise<void>;
   createRepositorySkill: (
@@ -44,6 +46,11 @@ type SkillState = {
     repoPath: string,
     input: DeleteRepositorySkillInput,
   ) => Promise<void>;
+  changeRepositorySkillProvider: (
+    repoId: string,
+    repoPath: string,
+    input: ChangeRepositorySkillProviderInput,
+  ) => Promise<Skill>;
   scanDefaultCatalog: () => Promise<void>;
   scanSystemCatalog: () => Promise<void>;
 };
@@ -79,6 +86,7 @@ export const useSkillStore = create<SkillState>((set, get) => ({
   loading: {},
   creating: {},
   deleting: {},
+  changingProvider: {},
   errors: {},
 
   scanRepository: async (repoId, repoPath) => {
@@ -212,6 +220,68 @@ export const useSkillStore = create<SkillState>((set, get) => ({
       byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
       deleting: { ...s.deleting, [repoId]: false },
     }));
+  },
+
+  changeRepositorySkillProvider: async (repoId, repoPath, input) => {
+    if (get().changingProvider[repoId]) {
+      throw new Error("skill provider change is already in progress");
+    }
+
+    set((s) => ({
+      changingProvider: { ...s.changingProvider, [repoId]: true },
+      errors: { ...s.errors, [repoId]: null },
+    }));
+
+    const bridge = getHostBridge();
+    if (!bridge.changeRepositorySkillProvider) {
+      set((s) => ({
+        changingProvider: { ...s.changingProvider, [repoId]: false },
+      }));
+      throw new Error("repository skill provider change is not available");
+    }
+
+    let changedSkill: Skill;
+    try {
+      changedSkill = toRepositorySkill(
+        await bridge.changeRepositorySkillProvider(repoPath, input),
+      );
+    } catch (err) {
+      set((s) => ({
+        changingProvider: { ...s.changingProvider, [repoId]: false },
+      }));
+      throw err;
+    }
+
+    let refreshedSkills: Skill[];
+    try {
+      refreshedSkills = (await bridge.scanSkills(repoPath)).map(toRepositorySkill);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      set((s) => ({
+        changingProvider: { ...s.changingProvider, [repoId]: false },
+      }));
+      throw new Error(`Skill provider was changed, but repository re-scan failed: ${reason}`);
+    }
+
+    const refreshedSkill = refreshedSkills.find(
+      (skill) => skill.id === changedSkill.id,
+    );
+    if (!refreshedSkill) {
+      set((s) => ({
+        byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
+        changingProvider: { ...s.changingProvider, [repoId]: false },
+      }));
+      throw new Error(
+        "Skill provider was changed, but the moved skill was not found in the refreshed skill list.",
+      );
+    }
+
+    set((s) => ({
+      byRepo: { ...s.byRepo, [repoId]: refreshedSkills },
+      changingProvider: { ...s.changingProvider, [repoId]: false },
+    }));
+
+    return refreshedSkill;
   },
 
   scanDefaultCatalog: async () => {

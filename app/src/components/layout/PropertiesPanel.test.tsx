@@ -1,18 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+const bridgeMock = vi.hoisted(() => ({
+  changeRepositorySkillProvider: vi.fn(),
+  scanSkills: vi.fn(),
+}));
+
+vi.mock("../../host/bridge", () => ({
+  getHostBridge: () => bridgeMock,
+}));
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRunStore } from "../../runner/runStore";
+import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 beforeEach(() => {
+  bridgeMock.changeRepositorySkillProvider.mockReset();
+  bridgeMock.scanSkills.mockReset();
   useWorkflowStore.getState().resetWorkflow();
   useRunStore.getState().reset();
+  useRepositoryStore.setState({
+    repositories: [],
+    selectedId: null,
+    hydrated: true,
+  });
   useSkillStore.setState({
     byRepo: {},
     defaultSkills: [],
     systemSkills: [],
     loading: {},
+    creating: {},
+    deleting: {},
+    changingProvider: {},
     errors: {},
   });
 });
@@ -404,6 +424,182 @@ describe("PropertiesPanel", () => {
     fireEvent.change(model, { target: { value: "" } });
 
     expect(useWorkflowStore.getState().nodes[0].data.execution).toBeUndefined();
+  });
+
+  it("shows provider Change for repository skills only", () => {
+    const repositoryNodeId = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(repositoryNodeId);
+
+    const { rerender } = render(<PropertiesPanel />);
+    expect(screen.getByTestId("node-provider-change")).toBeInTheDocument();
+
+    const systemNodeId = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:imagegen",
+        provider: "codex",
+        source: "system",
+        name: "imagegen",
+        description: "",
+        rootDir: "",
+        skillFile: "",
+        systemSkillId: "codex:imagegen",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(systemNodeId);
+    rerender(<PropertiesPanel />);
+
+    expect(screen.queryByTestId("node-provider-change")).not.toBeInTheDocument();
+
+    const defaultNodeId = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "codex:.codex/skills/planning",
+        provider: "codex",
+        source: "default",
+        name: "planning",
+        description: "",
+        rootDir: ".codex/skills/planning",
+        skillFile: ".codex/skills/planning/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(defaultNodeId);
+    rerender(<PropertiesPanel />);
+
+    expect(screen.queryByTestId("node-provider-change")).not.toBeInTheDocument();
+  });
+
+  it("confirms provider change, moves the skill, and updates active node refs", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "repo-1",
+          name: "repo",
+          path: "/repo",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "repo-1",
+      hydrated: true,
+    });
+    bridgeMock.changeRepositorySkillProvider.mockResolvedValueOnce({
+      provider: "codex",
+      dirName: "foo",
+      rootDir: ".codex/skills/foo",
+      skillFile: ".codex/skills/foo/SKILL.md",
+      skillFileAbsPath: "/repo/.codex/skills/foo/SKILL.md",
+      content: "---\nname: Foo Skill\ndescription:\n---\n",
+    });
+    bridgeMock.scanSkills.mockResolvedValueOnce([
+      {
+        provider: "codex",
+        dirName: "foo",
+        rootDir: ".codex/skills/foo",
+        skillFile: ".codex/skills/foo/SKILL.md",
+        skillFileAbsPath: "/repo/.codex/skills/foo/SKILL.md",
+        content: "---\nname: Foo Skill\ndescription:\n---\n",
+      },
+    ]);
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+        skillFileAbsPath: "/repo/.claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().setNodeInput(id, { prompt: "Keep me" });
+    useWorkflowStore.getState().setNodeModel(id, "sonnet");
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+    fireEvent.click(screen.getByTestId("node-provider-change"));
+
+    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
+      ".claude/skills/foo/SKILL.md",
+    );
+    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
+      ".codex/skills/foo/SKILL.md",
+    );
+    fireEvent.click(screen.getByTestId("provider-change-confirm-change"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("provider-change-confirm")).not.toBeInTheDocument(),
+    );
+    expect(bridgeMock.changeRepositorySkillProvider).toHaveBeenCalledWith("/repo", {
+      provider: "claude",
+      slug: "foo",
+      targetProvider: "codex",
+    });
+    expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/foo/SKILL.md",
+      skillFileAbsPath: "/repo/.codex/skills/foo/SKILL.md",
+    });
+    expect(useWorkflowStore.getState().nodes[0].data.input).toEqual({
+      prompt: "Keep me",
+    });
+    expect(useWorkflowStore.getState().nodes[0].data.execution).toBeUndefined();
+  });
+
+  it("keeps the active node unchanged when provider change fails", async () => {
+    useRepositoryStore.setState({
+      repositories: [
+        {
+          id: "repo-1",
+          name: "repo",
+          path: "/repo",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      selectedId: "repo-1",
+      hydrated: true,
+    });
+    bridgeMock.changeRepositorySkillProvider.mockRejectedValueOnce(
+      new Error("skill already exists"),
+    );
+    const id = useWorkflowStore.getState().addSkillNode(
+      {
+        id: "claude:.claude/skills/foo",
+        provider: "claude",
+        name: "Foo Skill",
+        description: "",
+        rootDir: ".claude/skills/foo",
+        skillFile: ".claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    useWorkflowStore.getState().selectNode(id);
+
+    render(<PropertiesPanel />);
+    fireEvent.click(screen.getByTestId("node-provider-change"));
+    fireEvent.click(screen.getByTestId("provider-change-confirm-change"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("skill already exists"),
+    );
+    expect(useWorkflowStore.getState().nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "claude",
+      skillFile: ".claude/skills/foo/SKILL.md",
+    });
   });
 });
 

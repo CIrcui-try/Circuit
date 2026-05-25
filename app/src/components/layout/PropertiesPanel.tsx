@@ -3,7 +3,7 @@ import type { SkillInputHint } from "../../host/bridge";
 import { useRunStore } from "../../runner/runStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
 import { useRepositoryStore } from "../../stores/repositoryStore";
-import { useSkillStore } from "../../stores/skillStore";
+import { useSkillStore, type SkillProvider } from "../../stores/skillStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
 const EMPTY_INPUT_HINTS: SkillInputHint[] = [];
@@ -17,9 +17,16 @@ type InputEditorMode = "friendly" | "json";
 export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
   const setNodeInput = useWorkflowStore((s) => s.setNodeInput);
   const setNodeModel = useWorkflowStore((s) => s.setNodeModel);
+  const changeRepositorySkillRef = useWorkflowStore((s) => s.changeRepositorySkillRef);
+  const changeRepositorySkillProvider = useSkillStore(
+    (s) => s.changeRepositorySkillProvider,
+  );
   const [inputMode, setInputMode] = useState<InputEditorMode>("friendly");
   const [jsonDraft, setJsonDraft] = useState("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [providerChangeOpen, setProviderChangeOpen] = useState(false);
+  const [providerChangeError, setProviderChangeError] = useState<string | null>(null);
+  const [providerChangeBusy, setProviderChangeBusy] = useState(false);
   const selectedNode = useWorkflowStore((s) =>
     s.selectedNodeId
       ? s.nodes.find((n) => n.id === s.selectedNodeId) ?? null
@@ -27,6 +34,9 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
   );
   const selectedNodeId = selectedNode?.id ?? null;
   const selectedRepositoryId = useRepositoryStore((s) => s.selectedId);
+  const selectedRepository = useRepositoryStore((s) =>
+    s.repositories.find((repo) => repo.id === s.selectedId) ?? null,
+  );
   const runState = useRunStore((s) =>
     selectedNodeId
       ? s.getRunForRepository(selectedRepositoryId).nodeStates[selectedNodeId] ??
@@ -71,11 +81,17 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
   const modelListId = selectedNode
     ? `node-execution-model-options-${selectedNode.data.skillRef.provider}`
     : undefined;
+  const providerChange = selectedNode
+    ? providerChangeDetails(selectedNode.data.skillRef)
+    : null;
 
   useEffect(() => {
     setInputMode("friendly");
     setJsonDraft(selectedInputJson);
     setJsonError(null);
+    setProviderChangeOpen(false);
+    setProviderChangeError(null);
+    setProviderChangeBusy(false);
   }, [selectedNodeId]);
 
   useEffect(() => {
@@ -121,7 +137,37 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
     setNodeModel(selectedNodeId, value);
   };
 
+  const handleProviderChange = async () => {
+    if (!selectedRepository || !providerChange) return;
+    setProviderChangeBusy(true);
+    setProviderChangeError(null);
+    try {
+      const changedSkill = await changeRepositorySkillProvider(
+        selectedRepository.id,
+        selectedRepository.path,
+        {
+          provider: providerChange.provider,
+          slug: providerChange.slug,
+          targetProvider: providerChange.targetProvider,
+        },
+      );
+      changeRepositorySkillRef({
+        provider: providerChange.provider,
+        skillFile: providerChange.skillFile,
+        nextProvider: changedSkill.provider,
+        nextSkillFile: changedSkill.skillFile,
+        nextSkillFileAbsPath: changedSkill.skillFileAbsPath,
+      });
+      setProviderChangeOpen(false);
+    } catch (error) {
+      setProviderChangeError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setProviderChangeBusy(false);
+    }
+  };
+
   return (
+    <>
     <aside className="workspace__props" data-testid="node-properties-panel">
       <div className="panel-header panel-header--with-actions">
         <span>Properties</span>
@@ -145,7 +191,22 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
             <dt>Label</dt>
             <dd>{selectedNode.data.label}</dd>
             <dt>Provider</dt>
-            <dd>{selectedNode.data.skillRef.provider}</dd>
+            <dd className="properties__provider">
+              <span>{selectedNode.data.skillRef.provider}</span>
+              {providerChange ? (
+                <button
+                  type="button"
+                  className="properties__inline-action"
+                  data-testid="node-provider-change"
+                  onClick={() => {
+                    setProviderChangeOpen(true);
+                    setProviderChangeError(null);
+                  }}
+                >
+                  Change
+                </button>
+              ) : null}
+            </dd>
             <dt>
               {selectedNode.data.skillRef.source === "system"
                 ? "System Skill"
@@ -325,6 +386,58 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
         </div>
       )}
     </aside>
+    {providerChangeOpen && providerChange ? (
+      <div className="modal__backdrop">
+        <div
+          className="modal__panel modal__panel--confirm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="provider-change-title"
+          data-testid="provider-change-confirm"
+        >
+          <h2 id="provider-change-title" className="modal__title">
+            Change provider
+          </h2>
+          <p className="modal__message">
+            Move this repository skill to {providerChange.targetProvider}.
+          </p>
+          <dl className="modal__meta">
+            <dt>Current</dt>
+            <dd>
+              <code>{providerChange.skillFile}</code>
+            </dd>
+            <dt>Target</dt>
+            <dd>
+              <code>{providerChange.targetSkillFile}</code>
+            </dd>
+          </dl>
+          {providerChangeError ? (
+            <div className="properties__error" role="alert">
+              {providerChangeError}
+            </div>
+          ) : null}
+          <div className="modal__footer">
+            <button
+              type="button"
+              disabled={providerChangeBusy}
+              onClick={() => setProviderChangeOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              disabled={providerChangeBusy || !selectedRepository}
+              data-testid="provider-change-confirm-change"
+              onClick={() => void handleProviderChange()}
+            >
+              {providerChangeBusy ? "Changing..." : "Change provider"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
 
@@ -336,6 +449,32 @@ function modelPlaceholder(provider: string): string {
   if (provider === "claude") return "sonnet, opus, or full model name";
   if (provider === "codex") return "Codex model name";
   return "Model name";
+}
+
+function providerChangeDetails(skillRef: {
+  source?: string;
+  provider: SkillProvider;
+  skillFile: string;
+}) {
+  if ((skillRef.source ?? "repository") !== "repository") return null;
+  const match = skillRef.skillFile.match(
+    /^\.(claude|codex)\/skills\/([A-Za-z0-9_-]+)\/SKILL\.md$/,
+  );
+  if (!match) return null;
+  const provider = skillRef.provider;
+  const targetProvider = oppositeProvider(provider);
+  const slug = match[2];
+  return {
+    provider,
+    targetProvider,
+    slug,
+    skillFile: skillRef.skillFile,
+    targetSkillFile: `.${targetProvider}/skills/${slug}/SKILL.md`,
+  };
+}
+
+function oppositeProvider(provider: SkillProvider): SkillProvider {
+  return provider === "claude" ? "codex" : "claude";
 }
 
 function formatRunState(state: string): string {

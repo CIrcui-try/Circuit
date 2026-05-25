@@ -4,6 +4,8 @@ use std::path::{Component, Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+use crate::workflow_store;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSkill {
@@ -157,6 +159,61 @@ pub fn delete_repository_skill(
 
     fs::remove_dir_all(&skill_dir)
         .map_err(|e| format!("failed to remove {}: {e}", skill_dir.display()))
+}
+
+#[tauri::command]
+pub fn change_repository_skill_provider(
+    repo_path: String,
+    provider: String,
+    slug: String,
+    target_provider: String,
+) -> Result<RawSkill, String> {
+    let repo = resolve_repo_path(&repo_path)?;
+    let provider = validate_provider(&provider)?;
+    let target_provider = validate_provider(&target_provider)?;
+    if provider == target_provider {
+        return Err("target provider must be different from provider".into());
+    }
+    let slug = validate_slug(&slug)?;
+
+    let source_dir = repo
+        .join(format!(".{provider}"))
+        .join("skills")
+        .join(&slug);
+    ensure_existing_path_inside_repo(&repo, &source_dir)?;
+    if !source_dir.is_dir() || resolve_skill_file(&source_dir).is_none() {
+        return Err(format!("skill not found: .{provider}/skills/{slug}"));
+    }
+
+    let target_skills_dir = repo.join(format!(".{target_provider}")).join("skills");
+    ensure_existing_path_inside_repo(&repo, &target_skills_dir)?;
+    let target_dir = target_skills_dir.join(&slug);
+    ensure_existing_path_inside_repo(&repo, &target_dir)?;
+    if target_dir.exists() {
+        return Err(format!(
+            "skill already exists: .{target_provider}/skills/{slug}"
+        ));
+    }
+
+    fs::create_dir_all(&target_skills_dir)
+        .map_err(|e| format!("failed to create {}: {e}", target_skills_dir.display()))?;
+    fs::rename(&source_dir, &target_dir).map_err(|e| {
+        format!(
+            "failed to move {} -> {}: {e}",
+            source_dir.display(),
+            target_dir.display()
+        )
+    })?;
+
+    if let Err(err) =
+        workflow_store::migrate_repository_skill_provider(&repo, provider, target_provider, &slug)
+    {
+        let _ = fs::rename(&target_dir, &source_dir);
+        return Err(err);
+    }
+
+    read_skill_dir(target_provider, "repository", &target_dir)?
+        .ok_or_else(|| format!("failed to read moved skill: {}", target_dir.display()))
 }
 
 #[tauri::command]
@@ -787,6 +844,135 @@ mod tests {
 
         let traversal_slug = delete_repository_skill(repo, "codex".into(), "../escape".into());
         assert!(traversal_slug.unwrap_err().contains("skill slug may only"));
+    }
+
+    #[test]
+    fn change_repository_skill_provider_moves_dir_and_rewrites_saved_workflows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "publish-pr".into(),
+            "Publish PR".into(),
+            "".into(),
+            None,
+            None,
+            None,
+            Some("sonnet".into()),
+        )
+        .expect("create skill failed");
+
+        crate::workflow_store::save_workflow(
+            repo.clone(),
+            "wf-1".into(),
+            r#"{
+  "version": "0.1",
+  "id": "wf-1",
+  "repositoryId": "repo",
+  "name": "Flow",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "skill",
+      "skillRef": {
+        "source": "repository",
+        "provider": "claude",
+        "skillFile": ".claude/skills/publish-pr/SKILL.md"
+      },
+      "label": "Publish",
+      "position": { "x": 0, "y": 0 }
+    }
+  ],
+  "edges": [],
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}"#
+            .into(),
+        )
+        .expect("save workflow failed");
+
+        let changed = change_repository_skill_provider(
+            repo.clone(),
+            "claude".into(),
+            "publish-pr".into(),
+            "codex".into(),
+        )
+        .expect("change provider failed");
+
+        assert_eq!(changed.provider, "codex");
+        assert_eq!(changed.root_dir, ".codex/skills/publish-pr");
+        assert_eq!(changed.skill_file, ".codex/skills/publish-pr/SKILL.md");
+        assert!(!tmp
+            .path()
+            .join(".claude")
+            .join("skills")
+            .join("publish-pr")
+            .exists());
+        assert!(tmp
+            .path()
+            .join(".codex")
+            .join("skills")
+            .join("publish-pr")
+            .join("SKILL.md")
+            .is_file());
+
+        let workflow = crate::workflow_store::load_workflow(repo, "wf-1".into())
+            .expect("load workflow failed");
+        let workflow: serde_json::Value = serde_json::from_str(&workflow).unwrap();
+        let skill_ref = &workflow["nodes"][0]["skillRef"];
+        assert_eq!(skill_ref["provider"], "codex");
+        assert_eq!(skill_ref["skillFile"], ".codex/skills/publish-pr/SKILL.md");
+    }
+
+    #[test]
+    fn change_repository_skill_provider_rejects_target_conflict() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().to_string_lossy().into_owned();
+
+        create_repository_skill(
+            repo.clone(),
+            "claude".into(),
+            "publish-pr".into(),
+            "Publish PR".into(),
+            "".into(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("create source failed");
+        create_repository_skill(
+            repo.clone(),
+            "codex".into(),
+            "publish-pr".into(),
+            "Publish PR".into(),
+            "".into(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("create target failed");
+
+        let result = change_repository_skill_provider(
+            repo,
+            "claude".into(),
+            "publish-pr".into(),
+            "codex".into(),
+        );
+
+        assert!(result
+            .unwrap_err()
+            .contains("skill already exists: .codex/skills/publish-pr"));
+        assert!(tmp
+            .path()
+            .join(".claude")
+            .join("skills")
+            .join("publish-pr")
+            .join("SKILL.md")
+            .is_file());
     }
 
     #[test]
