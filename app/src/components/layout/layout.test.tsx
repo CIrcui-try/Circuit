@@ -502,6 +502,28 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel skips JSON field dumps when picking a stream summary", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "stderr",
+      timestamp: "t1",
+      text: [
+        '      "label": "publish-pr",',
+        '        "prompt": "- kai-leeee 계정으로 PR을 올리는 것을 반드시 확인해야 함.\\n- PR을 올릴 것이 없으면 중단하고 나의 의사를 물을 것\\n"',
+        "Imported `CLNP-8564` and saved the local handoff.",
+      ].join("\n"),
+    });
+
+    render(<LogPanel />);
+
+    const group = screen.getByTestId("run-log-stream-group");
+    const summary = group.querySelector(".run-log__summary-row");
+    expect(summary).toHaveTextContent(
+      "3 lines - Imported `CLNP-8564` and saved the local handoff.",
+    );
+    expect(summary).not.toHaveTextContent("kai-leeee");
+  });
+
   it("LogPanel prefers failure summaries over ordinary progress lines", () => {
     useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
     useRunLogStore.getState().appendEvent("node-a", {

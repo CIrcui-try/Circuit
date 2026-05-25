@@ -810,6 +810,7 @@ function isStreamSummaryNoise(line: string): boolean {
     /^(workdir|model|provider|approval|sandbox|reasoning effort|reasoning summaries|session id):/i.test(
       line,
     ) ||
+    /^\s*"[^"]+"\s*:\s*/.test(line) ||
     /^\/.+\s-lc\s/.test(line) ||
     /\s+in\s+\/Users\/.+$/i.test(line) ||
     /\s+(succeeded|exited)\s+(in|with code)\s+/i.test(line)
