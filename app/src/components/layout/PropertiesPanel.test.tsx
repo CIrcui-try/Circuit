@@ -532,15 +532,11 @@ describe("PropertiesPanel", () => {
     render(<PropertiesPanel />);
     fireEvent.click(screen.getByTestId("node-provider-change"));
 
-    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
-      "Switch to Codex",
-    );
-    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
-      ".claude/skills/foo/SKILL.md",
-    );
-    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
-      ".codex/skills/foo/SKILL.md",
-    );
+    const modal = screen.getByTestId("provider-change-confirm");
+    expect(modal).toHaveTextContent("Switch to Codex");
+    expect(modal).toHaveTextContent("Switch this repository skill to Codex.");
+    expect(modal).not.toHaveTextContent(".claude/skills/foo/SKILL.md");
+    expect(modal).not.toHaveTextContent(".codex/skills/foo/SKILL.md");
     fireEvent.click(screen.getByTestId("provider-change-confirm-change"));
 
     await waitFor(() =>

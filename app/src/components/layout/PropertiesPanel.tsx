@@ -406,19 +406,9 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
             {providerSwitchLabel(providerChange.targetProvider)}
           </h2>
           <p className="modal__message">
-            Move this repository skill to{" "}
+            Switch this repository skill to{" "}
             {providerDisplayName(providerChange.targetProvider)}.
           </p>
-          <dl className="modal__meta">
-            <dt>Current</dt>
-            <dd>
-              <code>{providerChange.skillFile}</code>
-            </dd>
-            <dt>Target</dt>
-            <dd>
-              <code>{providerChange.targetSkillFile}</code>
-            </dd>
-          </dl>
           {providerChangeError ? (
             <div className="properties__error" role="alert">
               {providerChangeError}
