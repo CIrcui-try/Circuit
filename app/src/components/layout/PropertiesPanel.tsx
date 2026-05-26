@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeftRight } from "lucide-react";
 import type { SkillInputHint } from "../../host/bridge";
 import { useRunStore } from "../../runner/runStore";
 import { defaultSkillFileForLegacySystemId } from "../../skills/defaultSkillFiles";
@@ -203,6 +204,12 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
                     setProviderChangeError(null);
                   }}
                 >
+                  <ArrowLeftRight
+                    className="properties__inline-action-icon"
+                    size={12}
+                    strokeWidth={1.9}
+                    aria-hidden="true"
+                  />
                   {providerSwitchLabel(providerChange.targetProvider)}
                 </button>
               ) : null}
@@ -432,6 +439,7 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
               data-testid="provider-change-confirm-change"
               onClick={() => void handleProviderChange()}
             >
+              <ArrowLeftRight size={14} strokeWidth={1.9} aria-hidden="true" />
               {providerChangeBusy
                 ? "Switching..."
                 : providerSwitchLabel(providerChange.targetProvider)}

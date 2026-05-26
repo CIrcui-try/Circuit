@@ -2859,6 +2859,9 @@ a:hover {
 }
 
 .properties__inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 6px;
   color: #b8d2ff;
   background: #263041;
@@ -2867,6 +2870,10 @@ a:hover {
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+}
+
+.properties__inline-action-icon {
+  flex: 0 0 auto;
 }
 
 .properties__inline-action:hover {
@@ -3073,6 +3080,12 @@ a:hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.modal__footer .button-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .run-log__past {
