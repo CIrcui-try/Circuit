@@ -2863,9 +2863,9 @@ a:hover {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  color: #d8d8dd;
-  background: #2f3036;
-  border: 1px solid #4a4b52;
+  color: #a8a8ae;
+  background: #28292e;
+  border: 1px solid #3b3c42;
   border-radius: 999px;
   font: inherit;
   font-size: 11px;
@@ -2877,8 +2877,9 @@ a:hover {
 }
 
 .properties__inline-action:hover {
-  background: #3a3b42;
-  border-color: #5b5c64;
+  color: #c6c6cc;
+  background: #303137;
+  border-color: #4b4c53;
 }
 
 .properties__field {
