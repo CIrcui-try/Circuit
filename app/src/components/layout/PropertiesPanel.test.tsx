@@ -441,7 +441,9 @@ describe("PropertiesPanel", () => {
     useWorkflowStore.getState().selectNode(repositoryNodeId);
 
     const { rerender } = render(<PropertiesPanel />);
-    expect(screen.getByTestId("node-provider-change")).toBeInTheDocument();
+    expect(screen.getByTestId("node-provider-change")).toHaveTextContent(
+      "Switch to Codex",
+    );
 
     const systemNodeId = useWorkflowStore.getState().addSkillNode(
       {
@@ -530,6 +532,9 @@ describe("PropertiesPanel", () => {
     render(<PropertiesPanel />);
     fireEvent.click(screen.getByTestId("node-provider-change"));
 
+    expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
+      "Switch to Codex",
+    );
     expect(screen.getByTestId("provider-change-confirm")).toHaveTextContent(
       ".claude/skills/foo/SKILL.md",
     );

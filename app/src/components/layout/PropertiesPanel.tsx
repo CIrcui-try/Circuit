@@ -203,7 +203,7 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
                     setProviderChangeError(null);
                   }}
                 >
-                  Change
+                  {providerSwitchLabel(providerChange.targetProvider)}
                 </button>
               ) : null}
             </dd>
@@ -396,10 +396,11 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
           data-testid="provider-change-confirm"
         >
           <h2 id="provider-change-title" className="modal__title">
-            Change provider
+            {providerSwitchLabel(providerChange.targetProvider)}
           </h2>
           <p className="modal__message">
-            Move this repository skill to {providerChange.targetProvider}.
+            Move this repository skill to{" "}
+            {providerDisplayName(providerChange.targetProvider)}.
           </p>
           <dl className="modal__meta">
             <dt>Current</dt>
@@ -431,7 +432,9 @@ export function PropertiesPanel({ onCollapse }: { onCollapse?: () => void }) {
               data-testid="provider-change-confirm-change"
               onClick={() => void handleProviderChange()}
             >
-              {providerChangeBusy ? "Changing..." : "Change provider"}
+              {providerChangeBusy
+                ? "Switching..."
+                : providerSwitchLabel(providerChange.targetProvider)}
             </button>
           </div>
         </div>
@@ -475,6 +478,14 @@ function providerChangeDetails(skillRef: {
 
 function oppositeProvider(provider: SkillProvider): SkillProvider {
   return provider === "claude" ? "codex" : "claude";
+}
+
+function providerDisplayName(provider: SkillProvider): string {
+  return provider === "claude" ? "Claude" : "Codex";
+}
+
+function providerSwitchLabel(provider: SkillProvider): string {
+  return `Switch to ${providerDisplayName(provider)}`;
 }
 
 function formatRunState(state: string): string {
