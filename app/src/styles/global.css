@@ -2862,11 +2862,11 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
-  color: #b8d2ff;
-  background: #263041;
-  border: 1px solid #3e5d91;
-  border-radius: 4px;
+  padding: 2px 8px;
+  color: #d8d8dd;
+  background: #2f3036;
+  border: 1px solid #4a4b52;
+  border-radius: 999px;
   font: inherit;
   font-size: 11px;
   cursor: pointer;
@@ -2877,7 +2877,8 @@ a:hover {
 }
 
 .properties__inline-action:hover {
-  background: #314166;
+  background: #3a3b42;
+  border-color: #5b5c64;
 }
 
 .properties__field {
