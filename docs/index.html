@@ -210,11 +210,26 @@
         pointer-events: none;
         content: "";
         background:
-          linear-gradient(118deg, transparent 18%, rgba(67, 217, 173, 0.16) 34%, transparent 48%),
-          linear-gradient(126deg, transparent 26%, rgba(99, 199, 255, 0.14) 44%, transparent 58%),
-          linear-gradient(132deg, transparent 40%, rgba(157, 167, 255, 0.1) 56%, transparent 70%);
-        filter: blur(18px);
+          linear-gradient(122deg, transparent 18%, rgba(67, 217, 173, 0.18) 34%, transparent 48%),
+          linear-gradient(130deg, transparent 24%, rgba(99, 199, 255, 0.16) 43%, transparent 58%),
+          linear-gradient(138deg, transparent 38%, rgba(157, 167, 255, 0.12) 56%, transparent 72%);
+        filter: blur(20px);
         opacity: 0.9;
+      }
+
+      .hero::after {
+        position: absolute;
+        inset: 9% 0 auto;
+        z-index: -1;
+        height: 72%;
+        pointer-events: none;
+        content: "";
+        background:
+          linear-gradient(118deg, transparent 0 30%, rgba(67, 217, 173, 0.28) 30% 34%, transparent 34% 100%),
+          linear-gradient(118deg, transparent 0 43%, rgba(99, 199, 255, 0.2) 43% 47%, transparent 47% 100%),
+          linear-gradient(118deg, transparent 0 57%, rgba(157, 167, 255, 0.16) 57% 61%, transparent 61% 100%);
+        opacity: 0.62;
+        mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
       }
 
       .hero-grid {
@@ -281,54 +296,6 @@
         flex-wrap: wrap;
         gap: 16px;
         margin-top: 42px;
-      }
-
-      .product-frame {
-        position: absolute;
-        z-index: 1;
-        top: 47%;
-        left: 50%;
-        width: min(1080px, 74vw);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.045));
-        box-shadow: var(--shadow);
-        overflow: hidden;
-        backdrop-filter: blur(26px) saturate(140%);
-        filter: saturate(1.08);
-        opacity: 0.38;
-        pointer-events: none;
-        transform: translate(-50%, -21%) perspective(1200px) rotateX(57deg) rotateZ(-7deg) scale(1.08);
-        transform-origin: center;
-      }
-
-      .product-frame::after {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        content: "";
-        background:
-          linear-gradient(120deg, rgba(255, 255, 255, 0.2), transparent 28%),
-          linear-gradient(180deg, transparent 62%, rgba(67, 217, 173, 0.08));
-      }
-
-      .product-frame::before {
-        content: "";
-        display: block;
-        height: 36px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        background:
-          linear-gradient(90deg, #f17d8f 12px, transparent 12px 24px, #f2b461 24px 36px, transparent 36px 48px, #43d9ad 48px 60px, transparent 60px),
-          rgba(255, 255, 255, 0.08);
-        background-position: 16px center;
-        background-repeat: no-repeat;
-      }
-
-      .product-frame img {
-        width: 100%;
-        aspect-ratio: 2744 / 1280;
-        object-fit: cover;
       }
 
       .section {
@@ -638,10 +605,6 @@
           min-height: calc(100svh - 72px);
         }
 
-        .product-frame {
-          width: min(940px, 112vw);
-          opacity: 0.28;
-        }
       }
 
       @media (max-width: 720px) {
@@ -698,12 +661,6 @@
           flex-direction: column;
         }
 
-        .product-frame {
-          top: 53%;
-          width: 720px;
-          opacity: 0.22;
-        }
-
         .publish-copy {
           padding: 22px;
         }
@@ -746,12 +703,6 @@
               </a>
             </div>
           </div>
-          <figure class="product-frame" aria-label="Circuit harness editor screenshot">
-            <img
-              src="assets/readme/circuit-harness-editor.png"
-              alt="Circuit desktop app showing a skill workflow canvas and run controls"
-            >
-          </figure>
         </div>
       </section>
 
