@@ -141,7 +141,7 @@ export function RepositoryList() {
           <span className="repository-list__eyebrow">
             Skill-Based AI Agent Harness Editor
           </span>
-          <h1 className="repository-list__title">Circuit</h1>
+          <h1 className="repository-list__title">Observe every run.</h1>
           <p className="repository-list__subtitle">
             Run agent workflows across your repositories.
           </p>

@@ -60,11 +60,10 @@
         z-index: -1;
         pointer-events: none;
         content: "";
-        background-image:
-          linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-        background-size: 72px 72px;
-        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 74%);
+        background:
+          radial-gradient(ellipse at 50% 0%, rgba(99, 199, 255, 0.08), transparent 58%),
+          radial-gradient(ellipse at 88% 28%, rgba(67, 217, 173, 0.08), transparent 46%),
+          radial-gradient(ellipse at 16% 24%, rgba(241, 125, 143, 0.06), transparent 44%);
       }
 
       img,
@@ -206,30 +205,40 @@
 
       .hero::before {
         position: absolute;
-        inset: 0;
+        inset: 4% 8% 2%;
+        z-index: -1;
         pointer-events: none;
         content: "";
         background:
-          linear-gradient(122deg, transparent 18%, rgba(67, 217, 173, 0.18) 34%, transparent 48%),
-          linear-gradient(130deg, transparent 24%, rgba(99, 199, 255, 0.16) 43%, transparent 58%),
-          linear-gradient(138deg, transparent 38%, rgba(157, 167, 255, 0.12) 56%, transparent 72%);
-        filter: blur(20px);
-        opacity: 0.9;
+          conic-gradient(
+            from 220deg at 50% 52%,
+            rgba(67, 217, 173, 0),
+            rgba(67, 217, 173, 0.34),
+            rgba(99, 199, 255, 0.34),
+            rgba(157, 167, 255, 0.22),
+            rgba(241, 125, 143, 0.28),
+            rgba(242, 180, 97, 0.16),
+            rgba(67, 217, 173, 0)
+          );
+        filter: blur(56px) saturate(150%);
+        opacity: 0.72;
+        transform: rotate(-8deg) scale(1.04);
+        mask-image: radial-gradient(ellipse at center, #000 0 58%, transparent 78%);
       }
 
       .hero::after {
         position: absolute;
-        inset: 9% 0 auto;
+        inset: 18% 22% 16%;
         z-index: -1;
-        height: 72%;
         pointer-events: none;
         content: "";
         background:
-          linear-gradient(118deg, transparent 0 30%, rgba(67, 217, 173, 0.28) 30% 34%, transparent 34% 100%),
-          linear-gradient(118deg, transparent 0 43%, rgba(99, 199, 255, 0.2) 43% 47%, transparent 47% 100%),
-          linear-gradient(118deg, transparent 0 57%, rgba(157, 167, 255, 0.16) 57% 61%, transparent 61% 100%);
-        opacity: 0.62;
-        mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+          linear-gradient(135deg, rgba(67, 217, 173, 0.25), rgba(99, 199, 255, 0.18) 42%, rgba(241, 125, 143, 0.18)),
+          radial-gradient(ellipse at center, rgba(255, 255, 255, 0.12), transparent 64%);
+        filter: blur(70px) saturate(155%);
+        opacity: 0.48;
+        transform: rotate(8deg);
+        mask-image: radial-gradient(ellipse at center, #000 0 52%, transparent 76%);
       }
 
       .hero-grid {
@@ -247,23 +256,6 @@
         max-width: 860px;
       }
 
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        width: fit-content;
-        min-height: 32px;
-        padding: 0 11px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 8px;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.045));
-        color: #d8f2ff;
-        font-size: 13px;
-        font-weight: 700;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
-        backdrop-filter: blur(16px) saturate(135%);
-      }
-
       h1,
       h2,
       h3,
@@ -274,7 +266,7 @@
       h1 {
         max-width: 980px;
         margin-bottom: 24px;
-        font-size: clamp(72px, 11vw, 148px);
+        font-size: clamp(58px, 9vw, 118px);
         line-height: 0.95;
         letter-spacing: 0;
         text-shadow:
@@ -493,72 +485,6 @@
         backdrop-filter: blur(14px);
       }
 
-      .publish {
-        display: grid;
-        grid-template-columns: minmax(0, 0.74fr) minmax(280px, 0.46fr);
-        gap: 44px;
-        align-items: stretch;
-      }
-
-      .publish-copy {
-        padding: 32px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background:
-          linear-gradient(135deg, rgba(67, 217, 173, 0.16), rgba(99, 199, 255, 0.08) 44%, rgba(255, 255, 255, 0.045));
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.13),
-          var(--glass-shadow);
-        backdrop-filter: blur(24px) saturate(135%);
-      }
-
-      .publish-copy p {
-        margin-bottom: 0;
-        color: #d4deea;
-        font-size: 18px;
-      }
-
-      .steps {
-        display: grid;
-        gap: 16px;
-      }
-
-      .step {
-        display: grid;
-        grid-template-columns: 36px 1fr;
-        gap: 12px;
-        align-items: start;
-        padding: 16px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(18px) saturate(125%);
-      }
-
-      .step-number {
-        width: 36px;
-        height: 36px;
-        display: grid;
-        place-items: center;
-        border-radius: 8px;
-        background: rgba(242, 180, 97, 0.16);
-        color: var(--amber);
-        font-weight: 850;
-      }
-
-      .step strong {
-        display: block;
-        margin-bottom: 3px;
-      }
-
-      .step span {
-        display: block;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
       .site-footer {
         padding: 32px 0 42px;
         border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -586,7 +512,6 @@
       @media (max-width: 980px) {
         .section-head,
         .showcase,
-        .publish,
         .video-row,
         .video-row:nth-child(even) {
           grid-template-columns: 1fr;
@@ -660,10 +585,6 @@
           align-items: flex-start;
           flex-direction: column;
         }
-
-        .publish-copy {
-          padding: 22px;
-        }
       }
     </style>
   </head>
@@ -678,7 +599,6 @@
           <a href="#workflows">Workflows</a>
           <a href="#runs">Runs</a>
           <a href="#loops">Loops</a>
-          <a href="#publish">Pages</a>
           <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">Repository</a>
         </nav>
       </div>
@@ -688,8 +608,7 @@
       <section class="hero" aria-labelledby="hero-title">
         <div class="shell hero-grid">
           <div>
-            <span class="eyebrow">Local-first desktop app for agent workflows</span>
-            <h1 id="hero-title">Circuit</h1>
+            <h1 id="hero-title">Observe every run.</h1>
             <p class="hero-copy">
               Turn Claude and Codex skills in your repository into visible, repeatable,
               controllable development workflows.
@@ -748,10 +667,12 @@
         <div class="shell showcase">
           <div class="media-panel">
             <video
-              src="https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef"
-              controls
+              src="assets/media/1.mp4"
+              autoplay
+              loop
               muted
               playsinline
+              preload="metadata"
               poster="assets/readme/circuit-workflow-overview.png"
             ></video>
           </div>
@@ -800,10 +721,12 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f"
-                controls
+                src="assets/media/3.mp4"
+                autoplay
+                loop
                 muted
                 playsinline
+                preload="metadata"
                 poster="assets/readme/circuit-harness-editor.png"
               ></video>
             </div>
@@ -830,10 +753,12 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/4436fe4f-ec41-4ebb-a8a5-5e99944e1604"
-                controls
+                src="assets/media/2.mp4"
+                autoplay
+                loop
                 muted
                 playsinline
+                preload="metadata"
                 poster="assets/readme/circuit-workflow-overview.png"
               ></video>
             </div>
@@ -855,48 +780,14 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd"
-                controls
+                src="assets/media/4.mp4"
+                autoplay
+                loop
                 muted
                 playsinline
+                preload="metadata"
                 poster="assets/readme/circuit-harness-editor.png"
               ></video>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section alt" id="publish" aria-labelledby="publish-title">
-        <div class="shell publish">
-          <div class="publish-copy">
-            <p class="section-kicker">GitHub Pages</p>
-            <h2 id="publish-title">A static product page that ships from `docs/`.</h2>
-            <p>
-              No backend, no build step, and no mock agent runtime. Publish the page from
-              the repository settings by selecting the `docs/` folder as the Pages source
-              on the target branch.
-            </p>
-            <div class="hero-actions">
-              <a class="button primary" href="https://github.com/CIrcui-try/Circuit/releases">
-                Get the desktop app
-              </a>
-              <a class="button secondary" href="https://github.com/CIrcui-try/Circuit#readme">
-                Read the README
-              </a>
-            </div>
-          </div>
-          <div class="steps" aria-label="Publish settings">
-            <div class="step">
-              <span class="step-number">1</span>
-              <span><strong>Open repository settings</strong><span>Go to Settings, then Pages.</span></span>
-            </div>
-            <div class="step">
-              <span class="step-number">2</span>
-              <span><strong>Choose the branch</strong><span>Select the branch used for publishing.</span></span>
-            </div>
-            <div class="step">
-              <span class="step-number">3</span>
-              <span><strong>Set the folder</strong><span>Choose `/docs` and save.</span></span>
             </div>
           </div>
         </div>
