@@ -5,6 +5,7 @@ const bridgeMock = vi.hoisted(() => ({
   scanSkills: vi.fn(),
   createRepositorySkill: vi.fn(),
   deleteRepositorySkill: vi.fn(),
+  changeRepositorySkillProvider: vi.fn(),
   scanDefaultSkills: vi.fn(),
   scanSystemSkills: vi.fn(),
   loadRepositories: vi.fn(),
@@ -21,6 +22,7 @@ beforeEach(() => {
   bridgeMock.scanSkills.mockReset();
   bridgeMock.createRepositorySkill.mockReset();
   bridgeMock.deleteRepositorySkill.mockReset();
+  bridgeMock.changeRepositorySkillProvider.mockReset();
   bridgeMock.scanDefaultSkills.mockReset();
   bridgeMock.scanSystemSkills.mockReset();
   useSkillStore.setState({
@@ -30,6 +32,7 @@ beforeEach(() => {
     loading: {},
     creating: {},
     deleting: {},
+    changingProvider: {},
     errors: {},
   });
 });
@@ -494,5 +497,76 @@ describe("skillStore — deleteRepositorySkill", () => {
 
     expect(bridgeMock.deleteRepositorySkill).not.toHaveBeenCalled();
     expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
+  });
+});
+
+describe("skillStore — changeRepositorySkillProvider", () => {
+  it("S17: changes provider, re-scans, and returns the moved skill", async () => {
+    bridgeMock.changeRepositorySkillProvider.mockResolvedValueOnce({
+      provider: "codex",
+      dirName: "publish-pr",
+      rootDir: ".codex/skills/publish-pr",
+      skillFile: ".codex/skills/publish-pr/SKILL.md",
+      skillFileAbsPath: "/repo/.codex/skills/publish-pr/SKILL.md",
+      content: "---\nname: publish-pr\ndescription: Publish\n---\n",
+    });
+    bridgeMock.scanSkills.mockResolvedValueOnce([
+      {
+        provider: "codex",
+        dirName: "publish-pr",
+        rootDir: ".codex/skills/publish-pr",
+        skillFile: ".codex/skills/publish-pr/SKILL.md",
+        skillFileAbsPath: "/repo/.codex/skills/publish-pr/SKILL.md",
+        content: "---\nname: publish-pr\ndescription: Publish from disk\n---\n",
+      },
+    ]);
+
+    const changed = await useSkillStore.getState().changeRepositorySkillProvider(
+      "repo-1",
+      "/repo",
+      {
+        provider: "claude",
+        slug: "publish-pr",
+        targetProvider: "codex",
+      },
+    );
+
+    expect(bridgeMock.changeRepositorySkillProvider).toHaveBeenCalledWith("/repo", {
+      provider: "claude",
+      slug: "publish-pr",
+      targetProvider: "codex",
+    });
+    expect(bridgeMock.scanSkills).toHaveBeenCalledWith("/repo");
+    expect(changed).toEqual({
+      id: "codex:.codex/skills/publish-pr",
+      provider: "codex",
+      source: "repository",
+      name: "publish-pr",
+      description: "Publish from disk",
+      inputHints: [],
+      rootDir: ".codex/skills/publish-pr",
+      skillFile: ".codex/skills/publish-pr/SKILL.md",
+      skillFileAbsPath: "/repo/.codex/skills/publish-pr/SKILL.md",
+    });
+    expect(useSkillStore.getState().byRepo["repo-1"]).toEqual([changed]);
+    expect(useSkillStore.getState().changingProvider["repo-1"]).toBe(false);
+  });
+
+  it("S18: rethrows provider change errors without running a re-scan", async () => {
+    bridgeMock.changeRepositorySkillProvider.mockRejectedValueOnce(
+      new Error("skill already exists"),
+    );
+
+    await expect(
+      useSkillStore.getState().changeRepositorySkillProvider("repo-1", "/repo", {
+        provider: "claude",
+        slug: "publish-pr",
+        targetProvider: "codex",
+      }),
+    ).rejects.toThrow("skill already exists");
+
+    expect(bridgeMock.scanSkills).not.toHaveBeenCalled();
+    expect(useSkillStore.getState().changingProvider["repo-1"]).toBe(false);
+    expect(useSkillStore.getState().errors["repo-1"]).toBeNull();
   });
 });

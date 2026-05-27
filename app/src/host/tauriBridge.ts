@@ -77,6 +77,13 @@ export const tauriHostBridge: HostBridge = {
     });
   },
 
+  async changeRepositorySkillProvider(repoPath, input) {
+    return await invoke<RawSkill>("change_repository_skill_provider", {
+      repoPath,
+      ...input,
+    });
+  },
+
   async scanDefaultSkills() {
     return await invoke<RawSkill[]>("scan_default_skills");
   },
