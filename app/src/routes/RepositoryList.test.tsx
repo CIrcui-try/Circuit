@@ -57,14 +57,14 @@ describe("RepositoryList", () => {
     renderWithRouter(<RepositoryList />);
 
     expect(
-      screen.getByRole("heading", { name: "Observe every run." }),
+      screen.getByRole("heading", { name: "Circuit" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Skill-Based AI Agent Harness Editor"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Run agent workflows across your repositories."),
-    ).toBeInTheDocument();
+      screen.queryByText("Run agent workflows across your repositories."),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("add-repository-button")).toHaveTextContent(
       "Add Repository",
     );
