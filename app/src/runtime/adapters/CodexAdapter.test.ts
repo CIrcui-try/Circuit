@@ -363,6 +363,27 @@ describe("CodexAdapter", () => {
       expect(stdouts).toHaveLength(1);
     });
 
+    it("captures token usage from Codex's tokens used footer", async () => {
+      const { bridge } = spy(() => [
+        { event: { type: "started" } },
+        { event: { type: "stderr", text: "tokens used" } },
+        { event: { type: "stderr", text: "22,708" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ]);
+      const adapter = new CodexAdapter({ bridge });
+      const received: AgentRunEvent[] = [];
+      const result = await adapter.run(makeContext(), (ev) => received.push(ev));
+
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          type: "token_usage",
+          usage: { totalTokens: 22708 },
+        }),
+      );
+      expect(result.usage).toEqual({ totalTokens: 22708 });
+      expect(result.status).toBe("success");
+    });
+
     it("passes stderr through unchanged when no 'user'/'codex' markers appear", async () => {
       const { bridge } = spy(() => [
         { event: { type: "started" } },

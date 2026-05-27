@@ -17,7 +17,11 @@ import { useRunStore } from "../../runner/runStore";
 import { useRepositoryStore } from "../../stores/repositoryStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { getRuntimeBridge } from "../../runtime/bridge/RuntimeBridge";
-import type { AgentRunEvent } from "../../runtime/contracts/SkillExecution";
+import type {
+  AgentRunEvent,
+  SkillExecutionResult,
+  TokenUsage,
+} from "../../runtime/contracts/SkillExecution";
 import type { WorkflowSkillProvider } from "../../workflow/schema";
 import { ApprovalPrompt } from "./ApprovalPrompt";
 
@@ -76,6 +80,7 @@ function LogHeader({
   activeNodeState,
   activeNodeIdle,
   elapsedLabel,
+  tokenUsageLabel,
   copyDisabled,
   copyFeedback,
   onCopyLog,
@@ -91,6 +96,7 @@ function LogHeader({
   activeNodeState: string | null;
   activeNodeIdle: boolean;
   elapsedLabel: string | null;
+  tokenUsageLabel: string | null;
   copyDisabled: boolean;
   copyFeedback: string | null;
   onCopyLog: () => void | Promise<void>;
@@ -113,6 +119,7 @@ function LogHeader({
           {runId ? `run ${shortId(runId)} · ` : ""}
           {status}
           {elapsedLabel ? ` · ${elapsedLabel}` : ""}
+          {tokenUsageLabel ? ` · ${tokenUsageLabel}` : ""}
           {loopLabel ? ` · ${loopLabel}` : ""}
           {activeNodeLabel ? ` · ${activeNodeLabel}` : ""}
           {activeNodeState === "waiting_input" ? " · waiting for input" : ""}
@@ -320,6 +327,9 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
   const headerRunId = visibleRunId ?? visibleLogRunId;
   const loopLabel = formatLoopLabel(runRecord.runMode, runRecord.iteration);
   const visibleElapsedLabel = elapsedLabel;
+  const visibleTokenUsageLabel = formatTokenUsageLabel(
+    getConfirmedRunTokenUsage(visibleEvents, visibleNodeResults),
+  );
   const canCopyLog =
     visibleEvents.length > 0 || Object.keys(visibleNodeResults).length > 0;
   const hasLogContent = canCopyLog || approvals.length > 0;
@@ -448,6 +458,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
           activeNodeState={activeNodeState}
           activeNodeIdle={activeNodeIdle}
           elapsedLabel={visibleElapsedLabel}
+          tokenUsageLabel={visibleTokenUsageLabel}
           copyDisabled={!canCopyLog}
           copyFeedback={copyFeedback}
           onCopyLog={handleCopyLog}
@@ -479,6 +490,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
         activeNodeState={activeNodeState}
         activeNodeIdle={activeNodeIdle}
         elapsedLabel={visibleElapsedLabel}
+        tokenUsageLabel={visibleTokenUsageLabel}
         copyDisabled={!canCopyLog}
         copyFeedback={copyFeedback}
         onCopyLog={handleCopyLog}
@@ -549,6 +561,7 @@ export function LogPanel({ runtimeBridgeOverride, onCollapse }: LogPanelProps = 
             <span className="run-log__payload">
               {r.status}
               {r.exitCode != null ? ` (exit ${r.exitCode})` : ""}
+              {r.usage ? ` · ${formatTokenUsageLabel(r.usage)}` : ""}
               {r.summary ? ` - ${r.summary}` : ""}
             </span>
           </li>
@@ -676,6 +689,8 @@ function buildRunLogDisplayItems(
   const items: RunLogDisplayItem[] = [];
 
   for (const entry of events) {
+    if (entry.event.type === "token_usage") continue;
+
     if (
       entry.event.type === "approval_required" &&
       pendingApprovalIds.has(entry.event.requestId)
@@ -714,6 +729,7 @@ function buildRunLogDisplayItems(
 
 function formatEventType(ev: AgentRunEvent): string {
   if (ev.type === "approval_required") return "approval";
+  if (ev.type === "token_usage") return "tokens";
   return ev.type;
 }
 
@@ -733,6 +749,8 @@ function formatSummaryPayload(ev: AgentRunEvent): string {
       return ev.message;
     case "approval_required":
       return ev.prompt;
+    case "token_usage":
+      return formatTokenUsageLabel(ev.usage) ?? "";
     case "stdout":
     case "stderr":
       return ev.text;
@@ -959,7 +977,7 @@ function formatPayload(ev: AgentRunEvent): string {
 
 function formatRunLogForClipboard(
   events: { nodeId: string; event: AgentRunEvent }[],
-  nodeResults: Record<string, { status: string; exitCode?: number }>,
+  nodeResults: Record<string, SkillExecutionResult>,
   getNodeMeta: (nodeId: string) => RunLogNodeMeta,
 ): string {
   const lines = events.map((entry) =>
@@ -975,10 +993,80 @@ function formatRunLogForClipboard(
       result.exitCode != null
         ? `${result.status} (exit ${result.exitCode})`
         : result.status;
+    const usage = result.usage ? formatTokenUsageLabel(result.usage) : null;
     const meta = getNodeMeta(nodeId);
-    lines.push([meta.skillLabel, meta.model ?? "", "result", payload].join("\t"));
+    lines.push(
+      [
+        meta.skillLabel,
+        meta.model ?? "",
+        "result",
+        usage ? `${payload} · ${usage}` : payload,
+      ].join("\t"),
+    );
   }
   return lines.join("\n");
+}
+
+function getConfirmedRunTokenUsage(
+  events: { nodeId: string; event: AgentRunEvent }[],
+  nodeResults: Record<string, SkillExecutionResult>,
+): TokenUsage | null {
+  const byNode = new Map<string, TokenUsage>();
+  for (const entry of events) {
+    if (entry.event.type === "token_usage") {
+      byNode.set(entry.nodeId, entry.event.usage);
+    }
+  }
+  for (const [nodeId, result] of Object.entries(nodeResults)) {
+    if (result.usage) byNode.set(nodeId, result.usage);
+  }
+  if (byNode.size === 0) return null;
+  let totalTokens = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cachedInputTokens = 0;
+  let reasoningOutputTokens = 0;
+  let hasInput = false;
+  let hasOutput = false;
+  let hasCached = false;
+  let hasReasoning = false;
+  for (const usage of byNode.values()) {
+    totalTokens += usage.totalTokens;
+    if (usage.inputTokens != null) {
+      inputTokens += usage.inputTokens;
+      hasInput = true;
+    }
+    if (usage.outputTokens != null) {
+      outputTokens += usage.outputTokens;
+      hasOutput = true;
+    }
+    if (usage.cachedInputTokens != null) {
+      cachedInputTokens += usage.cachedInputTokens;
+      hasCached = true;
+    }
+    if (usage.reasoningOutputTokens != null) {
+      reasoningOutputTokens += usage.reasoningOutputTokens;
+      hasReasoning = true;
+    }
+  }
+  return {
+    totalTokens,
+    ...(hasInput ? { inputTokens } : {}),
+    ...(hasOutput ? { outputTokens } : {}),
+    ...(hasCached ? { cachedInputTokens } : {}),
+    ...(hasReasoning ? { reasoningOutputTokens } : {}),
+  };
+}
+
+function formatTokenUsageLabel(usage: TokenUsage | null): string | null {
+  if (!usage) return null;
+  return `${formatTokenCount(usage.totalTokens)} tokens`;
+}
+
+function formatTokenCount(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(Math.round(value));
 }
 
 function readRunLogModel(value: unknown): string | undefined {

@@ -2,9 +2,11 @@ import type { RuntimeBridge } from "../bridge/RuntimeBridge";
 import type {
   AdapterAvailability,
   AgentAdapter,
+  AgentRunEvent,
   AgentRunEventSink,
   SkillExecutionContext,
   SkillExecutionResult,
+  TokenUsage,
 } from "./AgentAdapter";
 import { buildSkillPrompt } from "./buildSkillPrompt";
 import { probeViaBridge, runViaBridge } from "./runViaBridge";
@@ -14,26 +16,48 @@ import { probeViaBridge, runViaBridge } from "./runViaBridge";
 // 전문을 포함하므로, 그 echo 가 Run Log 에 그대로 흘러나오면 스킬 본문이 통째로
 // 한 줄씩 찍힌다. 마커 두 줄과 그 사이 본문만 떨궈내고 나머지 stderr (메타데이터
 // 배너, tokens used, 실제 에러) 는 그대로 통과시킨다.
-function wrapSinkDroppingPromptEcho(sink: AgentRunEventSink): AgentRunEventSink {
+function processCodexEventDroppingPromptEcho(): (
+  ev: AgentRunEvent,
+) => AgentRunEvent[] {
   let dropping = false;
+  let expectingTokenCount = false;
   return (ev) => {
     if (ev.type === "stderr") {
       const trimmed = ev.text.trim();
       if (!dropping) {
         if (trimmed === "user") {
           dropping = true;
-          return;
+          return [];
+        }
+        if (/^tokens used$/i.test(trimmed)) {
+          expectingTokenCount = true;
+          return [ev];
+        }
+        if (expectingTokenCount) {
+          expectingTokenCount = false;
+          const usage = parseCodexTokenUsageLine(trimmed);
+          return usage
+            ? [ev, { type: "token_usage", timestamp: ev.timestamp, usage }]
+            : [ev];
         }
       } else {
         if (trimmed === "codex") {
           dropping = false;
-          return;
+          return [];
         }
-        return;
+        return [];
       }
     }
-    sink(ev);
+    return [ev];
   };
+}
+
+function parseCodexTokenUsageLine(line: string): TokenUsage | null {
+  const normalized = line.replace(/,/g, "");
+  if (!/^\d+$/.test(normalized)) return null;
+  const totalTokens = Number(normalized);
+  if (!Number.isSafeInteger(totalTokens) || totalTokens < 0) return null;
+  return { totalTokens };
 }
 
 export interface CodexCommand {
@@ -141,7 +165,8 @@ export class CodexAdapter implements AgentAdapter {
       ctx,
       runId: this.newRunId(ctx),
       command,
-      sink: wrapSinkDroppingPromptEcho(sink),
+      sink,
+      processEvent: processCodexEventDroppingPromptEcho(),
     });
   }
 }

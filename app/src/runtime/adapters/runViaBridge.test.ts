@@ -259,6 +259,27 @@ describe("runViaBridge approval forwarding", () => {
     expect(result.summary).toBe("CIR-59 구현과 테스트를 완료했습니다.");
   });
 
+  it("keeps successful runs successful when no token usage is reported", async () => {
+    const bridge = createMockRuntimeBridge({
+      scenario: () => [
+        { event: { type: "started" } },
+        { event: { type: "stdout", text: "done\n" } },
+        { event: { type: "exited", exitCode: 0 } },
+      ],
+    });
+
+    const result = await runViaBridge({
+      bridge,
+      ctx: ctx(),
+      runId: "r-no-usage",
+      command: { command: "codex", args: ["exec", "p"] },
+      sink: () => {},
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.usage).toBeUndefined();
+  });
+
   it("keeps gh-auth-check successful when GitHub CLI is authenticated", async () => {
     const summary =
       "GitHub CLI 인증 확인 완료 — active account 가 contributor 로 설정되어 있습니다.";

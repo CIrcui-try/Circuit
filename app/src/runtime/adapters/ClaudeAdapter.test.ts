@@ -138,8 +138,8 @@ describe("ClaudeAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].stdinMode).toBe("null");
     const args = spawnCalls[0].args;
-    expect(args[0]).toBe("-p");
-    const prompt = args[1];
+    expect(args.slice(0, 3)).toEqual(["--output-format", "stream-json", "-p"]);
+    const prompt = args[3];
     expect(prompt).toContain("implement-feature");
     expect(prompt).toContain("Do the thing.");
     expect(prompt).toContain(`"prompt": "do the thing"`);
@@ -161,9 +161,11 @@ describe("ClaudeAdapter", () => {
       () => {},
     );
 
-    expect(spawnCalls[0].args.slice(0, 3)).toEqual([
+    expect(spawnCalls[0].args.slice(0, 5)).toEqual([
       "--model",
       "sonnet",
+      "--output-format",
+      "stream-json",
       "-p",
     ]);
   });
@@ -211,6 +213,59 @@ describe("ClaudeAdapter", () => {
     if (stderr.type === "stderr") expect(stderr.text).toBe("warn\n");
   });
 
+  it("captures Claude stream-json text and token usage without exposing raw JSON", async () => {
+    const usage = {
+      input_tokens: 100,
+      output_tokens: 23,
+      cache_read_input_tokens: 7,
+    };
+    const { bridge } = spy(() => [
+      { event: { type: "started" } },
+      {
+        event: {
+          type: "stdout",
+          text: `${JSON.stringify({
+            type: "assistant",
+            message: {
+              content: [{ type: "text", text: "done" }],
+              usage,
+            },
+          })}\n`,
+        },
+      },
+      { event: { type: "exited", exitCode: 0 } },
+    ]);
+    const adapter = new ClaudeAdapter({ bridge });
+    const received: AgentRunEvent[] = [];
+    const result = await adapter.run(makeContext(), (ev) => received.push(ev));
+
+    expect(received).toContainEqual(
+      expect.objectContaining({ type: "stdout", text: "done" }),
+    );
+    expect(received).toContainEqual(
+      expect.objectContaining({
+        type: "token_usage",
+        usage: {
+          totalTokens: 130,
+          inputTokens: 100,
+          outputTokens: 23,
+          cachedInputTokens: 7,
+        },
+      }),
+    );
+    expect(result.usage).toEqual({
+      totalTokens: 130,
+      inputTokens: 100,
+      outputTokens: 23,
+      cachedInputTokens: 7,
+    });
+    expect(
+      received.some(
+        (ev) => ev.type === "stdout" && ev.text.includes("input_tokens"),
+      ),
+    ).toBe(false);
+  });
+
   it("C10 — exited(0) yields status=success with logs, exitCode, timestamps populated", async () => {
     const { bridge } = spy(() => [
       { event: { type: "started" } },
@@ -251,7 +306,7 @@ describe("ClaudeAdapter", () => {
         },
       });
       await adapter.run(ctx, () => {});
-      const prompt = spawnCalls[0].args[1];
+      const prompt = spawnCalls[0].args[spawnCalls[0].args.length - 1] ?? "";
       expect(prompt).toContain("# Upstream Outputs");
       expect(prompt).toContain("## a  (status: success, exit: 0)");
       expect(prompt).toContain("plus_one: 1");

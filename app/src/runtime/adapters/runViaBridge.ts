@@ -10,6 +10,7 @@ import type {
   AgentRunEventSink,
   SkillExecutionContext,
   SkillExecutionResult,
+  TokenUsage,
 } from "./AgentAdapter";
 
 const STDIN_WAITING_RE = /Reading additional input from stdin/i;
@@ -127,25 +128,39 @@ export interface RunViaBridgeOptions {
   runId: string;
   command: BridgeCommand;
   sink: AgentRunEventSink;
+  processEvent?: (event: AgentRunEvent) => AgentRunEvent[];
 }
 
 export function runViaBridge(
   opts: RunViaBridgeOptions,
 ): Promise<SkillExecutionResult> {
-  const { bridge, ctx, runId, command, sink } = opts;
+  const { bridge, ctx, runId, command, sink, processEvent } = opts;
   const { command: cmd, args } = command;
   let spawnCommand = cmd;
   const startedAt = new Date().toISOString();
 
   const logs: AgentRunEvent[] = [];
   let summary: string | undefined;
-  const emit = (ev: AgentRunEvent) => {
-    logs.push(ev);
-    sink(ev);
+  let usage: TokenUsage | undefined;
+  const emit = (ev: AgentRunEvent): AgentRunEvent[] => {
+    const events = processEvent ? processEvent(ev) : [ev];
+    for (const event of events) {
+      logs.push(event);
+      if (event.type === "token_usage") usage = event.usage;
+      sink(event);
+    }
+    return events;
   };
   const recordSummary = (text: string) => {
     const extracted = extractCircuitSummary(text);
     if (extracted != null) summary = extracted;
+  };
+  const recordOutputSummaries = (events: AgentRunEvent[]) => {
+    for (const event of events) {
+      if (event.type === "stdout" || event.type === "stderr") {
+        recordSummary(event.text);
+      }
+    }
   };
 
   return new Promise<SkillExecutionResult>((resolve) => {
@@ -160,6 +175,7 @@ export function runViaBridge(
         status: partial.status,
         exitCode: partial.exitCode,
         summary,
+        usage,
         logs,
         startedAt,
         finishedAt: new Date().toISOString(),
@@ -179,12 +195,17 @@ export function runViaBridge(
           });
           return;
         case "stdout":
-          emit({ type: "stdout", timestamp: ev.timestamp, text: ev.text });
-          recordSummary(ev.text);
+          recordOutputSummaries(
+            emit({ type: "stdout", timestamp: ev.timestamp, text: ev.text }),
+          );
           return;
         case "stderr": {
-          emit({ type: "stderr", timestamp: ev.timestamp, text: ev.text });
-          recordSummary(ev.text);
+          const emitted = emit({
+            type: "stderr",
+            timestamp: ev.timestamp,
+            text: ev.text,
+          });
+          recordOutputSummaries(emitted);
           if (STDIN_WAITING_RE.test(ev.text)) {
             void bridge.closeInput(runId).catch((err: unknown) => {
               if (settled) return;
@@ -200,7 +221,12 @@ export function runViaBridge(
           // need to know about it. Each match becomes its own non-terminal
           // approval_required event so multi-prompt sessions surface every
           // request.
-          const approvals = detectApprovalPromptsInChunk(ev.text);
+          const approvals = emitted
+            .filter(
+              (event): event is Extract<AgentRunEvent, { type: "stderr" }> =>
+                event.type === "stderr",
+            )
+            .flatMap((event) => detectApprovalPromptsInChunk(event.text));
           for (const detected of approvals) {
             emit({
               type: "approval_required",

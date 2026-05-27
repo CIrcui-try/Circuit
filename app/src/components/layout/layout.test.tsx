@@ -161,6 +161,61 @@ describe("Layout shell", () => {
     );
   });
 
+  it("LogPanel header shows confirmed token usage next to elapsed time", () => {
+    useRunStore.setState({
+      status: "success",
+      runId: "run_abcdef123",
+      workflowId: "wf",
+      workflowName: null,
+      repositoryId: null,
+      repositoryName: null,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: {},
+      nodeDebug: {},
+      snapshot: null,
+    });
+    useRunLogStore.getState().beginRun({ runId: "run_abcdef123", workflowId: "wf" });
+    useRunLogStore.getState().appendEvent("node-a", {
+      type: "token_usage",
+      timestamp: "t1",
+      usage: { totalTokens: 22708 },
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
+      "run run_abcd · success · 0:05 · 22.7k tokens",
+    );
+  });
+
+  it("LogPanel omits token usage when no provider usage has been reported", () => {
+    useRunStore.setState({
+      status: "success",
+      runId: "run_abcdef123",
+      workflowId: "wf",
+      workflowName: null,
+      repositoryId: null,
+      repositoryName: null,
+      startedAt: "2026-05-09T00:00:00.000Z",
+      finishedAt: "2026-05-09T00:00:05.000Z",
+      activeNodeId: null,
+      nodeStates: {},
+      nodeDebug: {},
+      snapshot: null,
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-run-state")).toHaveTextContent(
+      "run run_abcd · success · 0:05",
+    );
+    expect(screen.getByTestId("run-log-run-state")).not.toHaveTextContent(
+      "tokens",
+    );
+  });
+
   it("LogPanel copies the visible run log and node results", async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
     Object.defineProperty(navigator, "clipboard", {
@@ -594,6 +649,24 @@ describe("Layout shell", () => {
     expect(result).toHaveTextContent("node-a");
     expect(result).toHaveTextContent("failed (exit 2)");
     expect(result).toHaveClass("run-log__line--result-failed");
+  });
+
+  it("LogPanel includes node token usage in result rows", () => {
+    useRunLogStore.getState().beginRun({ runId: "run_42", workflowId: "wf" });
+    useRunLogStore.getState().setNodeResult("node-a", {
+      status: "success",
+      exitCode: 0,
+      usage: { totalTokens: 3100 },
+      logs: [],
+      startedAt: "t1",
+      finishedAt: "t2",
+    });
+
+    render(<LogPanel />);
+
+    expect(screen.getByTestId("run-log-result")).toHaveTextContent(
+      "success (exit 0) · 3.1k tokens",
+    );
   });
 
   it("LogPanel includes node result summaries in the result row", () => {

@@ -3,9 +3,15 @@ import type {
   AgentRunEvent,
   SkillExecutionContext,
   SkillExecutionResult,
+  TokenUsage,
 } from "../contracts/SkillExecution";
 
-export type { AgentRunEvent, SkillExecutionContext, SkillExecutionResult };
+export type {
+  AgentRunEvent,
+  SkillExecutionContext,
+  SkillExecutionResult,
+  TokenUsage,
+};
 
 export interface AdapterAvailability {
   ok: boolean;
