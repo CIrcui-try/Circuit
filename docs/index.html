@@ -195,30 +195,41 @@
       }
 
       .hero {
+        min-height: calc(100svh - 72px);
+        display: grid;
+        place-items: center;
         position: relative;
         overflow: hidden;
-        padding: 112px 0 76px;
+        padding: clamp(76px, 10vh, 132px) 0;
+        isolation: isolate;
       }
 
       .hero::before {
         position: absolute;
-        inset: 34px 0 auto;
-        height: 360px;
+        inset: 0;
         pointer-events: none;
         content: "";
         background:
-          linear-gradient(100deg, transparent, rgba(99, 199, 255, 0.16), rgba(67, 217, 173, 0.1), transparent);
-        filter: blur(42px);
-        opacity: 0.82;
-        transform: skewY(-7deg);
+          linear-gradient(118deg, transparent 18%, rgba(67, 217, 173, 0.16) 34%, transparent 48%),
+          linear-gradient(126deg, transparent 26%, rgba(99, 199, 255, 0.14) 44%, transparent 58%),
+          linear-gradient(132deg, transparent 40%, rgba(157, 167, 255, 0.1) 56%, transparent 70%);
+        filter: blur(18px);
+        opacity: 0.9;
       }
 
       .hero-grid {
         position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-        align-items: center;
-        gap: 68px;
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .hero-grid > div {
+        z-index: 2;
+        display: grid;
+        justify-items: center;
+        max-width: 860px;
       }
 
       .eyebrow {
@@ -246,62 +257,38 @@
       }
 
       h1 {
-        max-width: 760px;
-        margin-bottom: 22px;
-        font-size: clamp(44px, 7vw, 92px);
+        max-width: 980px;
+        margin-bottom: 24px;
+        font-size: clamp(72px, 11vw, 148px);
         line-height: 0.95;
         letter-spacing: 0;
-        text-shadow: 0 18px 70px rgba(99, 199, 255, 0.16);
+        text-shadow:
+          0 18px 70px rgba(99, 199, 255, 0.2),
+          0 2px 0 rgba(255, 255, 255, 0.05);
       }
 
       .hero-copy {
-        max-width: 660px;
-        margin: 18px 0 0;
-        color: #c6d0df;
-        font-size: 20px;
+        max-width: 780px;
+        margin: 0;
+        color: #d2d9e5;
+        font-size: clamp(20px, 2.2vw, 28px);
+        line-height: 1.35;
       }
 
       .hero-actions {
         display: flex;
+        justify-content: center;
         flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 36px;
-      }
-
-      .hero-points {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px;
-        margin-top: 38px;
-      }
-
-      .hero-point {
-        min-height: 96px;
-        padding: 16px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.11),
-          0 16px 42px rgba(0, 0, 0, 0.18);
-        backdrop-filter: blur(20px) saturate(130%);
-      }
-
-      .hero-point strong {
-        display: block;
-        margin-bottom: 4px;
-        font-size: 14px;
-      }
-
-      .hero-point span {
-        display: block;
-        color: var(--muted);
-        font-size: 13px;
+        margin-top: 42px;
       }
 
       .product-frame {
-        position: relative;
+        position: absolute;
+        z-index: 1;
+        top: 47%;
+        left: 50%;
+        width: min(1080px, 74vw);
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 8px;
         background:
@@ -309,6 +296,11 @@
         box-shadow: var(--shadow);
         overflow: hidden;
         backdrop-filter: blur(26px) saturate(140%);
+        filter: saturate(1.08);
+        opacity: 0.38;
+        pointer-events: none;
+        transform: translate(-50%, -21%) perspective(1200px) rotateX(57deg) rotateZ(-7deg) scale(1.08);
+        transform-origin: center;
       }
 
       .product-frame::after {
@@ -337,23 +329,6 @@
         width: 100%;
         aspect-ratio: 2744 / 1280;
         object-fit: cover;
-      }
-
-      .signal-strip {
-        padding: 32px 0 0;
-        color: var(--soft);
-        font-size: 13px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .signal-strip .shell {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 20px;
-        padding-top: 24px;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
       }
 
       .section {
@@ -642,7 +617,6 @@
       }
 
       @media (max-width: 980px) {
-        .hero-grid,
         .section-head,
         .showcase,
         .publish,
@@ -656,13 +630,17 @@
           order: initial;
         }
 
-        .feature-grid,
-        .hero-points {
+        .feature-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .hero {
-          padding-top: 76px;
+          min-height: calc(100svh - 72px);
+        }
+
+        .product-frame {
+          width: min(940px, 112vw);
+          opacity: 0.28;
         }
       }
 
@@ -682,15 +660,16 @@
         }
 
         .hero {
-          padding: 56px 0 48px;
+          min-height: calc(100svh - 64px);
+          padding: 64px 0;
         }
 
         h1 {
-          font-size: 42px;
+          font-size: 72px;
         }
 
         .hero-copy {
-          font-size: 17px;
+          font-size: 19px;
         }
 
         .hero-actions {
@@ -702,8 +681,7 @@
           width: 100%;
         }
 
-        .feature-grid,
-        .hero-points {
+        .feature-grid {
           grid-template-columns: 1fr;
         }
 
@@ -715,10 +693,15 @@
           margin-bottom: 34px;
         }
 
-        .signal-strip .shell,
         .footer-inner {
           align-items: flex-start;
           flex-direction: column;
+        }
+
+        .product-frame {
+          top: 53%;
+          width: 720px;
+          opacity: 0.22;
         }
 
         .publish-copy {
@@ -762,20 +745,6 @@
                 View repository
               </a>
             </div>
-            <div class="hero-points" aria-label="Product highlights">
-              <div class="hero-point">
-                <strong>Repository native</strong>
-                <span>Reads `.claude/skills` and `.codex/skills` where they already live.</span>
-              </div>
-              <div class="hero-point">
-                <strong>Visual execution</strong>
-                <span>Canvas state and run logs make progress and failures visible.</span>
-              </div>
-              <div class="hero-point">
-                <strong>Desktop first</strong>
-                <span>Built for local repositories, Tauri host APIs, and real agent runs.</span>
-              </div>
-            </div>
           </div>
           <figure class="product-frame" aria-label="Circuit harness editor screenshot">
             <img
@@ -783,12 +752,6 @@
               alt="Circuit desktop app showing a skill workflow canvas and run controls"
             >
           </figure>
-        </div>
-        <div class="signal-strip">
-          <div class="shell">
-            <span>Static page, real app media, no browser demo shell</span>
-            <span>macOS and Windows via Tauri</span>
-          </div>
         </div>
       </section>
 
