@@ -53,18 +53,18 @@ function createDeferred<T>() {
 }
 
 describe("RepositoryList", () => {
-  it("shows the primary repository action without the old hero copy", () => {
+  it("shows a work-hub header with the primary repository action", () => {
     renderWithRouter(<RepositoryList />);
 
     expect(
-      screen.queryByRole("heading", { name: "Observe every run." }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("heading", { name: "Observe every run." }),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByText("Skill-Based AI Agent Harness Editor"),
-    ).not.toBeInTheDocument();
+      screen.getByText("Skill-Based AI Agent Harness Editor"),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByText("Run agent workflows across your repositories."),
-    ).not.toBeInTheDocument();
+      screen.getByText("Run agent workflows across your repositories."),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("add-repository-button")).toHaveTextContent(
       "Add Repository",
     );
