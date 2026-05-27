@@ -291,14 +291,41 @@
       }
 
       .section {
+        position: relative;
         padding: 128px 0;
       }
 
       .section.alt {
+        background: transparent;
+      }
+
+      .section + .section::before {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: min(1080px, calc(100% - 40px));
+        height: 72px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        content: "";
         background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          radial-gradient(ellipse at 58% 50%, rgba(67, 217, 173, 0.18), transparent 46%),
+          radial-gradient(ellipse at 72% 50%, rgba(99, 199, 255, 0.16), transparent 42%),
+          linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 14%, rgba(67, 217, 173, 0.58) 45%, rgba(99, 199, 255, 0.48) 58%, rgba(157, 167, 255, 0.28) 70%, rgba(255, 255, 255, 0.08) 86%, transparent 100%),
+          linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 18%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0.1) 82%, transparent 100%);
+        background-position:
+          center,
+          center,
+          center,
+          center calc(50% + 1px);
+        background-size:
+          100% 100%,
+          100% 100%,
+          100% 1px,
+          100% 1px;
+        background-repeat: no-repeat;
+        filter: drop-shadow(0 0 18px rgba(67, 217, 173, 0.24)) drop-shadow(0 0 24px rgba(99, 199, 255, 0.14));
+        opacity: 0.9;
       }
 
       .section-head {
@@ -452,15 +479,18 @@
         align-items: center;
       }
 
-      .video-row:nth-child(even) {
+      .video-row:nth-child(even),
+      .video-row.reversed {
         grid-template-columns: minmax(0, 1fr) minmax(280px, 0.68fr);
       }
 
-      .video-row:nth-child(even) .media-copy {
+      .video-row:nth-child(even) .media-copy,
+      .video-row.reversed .media-copy {
         order: 2;
       }
 
-      .video-row:nth-child(even) .media-panel {
+      .video-row:nth-child(even) .media-panel,
+      .video-row.reversed .media-panel {
         order: 1;
       }
 
@@ -513,12 +543,15 @@
         .section-head,
         .showcase,
         .video-row,
-        .video-row:nth-child(even) {
+        .video-row:nth-child(even),
+        .video-row.reversed {
           grid-template-columns: 1fr;
         }
 
         .video-row:nth-child(even) .media-copy,
-        .video-row:nth-child(even) .media-panel {
+        .video-row:nth-child(even) .media-panel,
+        .video-row.reversed .media-copy,
+        .video-row.reversed .media-panel {
           order: initial;
         }
 
@@ -577,6 +610,11 @@
           padding: 84px 0;
         }
 
+        .section + .section::before {
+          width: min(100% - 28px, 1160px);
+          height: 52px;
+        }
+
         .section-head {
           margin-bottom: 34px;
         }
@@ -599,6 +637,7 @@
           <a href="#workflows">Workflows</a>
           <a href="#runs">Runs</a>
           <a href="#loops">Loops</a>
+          <a href="#agents">Agents</a>
           <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">Repository</a>
         </nav>
       </div>
@@ -735,7 +774,7 @@
       </section>
 
       <section class="section" id="loops" aria-labelledby="loops-title">
-        <div class="shell video-stack">
+        <div class="shell">
           <div class="video-row">
             <div class="media-copy">
               <p class="section-kicker">Loop handling</p>
@@ -763,10 +802,15 @@
               ></video>
             </div>
           </div>
-          <div class="video-row">
+        </div>
+      </section>
+
+      <section class="section" id="agents" aria-labelledby="agents-title">
+        <div class="shell">
+          <div class="video-row reversed">
             <div class="media-copy">
               <p class="section-kicker">Claude and Codex</p>
-              <h2>Use multiple agent skill systems in one workflow.</h2>
+              <h2 id="agents-title">Use multiple agent skill systems in one workflow.</h2>
               <p>
                 Circuit reads Claude and Codex skill directories from the local project
                 and treats them as execution capabilities that belong in the same
