@@ -640,6 +640,52 @@ describe("workflowStore", () => {
     expect(useWorkflowStore.getState().nodes.map((node) => node.id)).toEqual([id]);
   });
 
+  it("WS17a: changeRepositorySkillRef updates matching repository nodes and clears model", () => {
+    const first = useWorkflowStore.getState().addSkillNode(
+      {
+        ...claudeSkill,
+        skillFileAbsPath: "/repo/.claude/skills/foo/SKILL.md",
+      },
+      { x: 0, y: 0 },
+    );
+    const second = useWorkflowStore.getState().addSkillNode(
+      {
+        ...claudeSkill,
+        skillFileAbsPath: "/repo/.claude/skills/foo/SKILL.md",
+      },
+      { x: 100, y: 0 },
+    );
+    useWorkflowStore.getState().addSkillNode(codexSkill, { x: 200, y: 0 });
+    useWorkflowStore.getState().setNodeInput(first, { prompt: "Keep input" });
+    useWorkflowStore.getState().setNodeModel(first, "sonnet");
+    useWorkflowStore.getState().setNodeModel(second, "opus");
+
+    useWorkflowStore.getState().changeRepositorySkillRef({
+      provider: "claude",
+      skillFile: ".claude/skills/foo/SKILL.md",
+      nextProvider: "codex",
+      nextSkillFile: ".codex/skills/foo/SKILL.md",
+      nextSkillFileAbsPath: "/repo/.codex/skills/foo/SKILL.md",
+    });
+
+    const nodes = useWorkflowStore.getState().nodes;
+    expect(nodes[0].data.skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/foo/SKILL.md",
+      skillFileAbsPath: "/repo/.codex/skills/foo/SKILL.md",
+    });
+    expect(nodes[0].data.input).toEqual({ prompt: "Keep input" });
+    expect(nodes[0].data.execution).toBeUndefined();
+    expect(nodes[1].data.skillRef.provider).toBe("codex");
+    expect(nodes[1].data.execution).toBeUndefined();
+    expect(nodes[2].data.skillRef).toEqual({
+      source: "repository",
+      provider: "codex",
+      skillFile: ".codex/skills/bar/SKILL.md",
+    });
+  });
+
   it("WS18: undo and redo restore workflow edges", () => {
     const a = useWorkflowStore.getState().addSkillNode(claudeSkill, { x: 0, y: 0 });
     const b = useWorkflowStore.getState().addSkillNode(codexSkill, { x: 100, y: 0 });

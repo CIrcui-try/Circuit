@@ -2851,6 +2851,37 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.properties__provider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.properties__inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  color: #a8a8ae;
+  background: #28292e;
+  border: 1px solid #3b3c42;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.properties__inline-action-icon {
+  flex: 0 0 auto;
+}
+
+.properties__inline-action:hover {
+  color: #c6c6cc;
+  background: #303137;
+  border-color: #4b4c53;
+}
+
 .properties__field {
   display: flex;
   min-width: 0;
@@ -3051,6 +3082,12 @@ a:hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.modal__footer .button-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .run-log__past {

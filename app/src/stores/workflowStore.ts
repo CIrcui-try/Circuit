@@ -70,6 +70,13 @@ type WorkflowState = {
   addSkillNode: (skill: Skill, position: XYPosition) => string;
   setNodeInput: (nodeId: string, input: Record<string, unknown> | null) => void;
   setNodeModel: (nodeId: string, model: string | null) => void;
+  changeRepositorySkillRef: (args: {
+    provider: SkillProvider;
+    skillFile: string;
+    nextProvider: SkillProvider;
+    nextSkillFile: string;
+    nextSkillFileAbsPath?: string;
+  }) => void;
   selectNode: (id: string | null) => void;
   selectEdge: (id: string | null) => void;
   deleteNode: (nodeId: string) => void;
@@ -530,6 +537,49 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         }
         return { ...n, data };
       }) as SkillNode[];
+      return {
+        ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
+        nodes: nextNodes,
+      };
+    });
+  },
+
+  changeRepositorySkillRef: (args) => {
+    set((s) => {
+      const nextNodes = s.nodes.map((n) => {
+        const source = n.data.skillRef.source ?? "repository";
+        if (
+          source !== "repository" ||
+          n.data.skillRef.provider !== args.provider ||
+          n.data.skillRef.skillFile !== args.skillFile
+        ) {
+          return n;
+        }
+
+        const data = { ...n.data };
+        const skillRef = {
+          ...data.skillRef,
+          provider: args.nextProvider,
+          skillFile: args.nextSkillFile,
+        };
+        if (args.nextSkillFileAbsPath) {
+          skillRef.skillFileAbsPath = args.nextSkillFileAbsPath;
+        } else {
+          delete skillRef.skillFileAbsPath;
+        }
+        data.skillRef = skillRef;
+        if (data.execution) {
+          const execution = { ...data.execution };
+          delete execution.model;
+          if (Object.keys(execution).length > 0) {
+            data.execution = execution;
+          } else {
+            delete data.execution;
+          }
+        }
+        return { ...n, data };
+      }) as SkillNode[];
+
       return {
         ...historyPrefixIfChanged(s, { nodes: nextNodes, edges: s.edges }),
         nodes: nextNodes,
