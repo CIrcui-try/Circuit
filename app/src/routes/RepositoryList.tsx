@@ -137,15 +137,6 @@ export function RepositoryList() {
   return (
     <div className="repository-list">
       <header className="repository-list__hero">
-        <div className="repository-list__hero-copy">
-          <span className="repository-list__eyebrow">
-            Skill-Based AI Agent Harness Editor
-          </span>
-          <h1 className="repository-list__title">Observe every run.</h1>
-          <p className="repository-list__subtitle">
-            Run agent workflows across your repositories.
-          </p>
-        </div>
         <div className="repository-list__hero-actions">
           <button
             type="button"

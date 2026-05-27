@@ -1344,39 +1344,9 @@ a:hover {
 
 .repository-list__hero {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 20px;
-}
-
-.repository-list__hero-copy {
-  min-width: 0;
-}
-
-.repository-list__eyebrow {
-  display: block;
-  margin-bottom: 6px;
-  color: #9db7ff;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.repository-list__title {
-  margin: 0;
-  color: #f4f4f6;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.repository-list__subtitle {
-  margin: 8px 0 0;
-  max-width: 520px;
-  color: #b3b3bc;
-  font-size: 14px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .repository-list__hero-actions {
@@ -1650,8 +1620,6 @@ a:hover {
 
   .repository-list__hero {
     align-items: stretch;
-    flex-direction: column;
-    gap: 14px;
   }
 
   .repository-list__hero-actions {
