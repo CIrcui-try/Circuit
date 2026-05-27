@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { notifyAppError } from "../components/AppErrorAlert";
 import { CliStatusPanel } from "../components/CliStatusPanel";
+import circuitGraphicLogo from "../../../docs/assets/readme/circuit-graphic-logo.png";
 import { getHostBridge } from "../host/bridge";
 import { useRunStore } from "../runner/runStore";
 import type { RunRecord } from "../runner/runStore";
@@ -141,10 +142,13 @@ export function RepositoryList() {
           <span className="repository-list__eyebrow">
             Skill-Based AI Agent Harness Editor
           </span>
-          <h1 className="repository-list__title">Observe every run.</h1>
-          <p className="repository-list__subtitle">
-            Run agent workflows across your repositories.
-          </p>
+          <h1 className="repository-list__title">
+            <img
+              className="repository-list__logo"
+              src={circuitGraphicLogo}
+              alt="Circuit"
+            />
+          </h1>
         </div>
         <div className="repository-list__hero-actions">
           <button

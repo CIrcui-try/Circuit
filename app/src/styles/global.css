@@ -1372,6 +1372,12 @@ a:hover {
   line-height: 1.1;
 }
 
+.repository-list__logo {
+  display: block;
+  width: min(260px, 100%);
+  height: auto;
+}
+
 .repository-list__subtitle {
   margin: 8px 0 0;
   max-width: 520px;
@@ -1392,6 +1398,7 @@ a:hover {
   min-height: 34px;
   border-radius: 7px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .repository-list__primary-action {
