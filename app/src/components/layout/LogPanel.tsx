@@ -970,6 +970,8 @@ function formatPayload(ev: AgentRunEvent): string {
       return ev.status;
     case "approval_required":
       return ev.prompt;
+    case "token_usage":
+      return formatTokenUsageLabel(ev.usage) ?? "";
     default:
       return "";
   }

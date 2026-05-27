@@ -244,6 +244,11 @@ describe("Layout shell", () => {
       timestamp: "t2",
       status: "running command",
     });
+    useRunLogStore.getState().appendEvent(nodeA, {
+      type: "token_usage",
+      timestamp: "t3",
+      usage: { totalTokens: 26_097 },
+    });
     useRunLogStore.getState().setNodeResult(nodeA, {
       status: "success",
       exitCode: 0,
@@ -261,6 +266,7 @@ describe("Layout shell", () => {
     const copied = writeText.mock.calls[0][0];
     expect(copied).toContain("Foo\t\tstdout\thello from stdout");
     expect(copied).toContain("node-b\t\tstatus\trunning command");
+    expect(copied).toContain("Foo\t\ttoken_usage\t26.1k tokens");
     expect(copied).toContain("Foo\t\tresult\tsuccess (exit 0)");
     expect(await screen.findByTestId("run-log-copy-feedback")).toHaveTextContent(
       "Copied",

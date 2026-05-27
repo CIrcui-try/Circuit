@@ -138,8 +138,13 @@ describe("ClaudeAdapter", () => {
     await adapter.run(makeContext(), () => {});
     expect(spawnCalls[0].stdinMode).toBe("null");
     const args = spawnCalls[0].args;
-    expect(args.slice(0, 3)).toEqual(["--output-format", "stream-json", "-p"]);
-    const prompt = args[3];
+    expect(args.slice(0, 4)).toEqual([
+      "--verbose",
+      "--output-format",
+      "stream-json",
+      "-p",
+    ]);
+    const prompt = args[4];
     expect(prompt).toContain("implement-feature");
     expect(prompt).toContain("Do the thing.");
     expect(prompt).toContain(`"prompt": "do the thing"`);
@@ -161,9 +166,10 @@ describe("ClaudeAdapter", () => {
       () => {},
     );
 
-    expect(spawnCalls[0].args.slice(0, 5)).toEqual([
+    expect(spawnCalls[0].args.slice(0, 6)).toEqual([
       "--model",
       "sonnet",
+      "--verbose",
       "--output-format",
       "stream-json",
       "-p",
@@ -318,7 +324,7 @@ describe("ClaudeAdapter", () => {
       ]);
       const adapter = new ClaudeAdapter({ bridge });
       await adapter.run(makeContext(), () => {});
-      const prompt = spawnCalls[0].args[1];
+      const prompt = spawnCalls[0].args[spawnCalls[0].args.length - 1] ?? "";
       expect(prompt).not.toContain("# Upstream Outputs");
     });
   });

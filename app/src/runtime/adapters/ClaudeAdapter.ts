@@ -46,7 +46,7 @@ function defaultBuildCommand(
     : [];
   return {
     command: "claude",
-    args: [...modelArgs, "--output-format", "stream-json", "-p", prompt],
+    args: [...modelArgs, "--verbose", "--output-format", "stream-json", "-p", prompt],
     stdinMode: "null",
   };
 }
