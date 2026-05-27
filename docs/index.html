@@ -9,6 +9,78 @@
     >
     <title>Circuit - Skill-Based AI Agent Harness Editor</title>
     <style>
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Thin.woff2")
+          format("woff2");
+        font-weight: 100;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraLight.woff2")
+          format("woff2");
+        font-weight: 200;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Light.woff2")
+          format("woff2");
+        font-weight: 300;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Regular.woff2")
+          format("woff2");
+        font-weight: 400;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Medium.woff2")
+          format("woff2");
+        font-weight: 500;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-SemiBold.woff2")
+          format("woff2");
+        font-weight: 600;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Bold.woff2")
+          format("woff2");
+        font-weight: 700;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraBold.woff2")
+          format("woff2");
+        font-weight: 800;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Pretendard";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Black.woff2")
+          format("woff2");
+        font-weight: 900;
+        font-display: swap;
+      }
+
       :root {
         color-scheme: dark;
         --bg: #05060a;
@@ -49,8 +121,8 @@
           var(--bg);
         color: var(--text);
         font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
+          "Pretendard", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
         line-height: 1.5;
       }
 
@@ -274,14 +346,14 @@
         position: relative;
         display: grid;
         grid-template-columns: 1fr;
-        justify-items: center;
-        text-align: center;
+        justify-items: start;
+        text-align: left;
       }
 
       .hero-grid > div {
         z-index: 2;
         display: grid;
-        justify-items: center;
+        justify-items: start;
         max-width: 860px;
       }
 
@@ -303,6 +375,10 @@
           0 2px 0 rgba(255, 255, 255, 0.05);
       }
 
+      h1 span {
+        display: block;
+      }
+
       .hero-copy {
         max-width: 780px;
         margin: 0;
@@ -313,7 +389,7 @@
 
       .hero-actions {
         display: flex;
-        justify-content: center;
+        justify-content: flex-start;
         flex-wrap: wrap;
         gap: 16px;
         margin-top: 42px;
@@ -877,7 +953,10 @@
       <section class="hero" aria-labelledby="hero-title">
         <div class="shell hero-grid">
           <div>
-            <h1 id="hero-title">Observe every run.</h1>
+            <h1 id="hero-title">
+              <span>Observe</span>
+              <span>every run.</span>
+            </h1>
             <p class="hero-copy">
               Turn Claude and Codex skills in your repository into visible, repeatable,
               controllable development workflows.
@@ -943,8 +1022,7 @@
         <div class="shell showcase">
           <div class="media-panel">
             <video
-              src="https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef"
-              autoplay
+              src="assets/media/1.mp4"
               loop
               muted
               playsinline
@@ -997,8 +1075,7 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f"
-                autoplay
+                src="assets/media/2.mp4"
                 loop
                 muted
                 playsinline
@@ -1029,8 +1106,7 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/4436fe4f-ec41-4ebb-a8a5-5e99944e1604"
-                autoplay
+                src="assets/media/3.mp4"
                 loop
                 muted
                 playsinline
@@ -1061,8 +1137,7 @@
             </div>
             <div class="media-panel">
               <video
-                src="https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd"
-                autoplay
+                src="assets/media/4.mp4"
                 loop
                 muted
                 playsinline
@@ -1112,5 +1187,43 @@
         </div>
       </div>
     </footer>
+    <script>
+      const videos = document.querySelectorAll("video");
+
+      const playVideo = (video) => {
+        video.muted = true;
+        video.playsInline = true;
+        const playPromise = video.play();
+
+        if (playPromise) {
+          playPromise.catch(() => {});
+        }
+      };
+
+      if ("IntersectionObserver" in window) {
+        const videoObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              const video = entry.target;
+
+              if (entry.isIntersecting) {
+                playVideo(video);
+                return;
+              }
+
+              video.pause();
+            });
+          },
+          { threshold: 0.35 },
+        );
+
+        videos.forEach((video) => {
+          video.pause();
+          videoObserver.observe(video);
+        });
+      } else {
+        videos.forEach(playVideo);
+      }
+    </script>
   </body>
 </html>
