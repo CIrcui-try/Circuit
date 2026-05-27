@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Circuit is a local-first desktop app for turning Claude and Codex skills into visible, repeatable agent workflows."
+    >
+    <title>Circuit - Skill-Based AI Agent Harness Editor</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #080a0f;
+        --bg-soft: #10141c;
+        --panel: #151b24;
+        --panel-strong: #1c2430;
+        --line: rgba(255, 255, 255, 0.12);
+        --line-strong: rgba(255, 255, 255, 0.22);
+        --text: #f4f7fb;
+        --muted: #aab4c2;
+        --soft: #6f7c8e;
+        --mint: #43d9ad;
+        --cyan: #63c7ff;
+        --amber: #f2b461;
+        --rose: #f17d8f;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          linear-gradient(180deg, rgba(67, 217, 173, 0.08), transparent 34rem),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        line-height: 1.5;
+      }
+
+      img,
+      video {
+        display: block;
+        max-width: 100%;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .shell {
+        width: min(1160px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(8, 10, 15, 0.76);
+        backdrop-filter: blur(18px);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 72px;
+        gap: 24px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        font-weight: 750;
+        letter-spacing: 0;
+      }
+
+      .brand-mark {
+        width: 112px;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .nav-links a,
+      .button {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition:
+          border-color 160ms ease,
+          background 160ms ease,
+          color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .nav-links a {
+        padding: 0 12px;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .button {
+        gap: 9px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        font-weight: 700;
+        font-size: 14px;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        border-color: var(--line-strong);
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .button.primary {
+        border-color: rgba(67, 217, 173, 0.5);
+        background: linear-gradient(135deg, #d7fff2, #43d9ad);
+        color: #06120f;
+        box-shadow: 0 12px 36px rgba(67, 217, 173, 0.25);
+      }
+
+      .button.secondary {
+        color: #e5edf7;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 84px 0 48px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        align-items: center;
+        gap: 42px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        min-height: 32px;
+        padding: 0 11px;
+        border: 1px solid rgba(99, 199, 255, 0.32);
+        border-radius: 8px;
+        background: rgba(99, 199, 255, 0.09);
+        color: #d8f2ff;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin-bottom: 22px;
+        font-size: clamp(44px, 7vw, 92px);
+        line-height: 0.95;
+        letter-spacing: 0;
+      }
+
+      .hero-copy {
+        max-width: 660px;
+        margin: 18px 0 0;
+        color: #c6d0df;
+        font-size: 20px;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .hero-points {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .hero-point {
+        min-height: 96px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .hero-point strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      .hero-point span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .product-frame {
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .product-frame::before {
+        content: "";
+        display: block;
+        height: 36px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background:
+          linear-gradient(90deg, #f17d8f 12px, transparent 12px 24px, #f2b461 24px 36px, transparent 36px 48px, #43d9ad 48px 60px, transparent 60px),
+          rgba(255, 255, 255, 0.05);
+        background-position: 16px center;
+        background-repeat: no-repeat;
+      }
+
+      .product-frame img {
+        width: 100%;
+        aspect-ratio: 2744 / 1280;
+        object-fit: cover;
+      }
+
+      .signal-strip {
+        padding: 18px 0 0;
+        color: var(--soft);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .signal-strip .shell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .section {
+        padding: 92px 0;
+      }
+
+      .section.alt {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.52fr);
+        gap: 32px;
+        align-items: end;
+        margin-bottom: 34px;
+      }
+
+      .section-kicker {
+        margin-bottom: 12px;
+        color: var(--mint);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h2 {
+        max-width: 760px;
+        margin-bottom: 0;
+        font-size: clamp(32px, 4vw, 56px);
+        line-height: 1.02;
+        letter-spacing: 0;
+      }
+
+      .section-head p,
+      .wide-copy {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .feature-card {
+        min-height: 210px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .feature-card h3 {
+        margin-bottom: 10px;
+        font-size: 18px;
+      }
+
+      .feature-card p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .feature-icon {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 18px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: var(--panel-strong);
+        color: var(--mint);
+        font-weight: 900;
+      }
+
+      .showcase {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.72fr);
+        gap: 28px;
+        align-items: center;
+      }
+
+      .media-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #05070a;
+        box-shadow: var(--shadow);
+      }
+
+      .media-panel video {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        background: #05070a;
+      }
+
+      .media-copy {
+        display: grid;
+        gap: 14px;
+      }
+
+      .media-copy h3 {
+        margin-bottom: 0;
+        font-size: clamp(24px, 3vw, 36px);
+        line-height: 1.08;
+      }
+
+      .media-copy p {
+        margin-bottom: 0;
+        color: var(--muted);
+      }
+
+      .workflow-lines {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .workflow-lines code {
+        display: block;
+        min-height: 44px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.28);
+        color: #d9f7ee;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+        white-space: normal;
+      }
+
+      .video-stack {
+        display: grid;
+        gap: 34px;
+      }
+
+      .video-row {
+        display: grid;
+        grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1fr);
+        gap: 28px;
+        align-items: center;
+      }
+
+      .video-row:nth-child(even) {
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.68fr);
+      }
+
+      .video-row:nth-child(even) .media-copy {
+        order: 2;
+      }
+
+      .video-row:nth-child(even) .media-panel {
+        order: 1;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .tag {
+        min-height: 30px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 10px;
+        color: #dce5ef;
+        background: rgba(255, 255, 255, 0.055);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .publish {
+        display: grid;
+        grid-template-columns: minmax(0, 0.74fr) minmax(280px, 0.46fr);
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .publish-copy {
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(67, 217, 173, 0.13), rgba(255, 255, 255, 0.045));
+      }
+
+      .publish-copy p {
+        margin-bottom: 0;
+        color: #d4deea;
+        font-size: 18px;
+      }
+
+      .steps {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 36px 1fr;
+        gap: 12px;
+        align-items: start;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .step-number {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: rgba(242, 180, 97, 0.16);
+        color: var(--amber);
+        font-weight: 850;
+      }
+
+      .step strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .step span {
+        display: block;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .site-footer {
+        padding: 32px 0 42px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--soft);
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        font-size: 14px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+
+      .footer-links a:hover {
+        color: var(--text);
+      }
+
+      @media (max-width: 980px) {
+        .hero-grid,
+        .section-head,
+        .showcase,
+        .publish,
+        .video-row,
+        .video-row:nth-child(even) {
+          grid-template-columns: 1fr;
+        }
+
+        .video-row:nth-child(even) .media-copy,
+        .video-row:nth-child(even) .media-panel {
+          order: initial;
+        }
+
+        .feature-grid,
+        .hero-points {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .hero {
+          padding-top: 60px;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          width: min(100% - 28px, 1160px);
+        }
+
+        .nav {
+          min-height: auto;
+          padding: 14px 0;
+          align-items: flex-start;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .hero {
+          padding: 44px 0 36px;
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+
+        .hero-copy {
+          font-size: 17px;
+        }
+
+        .hero-actions {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .feature-grid,
+        .hero-points {
+          grid-template-columns: 1fr;
+        }
+
+        .section {
+          padding: 68px 0;
+        }
+
+        .section-head {
+          margin-bottom: 24px;
+        }
+
+        .signal-strip .shell,
+        .footer-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .publish-copy {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell nav">
+        <a class="brand" href="#top" aria-label="Circuit home">
+          <img class="brand-mark" src="assets/readme/circuit-graphic-logo.png" alt="">
+          <span class="sr-only">Circuit</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="#workflows">Workflows</a>
+          <a href="#runs">Runs</a>
+          <a href="#loops">Loops</a>
+          <a href="#publish">Pages</a>
+          <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">Repository</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="shell hero-grid">
+          <div>
+            <span class="eyebrow">Local-first desktop app for agent workflows</span>
+            <h1 id="hero-title">Circuit</h1>
+            <p class="hero-copy">
+              Turn Claude and Codex skills in your repository into visible, repeatable,
+              controllable development workflows.
+            </p>
+            <div class="hero-actions" aria-label="Primary actions">
+              <a class="button primary" href="https://github.com/CIrcui-try/Circuit/releases">
+                Download from Releases
+              </a>
+              <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">
+                View repository
+              </a>
+            </div>
+            <div class="hero-points" aria-label="Product highlights">
+              <div class="hero-point">
+                <strong>Repository native</strong>
+                <span>Reads `.claude/skills` and `.codex/skills` where they already live.</span>
+              </div>
+              <div class="hero-point">
+                <strong>Visual execution</strong>
+                <span>Canvas state and run logs make progress and failures visible.</span>
+              </div>
+              <div class="hero-point">
+                <strong>Desktop first</strong>
+                <span>Built for local repositories, Tauri host APIs, and real agent runs.</span>
+              </div>
+            </div>
+          </div>
+          <figure class="product-frame" aria-label="Circuit harness editor screenshot">
+            <img
+              src="assets/readme/circuit-harness-editor.png"
+              alt="Circuit desktop app showing a skill workflow canvas and run controls"
+            >
+          </figure>
+        </div>
+        <div class="signal-strip">
+          <div class="shell">
+            <span>Static page, real app media, no browser demo shell</span>
+            <span>macOS and Windows via Tauri</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" aria-labelledby="product-title">
+        <div class="shell">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Why Circuit</p>
+              <h2 id="product-title">Agent work should be observable while it happens.</h2>
+            </div>
+            <p>
+              Long prompts and terminal streams hide the shape of a process. Circuit
+              keeps skill order, run state, failures, and recovery paths visible in one
+              desktop workspace.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-icon">01</div>
+              <h3>Build visual skill workflows</h3>
+              <p>Place skills on a canvas, connect dependencies, and reshape repeatable routines without reconstructing them from memory.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">02</div>
+              <h3>Track run state and logs</h3>
+              <p>See what is running, what completed, where a failure happened, and whether an active run should be cancelled.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">03</div>
+              <h3>Handle loops deliberately</h3>
+              <p>Keep cyclic workflows visible and require confirmation before running paths that can repeat indefinitely.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">04</div>
+              <h3>Use Claude and Codex together</h3>
+              <p>Read both skill directories from the same local repository and choose the execution capability that fits each step.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="workflows" aria-labelledby="workflow-title">
+        <div class="shell showcase">
+          <div class="media-panel">
+            <video
+              src="https://github.com/user-attachments/assets/b04314bb-49fd-40ec-a89e-c64aea4e17ef"
+              controls
+              muted
+              playsinline
+              poster="assets/readme/circuit-workflow-overview.png"
+            ></video>
+          </div>
+          <div class="media-copy">
+            <p class="section-kicker">Visual workflows</p>
+            <h2 id="workflow-title">Change the routine by changing the graph.</h2>
+            <p>
+              Circuit turns skill order and dependencies into something you can inspect
+              and adjust. Planning, implementation, review, and commit steps can move as
+              the team's process changes.
+            </p>
+            <div class="workflow-lines" aria-label="Example workflows">
+              <code>planning -&gt; implementation -&gt; review -&gt; commit</code>
+              <code>planning -&gt; implementation -&gt; commit -&gt; review</code>
+              <code>planning -&gt; check-token -&gt; implementation -&gt; review</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="runs" aria-labelledby="runs-title">
+        <div class="shell video-stack">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Run visibility</p>
+              <h2 id="runs-title">The canvas and run log stay in sync.</h2>
+            </div>
+            <p>
+              Active workflows can be cancelled, completed steps remain visible, and
+              failed runs are easier to inspect because the stopping point is still on
+              the graph.
+            </p>
+          </div>
+          <div class="video-row">
+            <div class="media-copy">
+              <h3>Track execution state without reading every line first.</h3>
+              <p>
+                Circuit keeps the current node, completed nodes, and run output close
+                together so failures are easier to locate and recover from.
+              </p>
+              <div class="tag-list">
+                <span class="tag">Run log</span>
+                <span class="tag">Cancelable workflows</span>
+                <span class="tag">Failure point visible</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="https://github.com/user-attachments/assets/08b5fb7f-6da0-4a0b-a7a6-59307791680f"
+                controls
+                muted
+                playsinline
+                poster="assets/readme/circuit-harness-editor.png"
+              ></video>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="loops" aria-labelledby="loops-title">
+        <div class="shell video-stack">
+          <div class="video-row">
+            <div class="media-copy">
+              <p class="section-kicker">Loop handling</p>
+              <h2 id="loops-title">Repeated work stays explicit.</h2>
+              <p>
+                Some routines need to repeat after review, validation, or failure.
+                Circuit shows cyclic paths before execution and asks for confirmation
+                when a workflow can run indefinitely.
+              </p>
+              <div class="tag-list">
+                <span class="tag">Visible cycles</span>
+                <span class="tag">Confirmation before run</span>
+                <span class="tag">Safer iteration</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="https://github.com/user-attachments/assets/4436fe4f-ec41-4ebb-a8a5-5e99944e1604"
+                controls
+                muted
+                playsinline
+                poster="assets/readme/circuit-workflow-overview.png"
+              ></video>
+            </div>
+          </div>
+          <div class="video-row">
+            <div class="media-copy">
+              <p class="section-kicker">Claude and Codex</p>
+              <h2>Use multiple agent skill systems in one workflow.</h2>
+              <p>
+                Circuit reads Claude and Codex skill directories from the local project
+                and treats them as execution capabilities that belong in the same
+                workflow, not as competing islands.
+              </p>
+              <div class="tag-list">
+                <span class="tag">`.claude/skills`</span>
+                <span class="tag">`.codex/skills`</span>
+                <span class="tag">Local repository source</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="https://github.com/user-attachments/assets/f37c94f1-7af4-4984-8cec-41bac0d59ffd"
+                controls
+                muted
+                playsinline
+                poster="assets/readme/circuit-harness-editor.png"
+              ></video>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="publish" aria-labelledby="publish-title">
+        <div class="shell publish">
+          <div class="publish-copy">
+            <p class="section-kicker">GitHub Pages</p>
+            <h2 id="publish-title">A static product page that ships from `docs/`.</h2>
+            <p>
+              No backend, no build step, and no mock agent runtime. Publish the page from
+              the repository settings by selecting the `docs/` folder as the Pages source
+              on the target branch.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="https://github.com/CIrcui-try/Circuit/releases">
+                Get the desktop app
+              </a>
+              <a class="button secondary" href="https://github.com/CIrcui-try/Circuit#readme">
+                Read the README
+              </a>
+            </div>
+          </div>
+          <div class="steps" aria-label="Publish settings">
+            <div class="step">
+              <span class="step-number">1</span>
+              <span><strong>Open repository settings</strong><span>Go to Settings, then Pages.</span></span>
+            </div>
+            <div class="step">
+              <span class="step-number">2</span>
+              <span><strong>Choose the branch</strong><span>Select the branch used for publishing.</span></span>
+            </div>
+            <div class="step">
+              <span class="step-number">3</span>
+              <span><strong>Set the folder</strong><span>Choose `/docs` and save.</span></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <span>Circuit - skill-based AI agent harness editor</span>
+        <div class="footer-links">
+          <a href="https://github.com/CIrcui-try/Circuit/releases">Releases</a>
+          <a href="https://github.com/CIrcui-try/Circuit">GitHub</a>
+          <a href="https://github.com/CIrcui-try/Circuit#readme">README</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

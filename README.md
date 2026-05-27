@@ -49,6 +49,10 @@ pnpm tauri build
 
 After launching Circuit, choose the repository you want to work with, then place skills from `.claude/skills` or `.codex/skills` onto the canvas to build a workflow.
 
+### Product Landing Page
+
+The static product landing page lives at [`docs/index.html`](docs/index.html). To publish it with GitHub Pages, open the repository's Pages settings, choose the publishing branch, and set the source folder to `/docs`.
+
 ## What Can You Do With Circuit?
 
 ### Build Visual Skill Workflows
