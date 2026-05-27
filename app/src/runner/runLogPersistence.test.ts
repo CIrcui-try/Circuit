@@ -19,9 +19,15 @@ const stdoutEvent: AgentRunEvent = {
   timestamp: "2026-05-06T00:00:01Z",
   text: "hello",
 };
+const tokenUsageEvent: AgentRunEvent = {
+  type: "token_usage",
+  timestamp: "2026-05-06T00:00:01Z",
+  usage: { totalTokens: 22708 },
+};
 const result: SkillExecutionResult = {
   status: "success",
   exitCode: 0,
+  usage: { totalTokens: 22708 },
   logs: [],
   startedAt: "2026-05-06T00:00:00Z",
   finishedAt: "2026-05-06T00:00:02Z",
@@ -36,6 +42,7 @@ describe("runLogPersistence", () => {
     const events: RunLogEntry[] = [
       { nodeId: "a", event: startEvent },
       { nodeId: "a", event: stdoutEvent },
+      { nodeId: "a", event: tokenUsageEvent },
     ];
     const nodeResults: Record<string, SkillExecutionResult> = { a: result };
 

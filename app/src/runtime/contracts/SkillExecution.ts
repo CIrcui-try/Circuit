@@ -5,6 +5,14 @@ import type {
 
 export type ApprovalKind = "trust" | "command" | "freeform";
 
+export interface TokenUsage {
+  totalTokens: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  reasoningOutputTokens?: number;
+}
+
 export type AgentRunEvent =
   | {
       type: "start";
@@ -16,6 +24,7 @@ export type AgentRunEvent =
     }
   | { type: "stdout"; timestamp: string; text: string }
   | { type: "stderr"; timestamp: string; text: string }
+  | { type: "token_usage"; timestamp: string; usage: TokenUsage }
   | { type: "status"; timestamp: string; status: string }
   | {
       type: "approval_required";
@@ -32,6 +41,7 @@ export interface SkillExecutionResult {
   exitCode?: number;
   output?: unknown;
   summary?: string;
+  usage?: TokenUsage;
   logs: AgentRunEvent[];
   startedAt: string;
   finishedAt: string;

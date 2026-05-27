@@ -200,10 +200,10 @@ describe("RealWorkflowRunner + runWorkflow integration", () => {
       "run_chain::b",
     ]);
 
-    const aPrompt = spawnCalls[0].args[1];
+    const aPrompt = spawnCalls[0].args[spawnCalls[0].args.length - 1] ?? "";
     expect(aPrompt).not.toContain("# Upstream Outputs");
 
-    const bPrompt = spawnCalls[1].args[1];
+    const bPrompt = spawnCalls[1].args[spawnCalls[1].args.length - 1] ?? "";
     expect(bPrompt).toContain("# Upstream Outputs");
     expect(bPrompt).toContain("## a  (status: success, exit: 0)");
     expect(bPrompt).toContain("out-from-a");
