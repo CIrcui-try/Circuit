@@ -56,7 +56,9 @@ describe("RepositoryList", () => {
   it("shows a work-hub header with the primary repository action", () => {
     renderWithRouter(<RepositoryList />);
 
-    expect(screen.getByRole("heading", { name: "Circuit" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Observe every run." }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Skill-Based AI Agent Harness Editor"),
     ).toBeInTheDocument();

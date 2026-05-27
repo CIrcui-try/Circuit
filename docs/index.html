@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Circuit is a local-first desktop app for turning Claude and Codex skills into visible, repeatable agent workflows."
+    >
+    <title>Circuit - Skill-Based AI Agent Harness Editor</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05060a;
+        --bg-soft: #0b1017;
+        --panel: rgba(18, 24, 34, 0.6);
+        --panel-strong: rgba(30, 38, 52, 0.74);
+        --glass: rgba(255, 255, 255, 0.065);
+        --glass-strong: rgba(255, 255, 255, 0.105);
+        --line: rgba(255, 255, 255, 0.14);
+        --line-strong: rgba(255, 255, 255, 0.28);
+        --text: #f4f7fb;
+        --muted: #aab4c2;
+        --soft: #6f7c8e;
+        --mint: #43d9ad;
+        --cyan: #63c7ff;
+        --amber: #f2b461;
+        --rose: #f17d8f;
+        --violet: #9da7ff;
+        --shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+        --glass-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          linear-gradient(115deg, rgba(99, 199, 255, 0.13), transparent 30rem),
+          linear-gradient(245deg, rgba(67, 217, 173, 0.12), transparent 32rem),
+          linear-gradient(180deg, #070810 0%, #0b1017 46%, #05060a 100%),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        line-height: 1.5;
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        content: "";
+        background:
+          radial-gradient(ellipse at 50% 0%, rgba(99, 199, 255, 0.08), transparent 58%),
+          radial-gradient(ellipse at 88% 28%, rgba(67, 217, 173, 0.08), transparent 46%),
+          radial-gradient(ellipse at 16% 24%, rgba(241, 125, 143, 0.06), transparent 44%);
+      }
+
+      img,
+      video {
+        display: block;
+        max-width: 100%;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .shell {
+        width: min(1160px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(5, 6, 10, 0.62);
+        backdrop-filter: blur(22px) saturate(140%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 72px;
+        gap: 24px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        font-weight: 750;
+        letter-spacing: 0;
+      }
+
+      .brand-mark {
+        width: 112px;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .nav-links a,
+      .button {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition:
+          border-color 160ms ease,
+          background 160ms ease,
+          color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .nav-links a {
+        padding: 0 12px;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+        background: var(--glass);
+      }
+
+      .button {
+        gap: 9px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045));
+        color: var(--text);
+        font-weight: 700;
+        font-size: 14px;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          0 14px 38px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(18px) saturate(135%);
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        border-color: var(--line-strong);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07));
+      }
+
+      .button.primary {
+        border-color: rgba(67, 217, 173, 0.5);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(133, 255, 221, 0.72) 42%, #43d9ad);
+        color: #06120f;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.65),
+          0 18px 52px rgba(67, 217, 173, 0.28);
+      }
+
+      .button.secondary {
+        color: #e5edf7;
+      }
+
+      .hero {
+        min-height: calc(100svh - 72px);
+        display: grid;
+        place-items: center;
+        position: relative;
+        overflow: hidden;
+        padding: clamp(76px, 10vh, 132px) 0;
+        isolation: isolate;
+      }
+
+      .hero::before {
+        position: absolute;
+        inset: 4% 8% 2%;
+        z-index: -1;
+        pointer-events: none;
+        content: "";
+        background:
+          conic-gradient(
+            from 220deg at 50% 52%,
+            rgba(67, 217, 173, 0),
+            rgba(67, 217, 173, 0.34),
+            rgba(99, 199, 255, 0.34),
+            rgba(157, 167, 255, 0.22),
+            rgba(241, 125, 143, 0.28),
+            rgba(242, 180, 97, 0.16),
+            rgba(67, 217, 173, 0)
+          );
+        filter: blur(56px) saturate(150%);
+        opacity: 0.72;
+        transform: rotate(-8deg) scale(1.04);
+        mask-image: radial-gradient(ellipse at center, #000 0 58%, transparent 78%);
+      }
+
+      .hero::after {
+        position: absolute;
+        inset: 18% 22% 16%;
+        z-index: -1;
+        pointer-events: none;
+        content: "";
+        background:
+          linear-gradient(135deg, rgba(67, 217, 173, 0.25), rgba(99, 199, 255, 0.18) 42%, rgba(241, 125, 143, 0.18)),
+          radial-gradient(ellipse at center, rgba(255, 255, 255, 0.12), transparent 64%);
+        filter: blur(70px) saturate(155%);
+        opacity: 0.48;
+        transform: rotate(8deg);
+        mask-image: radial-gradient(ellipse at center, #000 0 52%, transparent 76%);
+      }
+
+      .hero-grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .hero-grid > div {
+        z-index: 2;
+        display: grid;
+        justify-items: center;
+        max-width: 860px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 980px;
+        margin-bottom: 24px;
+        font-size: clamp(58px, 9vw, 118px);
+        line-height: 0.95;
+        letter-spacing: 0;
+        text-shadow:
+          0 18px 70px rgba(99, 199, 255, 0.2),
+          0 2px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      .hero-copy {
+        max-width: 780px;
+        margin: 0;
+        color: #d2d9e5;
+        font-size: clamp(20px, 2.2vw, 28px);
+        line-height: 1.35;
+      }
+
+      .hero-actions {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 42px;
+      }
+
+      .section {
+        position: relative;
+        padding: 128px 0;
+      }
+
+      .section.alt {
+        background: transparent;
+      }
+
+      .section + .section::before {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: min(1080px, calc(100% - 40px));
+        height: 30px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        content: "";
+        background:
+          radial-gradient(ellipse at 50% 50%, rgba(67, 217, 173, 0.07), transparent 36%),
+          radial-gradient(ellipse at 54% 50%, rgba(99, 199, 255, 0.06), transparent 32%),
+          linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.035) 24%, rgba(67, 217, 173, 0.22) 47%, rgba(99, 199, 255, 0.2) 53%, rgba(157, 167, 255, 0.1) 62%, rgba(255, 255, 255, 0.035) 76%, transparent 100%),
+          linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.05) 24%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.05) 76%, transparent 100%);
+        background-position:
+          center,
+          center,
+          center,
+          center calc(50% + 1px);
+        background-size:
+          100% 100%,
+          100% 100%,
+          100% 1px,
+          100% 1px;
+        background-repeat: no-repeat;
+        filter: drop-shadow(0 0 6px rgba(67, 217, 173, 0.08)) drop-shadow(0 0 10px rgba(99, 199, 255, 0.06));
+        opacity: 0.72;
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.52fr);
+        gap: 48px;
+        align-items: end;
+        margin-bottom: 56px;
+      }
+
+      .section-kicker {
+        margin-bottom: 12px;
+        color: var(--mint);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h2 {
+        max-width: 760px;
+        margin-bottom: 0;
+        font-size: clamp(32px, 4vw, 56px);
+        line-height: 1.02;
+        letter-spacing: 0;
+      }
+
+      .section-head p,
+      .wide-copy {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 22px;
+      }
+
+      .feature-card {
+        min-height: 210px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.11),
+          var(--glass-shadow);
+        backdrop-filter: blur(22px) saturate(135%);
+      }
+
+      .feature-card h3 {
+        margin-bottom: 10px;
+        font-size: 18px;
+      }
+
+      .feature-card p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .feature-icon {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 18px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background:
+          linear-gradient(135deg, rgba(67, 217, 173, 0.2), rgba(99, 199, 255, 0.11));
+        color: var(--mint);
+        font-weight: 900;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      }
+
+      .showcase {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.72fr);
+        gap: 60px;
+        align-items: center;
+      }
+
+      .media-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035)),
+          #05070a;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(22px) saturate(130%);
+      }
+
+      .media-panel video {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        background: #05070a;
+      }
+
+      .media-copy {
+        display: grid;
+        gap: 18px;
+      }
+
+      .media-copy h3 {
+        margin-bottom: 0;
+        font-size: clamp(24px, 3vw, 36px);
+        line-height: 1.08;
+      }
+
+      .media-copy p {
+        margin-bottom: 0;
+        color: var(--muted);
+      }
+
+      .workflow-lines {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .workflow-lines code {
+        display: block;
+        min-height: 44px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(0, 0, 0, 0.24));
+        color: #d9f7ee;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+        white-space: normal;
+      }
+
+      .video-stack {
+        display: grid;
+        gap: 76px;
+      }
+
+      .video-row {
+        display: grid;
+        grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1fr);
+        gap: 60px;
+        align-items: center;
+      }
+
+      .video-row:nth-child(even),
+      .video-row.reversed {
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.68fr);
+      }
+
+      .video-row:nth-child(even) .media-copy,
+      .video-row.reversed .media-copy {
+        order: 2;
+      }
+
+      .video-row:nth-child(even) .media-panel,
+      .video-row.reversed .media-panel {
+        order: 1;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .tag {
+        min-height: 30px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 10px;
+        color: #dce5ef;
+        background: var(--glass);
+        font-size: 13px;
+        font-weight: 700;
+        backdrop-filter: blur(14px);
+      }
+
+      .site-footer {
+        padding: 32px 0 42px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--soft);
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        font-size: 14px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+
+      .footer-links a:hover {
+        color: var(--text);
+      }
+
+      @media (max-width: 980px) {
+        .section-head,
+        .showcase,
+        .video-row,
+        .video-row:nth-child(even),
+        .video-row.reversed {
+          grid-template-columns: 1fr;
+        }
+
+        .video-row:nth-child(even) .media-copy,
+        .video-row:nth-child(even) .media-panel,
+        .video-row.reversed .media-copy,
+        .video-row.reversed .media-panel {
+          order: initial;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .hero {
+          min-height: calc(100svh - 72px);
+        }
+
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          width: min(100% - 28px, 1160px);
+        }
+
+        .nav {
+          min-height: auto;
+          padding: 14px 0;
+          align-items: flex-start;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .hero {
+          min-height: calc(100svh - 64px);
+          padding: 64px 0;
+        }
+
+        h1 {
+          font-size: 72px;
+        }
+
+        .hero-copy {
+          font-size: 19px;
+        }
+
+        .hero-actions {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .section {
+          padding: 84px 0;
+        }
+
+        .section + .section::before {
+          width: min(100% - 28px, 1160px);
+          height: 24px;
+        }
+
+        .section-head {
+          margin-bottom: 34px;
+        }
+
+        .footer-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell nav">
+        <a class="brand" href="#top" aria-label="Circuit home">
+          <img class="brand-mark" src="assets/readme/circuit-graphic-logo.png" alt="">
+          <span class="sr-only">Circuit</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="#workflows">Workflows</a>
+          <a href="#runs">Runs</a>
+          <a href="#loops">Loops</a>
+          <a href="#agents">Agents</a>
+          <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">Repository</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="shell hero-grid">
+          <div>
+            <h1 id="hero-title">Observe every run.</h1>
+            <p class="hero-copy">
+              Turn Claude and Codex skills in your repository into visible, repeatable,
+              controllable development workflows.
+            </p>
+            <div class="hero-actions" aria-label="Primary actions">
+              <a class="button primary" href="https://github.com/CIrcui-try/Circuit/releases">
+                Download from Releases
+              </a>
+              <a class="button secondary" href="https://github.com/CIrcui-try/Circuit">
+                View repository
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" aria-labelledby="product-title">
+        <div class="shell">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Why Circuit</p>
+              <h2 id="product-title">Agent work should be observable while it happens.</h2>
+            </div>
+            <p>
+              Long prompts and terminal streams hide the shape of a process. Circuit
+              keeps skill order, run state, failures, and recovery paths visible in one
+              desktop workspace.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-icon">01</div>
+              <h3>Build visual skill workflows</h3>
+              <p>Place skills on a canvas, connect dependencies, and reshape repeatable routines without reconstructing them from memory.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">02</div>
+              <h3>Track run state and logs</h3>
+              <p>See what is running, what completed, where a failure happened, and whether an active run should be cancelled.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">03</div>
+              <h3>Handle loops deliberately</h3>
+              <p>Keep cyclic workflows visible and require confirmation before running paths that can repeat indefinitely.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon">04</div>
+              <h3>Use Claude and Codex together</h3>
+              <p>Read both skill directories from the same local repository and choose the execution capability that fits each step.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="workflows" aria-labelledby="workflow-title">
+        <div class="shell showcase">
+          <div class="media-panel">
+            <video
+              src="assets/media/1.mp4"
+              autoplay
+              loop
+              muted
+              playsinline
+              preload="metadata"
+              poster="assets/readme/circuit-workflow-overview.png"
+            ></video>
+          </div>
+          <div class="media-copy">
+            <p class="section-kicker">Visual workflows</p>
+            <h2 id="workflow-title">Change the routine by changing the graph.</h2>
+            <p>
+              Circuit turns skill order and dependencies into something you can inspect
+              and adjust. Planning, implementation, review, and commit steps can move as
+              the team's process changes.
+            </p>
+            <div class="workflow-lines" aria-label="Example workflows">
+              <code>planning -&gt; implementation -&gt; review -&gt; commit</code>
+              <code>planning -&gt; implementation -&gt; commit -&gt; review</code>
+              <code>planning -&gt; check-token -&gt; implementation -&gt; review</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="runs" aria-labelledby="runs-title">
+        <div class="shell video-stack">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Run visibility</p>
+              <h2 id="runs-title">The canvas and run log stay in sync.</h2>
+            </div>
+            <p>
+              Active workflows can be cancelled, completed steps remain visible, and
+              failed runs are easier to inspect because the stopping point is still on
+              the graph.
+            </p>
+          </div>
+          <div class="video-row">
+            <div class="media-copy">
+              <h3>Track execution state without reading every line first.</h3>
+              <p>
+                Circuit keeps the current node, completed nodes, and run output close
+                together so failures are easier to locate and recover from.
+              </p>
+              <div class="tag-list">
+                <span class="tag">Run log</span>
+                <span class="tag">Cancelable workflows</span>
+                <span class="tag">Failure point visible</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="assets/media/2.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="metadata"
+                poster="assets/readme/circuit-harness-editor.png"
+              ></video>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="loops" aria-labelledby="loops-title">
+        <div class="shell">
+          <div class="video-row">
+            <div class="media-copy">
+              <p class="section-kicker">Loop handling</p>
+              <h2 id="loops-title">Repeated work stays explicit.</h2>
+              <p>
+                Some routines need to repeat after review, validation, or failure.
+                Circuit shows cyclic paths before execution and asks for confirmation
+                when a workflow can run indefinitely.
+              </p>
+              <div class="tag-list">
+                <span class="tag">Visible cycles</span>
+                <span class="tag">Confirmation before run</span>
+                <span class="tag">Safer iteration</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="assets/media/3.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="metadata"
+                poster="assets/readme/circuit-workflow-overview.png"
+              ></video>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="agents" aria-labelledby="agents-title">
+        <div class="shell">
+          <div class="video-row reversed">
+            <div class="media-copy">
+              <p class="section-kicker">Claude and Codex</p>
+              <h2 id="agents-title">Use multiple agent skill systems in one workflow.</h2>
+              <p>
+                Circuit reads Claude and Codex skill directories from the local project
+                and treats them as execution capabilities that belong in the same
+                workflow, not as competing islands.
+              </p>
+              <div class="tag-list">
+                <span class="tag">`.claude/skills`</span>
+                <span class="tag">`.codex/skills`</span>
+                <span class="tag">Local repository source</span>
+              </div>
+            </div>
+            <div class="media-panel">
+              <video
+                src="assets/media/4.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="metadata"
+                poster="assets/readme/circuit-harness-editor.png"
+              ></video>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <span>Circuit - skill-based AI agent harness editor</span>
+        <div class="footer-links">
+          <a href="https://github.com/CIrcui-try/Circuit/releases">Releases</a>
+          <a href="https://github.com/CIrcui-try/Circuit">GitHub</a>
+          <a href="https://github.com/CIrcui-try/Circuit#readme">README</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
